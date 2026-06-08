@@ -30,8 +30,6 @@ prop_aliases:
   bhmdot: BH_Mdot
 
 dataset_columns:
-  groupID: 'HaloID'
-  groupID: 'GalID'
   parent_halo_index: 'parent_halo_index'
   ngas: 'ngas'
   nstar: 'nstar'

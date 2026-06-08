@@ -14,6 +14,7 @@ def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:
   galaxy_masses = []
   file_lengths = {'halos': {}, 'galaxies': {}}
 
+  cumulative_halos = 0
   for file in files:
     with h5py.File(file, 'r') as f:
       file_lengths['halos'][file] = len(f['halo_data']['dicts/masses.total'])
@@ -26,25 +27,26 @@ def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:
       try:
         file_galaxy_masses = f['galaxy_data']['dicts/masses.stellar'][:]
         if len(file_galaxy_masses) != 0:
-          galaxy_parent_halo.append(f['galaxy_data']['parent_halo_index'][:] + len(halo_masses))
+          galaxy_parent_halo.append(f['galaxy_data']['parent_halo_index'][:] + cumulative_halos)
           galaxy_masses.append(file_galaxy_masses)
       except: pass
-  print(file_lengths)
+      
+      cumulative_halos += file_lengths['halos'][file]
   halo_masses = np.concatenate(halo_masses)
   galaxy_masses = np.concatenate(galaxy_masses)
   galaxy_parent_halo = np.concatenate(galaxy_parent_halo)
 
   halo_order = np.argsort(halo_masses)
+  inverse_order = np.argsort(halo_order)  # maps old index -> new index
+  galaxy_parent_halo = inverse_order[galaxy_parent_halo]
   galaxy_order = np.argsort(galaxy_masses)
-  galaxy_parent_halo = halo_order[galaxy_parent_halo]
 
   with h5py.File(outfile, 'w') as f_out:
     halo_group = f_out.create_group('halo_data')
     galaxy_group = f_out.create_group('galaxy_data')
 
     for dataset in config['dataset_columns'].keys():
-      print(dataset)
-      if 'groupID' in dataset or 'parent_halo_index' in dataset: continue
+      if dataset in ['haloID', 'galaxyID', 'parent_halo_index']: continue
       if dataset in ['glist', 'slist', 'dmlist', 'bhlist']: continue # old code guard
       halo_data = []
       galaxy_data = []
@@ -99,5 +101,4 @@ def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:
         out_group.create_dataset(f'{ptype_list}_indices', data=reordered, compression=1)
         out_group.create_dataset(f'{ptype_list}_offsets', data=merged_offsets, compression=1)
         out_group.create_dataset(f'{ptype_list}_lengths', data=merged_lengths, compression=1)
-
 

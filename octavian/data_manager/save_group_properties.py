@@ -40,6 +40,12 @@ def save_group_properties(data_manager: DataManager, filename: str) -> None:
         hdf5_group.create_dataset(f'{ptype_list}_offsets', data=pl['offsets'], compression=1)
         hdf5_group.create_dataset(f'{ptype_list}_lengths', data=pl['lengths'], compression=1)
 
+    # TODO: temporary fix for missing IDs 
+    # needs addressing in the full refactor
+    halo_data.create_dataset('haloID', data=data_manager.group_data['halos'].index.to_numpy(), compression=1)
+    if 'galaxies' in config['groups']:
+        galaxy_data.create_dataset('galaxyID', data=data_manager.group_data['galaxies'].index.to_numpy(), compression=1)
+        
     # write all other datasets
     for dataset_name, column in config['dataset_columns'].items():
       if dataset_name in ptype_lists:
