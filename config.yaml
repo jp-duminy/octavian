@@ -1,3 +1,8 @@
+# STAGES TO EXECUTE
+stages:
+  fof6d: true
+  group_properties: true
+
 # INTERNAL NAMES
 ptype_names:
   gas: PartType0
