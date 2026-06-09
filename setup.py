@@ -9,6 +9,6 @@ setup(
   packages=find_packages(),
   python_requires='>=3.11',
   install_requires=[
-    'numpy', 'pandas', 'scipy', 'scikit-learn', 'astropy', 'unyt', 'h5py'
+    'numpy', 'pandas', 'scipy', 'astropy', 'unyt', 'h5py'
   ]
 )
