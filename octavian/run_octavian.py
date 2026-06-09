@@ -91,7 +91,7 @@ def run(snapshot_file: str, config_file: str, output_directory: str) -> None:
     """
     comm = _get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0
-    size = comm.Get_size()
+    size = comm.Get_size() if comm else 1
 
     logging.basicConfig(
         level=logging.INFO,
