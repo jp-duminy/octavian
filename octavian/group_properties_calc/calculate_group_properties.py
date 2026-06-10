@@ -6,7 +6,6 @@ if TYPE_CHECKING:
 import numpy as np
 import pandas as pd
 import unyt
-from sklearn.neighbors import NearestNeighbors
 from functools import partial
 from astropy import constants as const
 from time import perf_counter
@@ -126,6 +125,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
 
   if particle_type == 'bh':
     group_mass = max_value_per_group(masses, group_idx, n_groups) # REVIEW: why?
+    group_mass = np.where(np.isfinite(group_mass), group_mass, 0.0)
   else:
     group_mass = sum_per_group(masses, group_idx, n_groups)
 
@@ -398,7 +398,7 @@ def bh_group_properties(data_manager: DataManager, group_name: str) -> None:
 
   n_groups = len(group_data)
   group_idx = group_data.index.get_indexer(group_ids)
-
+  
   # find most massive BH per group
   max_idx = max_idx_per_group(masses, group_idx, n_groups)
   valid = max_idx >= 0
