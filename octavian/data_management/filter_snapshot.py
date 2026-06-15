@@ -1,6 +1,8 @@
 import h5py
 import numpy as np
 
+# NOTE: will likely be unnecessary after move to HDF5 MPI.
+
 def find_nearest(array, value):
     idx = (np.abs(array - value)).argmin()
     return array[idx]

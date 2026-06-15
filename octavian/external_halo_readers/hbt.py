@@ -8,6 +8,8 @@ Code is based on the architecture outlined therein.
 
 """
 
+# FIXME: likely dead code as we want to use HBT HERONS
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

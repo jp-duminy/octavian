@@ -13,6 +13,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 
 # get mis for fof6d
+# FIXME: MIS is computed per-rank which is not globally-consistent.
 def get_mean_interparticle_separation(data_manager: 'DataManager') -> None:
   t = data_manager.simulation['time']
   a = data_manager.simulation['a']
@@ -47,7 +48,7 @@ def get_mean_interparticle_separation(data_manager: 'DataManager') -> None:
   data_manager.efres = efres
   data_manager.Ob = Ob
 
-
+# FIXME: this function is unnecessary; the KDTree takes care of spatial decomposition, and it is incompatible with PBCs
 # initial assignment of galaxy ids through sorting in x,y,z directions
 def fof_sort_halo(pos, vel, ptype, original_idx, minstars, fof_LL):
     n = len(pos)
@@ -74,13 +75,14 @@ def fof_sort_halo(pos, vel, ptype, original_idx, minstars, fof_LL):
 # helper functions
 #
 
+# REVIEW: necessity of these two functions, hangover from Caesar; we are probably efficient enough to refactor this.
 # kernel table for fof6d velocity criterion distance weights
 def create_kernel_table(fof_LL,ntab=1000):
     kerneltab = np.zeros(ntab+1)
     hinv = 1./fof_LL
     for i in range(ntab):
         r = 1. * i / ntab
-        q = 2 * r * hinv
+        q = 2 * r * hinv # FIXME: double normalisation
         if q > 2: kerneltab[i] = 0.0
         elif q > 1: kerneltab[i] = 0.25 * (2 - q)**3
         else: kerneltab[i] = 1 - 1.5 * q * q * (1 - 0.5 * q)
@@ -97,6 +99,7 @@ def kernel(r_over_h,kerneltab):
 # fof6d functions
 #
 
+# REVIEW: function needs single responsibility principle enforced.
 # fof6d function to apply on groups
 def run_fof6d_in_halo(
     pos, vel, ptype, original_idx,
@@ -147,8 +150,8 @@ def run_fof6d_in_halo(
     g_ptype = ptype[indices]
     g_idx = original_idx[indices]
     n = len(indices)
-    # NOTE: everything cast to KDTree with scipy functionality
-    tree = KDTree(g_pos)
+
+    tree = KDTree(g_pos) # REVIEW: move this to PBCs
     sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
 
     rows = sdm.row
@@ -164,7 +167,7 @@ def run_fof6d_in_halo(
 
     # vectorised sigma per particle
     weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) 
+    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
 
     # vectorised velocity criterion
     valid = vel_diff <= (vel_LL * sigmas[rows])

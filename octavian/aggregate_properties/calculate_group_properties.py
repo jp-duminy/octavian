@@ -9,6 +9,8 @@ import unyt
 from functools import partial
 from astropy import constants as const
 
+# REVIEW: decompose functions, enforce single responsibility principle.
+
 from scipy.spatial import KDTree
 
 from octavian.aggregate_properties.group_computations import (
@@ -61,6 +63,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   # kinematics: positions, velocities
   positions_list, velocities_list = [], []
 
+  # REVIEW: note this causes a memory spike we want to avoid
   # cast the required data to numpy.
   for ptype in ptypes:
     df = data_manager.data[ptype]
@@ -531,6 +534,7 @@ def calculate_aperture_masses(data_manager, config):
 
     group_data['mass_total_30kpc'] = result[:, :len(config['ptypes'])].sum(axis=1)
 
+# REVIEW: eliminate boilerplate
 def calculate_group_properties(data_manager: DataManager) -> None:
 
   # admin

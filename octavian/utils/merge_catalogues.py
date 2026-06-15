@@ -3,6 +3,8 @@ import numpy as np
 import warnings
 from yaml import safe_load
 
+# FIXME: function is littered with try/except statements, need to refactor.
+
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:

@@ -8,6 +8,7 @@ import os
 import numpy as np
 import warnings
 
+# REVIEW: needs refactoring to avoid all the conditionals
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 

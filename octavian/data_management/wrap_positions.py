@@ -6,6 +6,9 @@ if TYPE_CHECKING:
 import numpy as np
 import pandas as pd
 
+# FIXME: worst function in the database, highly inefficient and destructively mutates coordinates incorrectly
+  # remove and move to unwrapping relative to centres.
+
 def wrap_positions(data_manager: DataManager) -> None:
   config = data_manager.config
 
