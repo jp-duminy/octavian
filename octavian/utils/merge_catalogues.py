@@ -69,7 +69,7 @@ def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:
 
     halo_group['HaloID'] = np.arange(np.sum(list(file_lengths['halos'].values())))
     galaxy_group['GalID'] = np.arange(np.sum(list(file_lengths['galaxies'].values())))
-    galaxy_group['parent_halo_index'] = galaxy_parent_halo
+    galaxy_group['parent_halo_index'] = galaxy_parent_halo[galaxy_order]
     
     ptype_lists = ['glist', 'slist', 'dmlist', 'bhlist']
     for ptype_list in ptype_lists:

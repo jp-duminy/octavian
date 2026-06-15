@@ -103,14 +103,21 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
 
   group_idx = group_data.index.get_indexer(group_ids) # build a list of particles where the value of each particle is its group ID
 
+  # HACK: builds from original HIDs then reassigns 
   # parent halo assignment
   if group_name == 'galaxies' and particle_type == 'total':
-      parent = np.full(n_groups, -1, dtype=np.int64)
-      for i in range(len(group_ids)):
-          g = group_idx[i]
-          if parent[g] == -1:
-              parent[g] = halo_ids[i]
-      group_data['parent_halo_index'] = parent
+    parent = np.full(n_groups, -1, dtype=np.int64)
+    for i in range(len(group_ids)):
+        g = group_idx[i]
+        if parent[g] == -1:
+            parent[g] = halo_ids[i]
+    group_data['parent_halo_index'] = parent
+
+    max_hid = data_manager.group_data['halos'].index.max()
+    halo_index_lookup = np.full(max_hid + 1, -1, dtype=np.int64)
+    halo_index_lookup[data_manager.group_data['halos'].index] = np.arange(len(data_manager.group_data['halos']))
+    parent = np.where(parent != -1, halo_index_lookup[parent], -1)
+    group_data['parent_halo_index'] = parent
 
   # -
   # step 3: nparticles
@@ -192,7 +199,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   # -
 
   disp_sums = sum_per_group(np.sum(velocities_rel_com**2, axis=1), group_idx, n_groups)
-  vel_disps = np.sqrt(disp_sums / counts)
+  vel_disps = np.where(counts > 0, np.sqrt(disp_sums / np.maximum(counts, 1)), np.nan)
   group_data[f'velocity_dispersion_{particle_type}'] = vel_disps
 
   # -
@@ -217,13 +224,14 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   group_data[f'kappa_rot_{particle_type}'] = krot / ktot
 
   angular_cols = [
-    f'velocity_dispersion_{particle_type}',
-    f'Lx_{particle_type}', f'Ly_{particle_type}', f'Lz_{particle_type}',
-    f'BoverT_{particle_type}', f'kappa_rot_{particle_type}',
-    ]
-  
+      f'velocity_dispersion_{particle_type}',
+      f'Lx_{particle_type}', f'Ly_{particle_type}', f'Lz_{particle_type}',
+      f'L_{particle_type}',
+      f'ALPHA_{particle_type}', f'BETA_{particle_type}',
+      f'BoverT_{particle_type}', f'kappa_rot_{particle_type}',
+  ]
   # for small groups: set quantites = 0 as they are not meaningful (as done in original code)
-  small = counts < 3
+  small = (counts > 0) & (counts < 3)
   for col in angular_cols:
       vals = group_data[col].to_numpy().copy()
       vals[small] = 0.
@@ -268,6 +276,23 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
     for f, factor in enumerate([200, 500, 2500]):
         group_data[f'radius_{factor}_c'] = virial_r[:, f]
         group_data[f'mass_{factor}_c'] = virial_m[:, f]
+
+  # NOTE: blanket pass at the end to enforce NaN vs zero convention.
+  empty = counts == 0
+  if np.any(empty):
+      nan_cols = [
+          f'velocity_dispersion_{particle_type}',
+          f'Lx_{particle_type}', f'Ly_{particle_type}', f'Lz_{particle_type}',
+          f'L_{particle_type}',
+          f'ALPHA_{particle_type}', f'BETA_{particle_type}',
+          f'BoverT_{particle_type}', f'kappa_rot_{particle_type}',
+          f'radius_{particle_type}_r20', f'radius_{particle_type}_half_mass', f'radius_{particle_type}_r80',
+      ]
+      for col in nan_cols:
+          if col in group_data.columns:
+              vals = group_data[col].to_numpy().copy()
+              vals[empty] = np.nan
+              group_data[col] = vals
 
 def gas_group_properties(data_manager: DataManager, group_name: str) -> None:
     
