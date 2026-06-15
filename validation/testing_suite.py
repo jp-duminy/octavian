@@ -31,7 +31,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # data
-from validation.test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
+from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
 from octavian.data_management import DataManager, save_group_properties, wrap_positions, filter_snapshot

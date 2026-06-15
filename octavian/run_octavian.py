@@ -79,7 +79,7 @@ def _execute_pipeline(snapshot_file: str, config_file: str, output_file: str, co
         calculate_group_properties(data_manager=data_manager)
 
     get_particle_lists(data_manager=data_manager)
-    save_group_properties(data_manager=data_manager, output_directory=output_file)
+    save_group_properties(data_manager=data_manager, filename=output_file)
 
 def run(snapshot_file: str, config_file: str, output_directory: str) -> None:
     """
