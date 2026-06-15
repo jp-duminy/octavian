@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 import ctypes # for accelerated reading
 import gzip
 from pathlib import Path
-from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -170,37 +169,19 @@ def load_ahf(data_manager, particles_path, halos_path=None, mode='field'):
     else:
         halos_path = Path(halos_path)
 
-    print(f"Loading AHF data...")
-    t1 = perf_counter()
     properties = read_ahf_halos(halos_path)
     member_hids, member_pids, member_ptypes = read_ahf_particles_c(particles_path)
-    t2 = perf_counter()
-    print(f"Finished in {(t2 - t1):.3f} seconds.")
     
     halo_ids = properties['ID'].to_numpy().astype(np.int64)
     parent_ids = properties['hostHalo'].to_numpy().astype(np.int64)
     parent_ids[parent_ids == 0] = -1 # AHF sets field halos equal to 0 but we want them as -1
-    
-    print(f"Extracting halo structure and membership...")
-    t0 = perf_counter()
+
     reader = HaloReader(data_manager)
-    print("Remapping IDs...")
-    t1 = perf_counter()
     halo_ids, parent_ids, member_hids = reader.remap_ids(halo_ids, parent_ids, member_hids)
-    print(f"  Remap: {perf_counter() - t1:.3f}s")
-
-    t1 = perf_counter()
     tree = HaloTree(halo_ids, parent_ids, properties)
-    print(f"  HaloTree: {perf_counter() - t1:.3f}s")
-
-    t1 = perf_counter()
     membership = HaloMembership(tree, member_hids, member_pids, member_ptypes, exclusive=False)
-    print(f"  HaloMembership: {perf_counter() - t1:.3f}s")
 
     data_manager.halo_tree = tree
     data_manager.halo_membership = membership
 
-    t1 = perf_counter()
     reader.assign(membership, mode)
-    print(f"  Assign: {perf_counter() - t1:.3f}s")
-    print(f"Finished in {(perf_counter() - t0):.3f} seconds.")

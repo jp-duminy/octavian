@@ -70,7 +70,6 @@ def filter_snapshot(snapfile: str, outfile: str, nsplit: int=4):
 
     # guard (necessary for high-redshift snapshots with no HaloIDs)
     if len(all_hids) == 0:
-      print(f"No halos (make sure to run halo finder!) found in {snapfile}, skipping.")
       return
     
     n_halos = all_hids.max() + 1  # use hid as direct index
@@ -116,7 +115,6 @@ def filter_snapshot(snapfile: str, outfile: str, nsplit: int=4):
           rank_masks.append(np.isin(ids_sorted, halo_set))
 
       for dataset in datasets:
-        print(ptype, dataset)
         if dataset == 'particle_index':        
             data = particle_index[in_halo][order]
         else:

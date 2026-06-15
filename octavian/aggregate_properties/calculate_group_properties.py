@@ -8,7 +8,6 @@ import pandas as pd
 import unyt
 from functools import partial
 from astropy import constants as const
-from time import perf_counter
 
 from scipy.spatial import KDTree
 
@@ -450,7 +449,6 @@ def calculate_local_densities(data_manager: DataManager) -> None:
     group_data = data_manager.group_data[group]
 
     if len(group_data) == 0:
-      print(f"No group data!")
       continue
 
     pos = group_data[['x_total', 'y_total', 'z_total']].to_numpy()
