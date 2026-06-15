@@ -1,20 +1,19 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_manager import DataManager
+  from octavian.data_management import DataManager
 
 import numpy as np
 import pandas as pd
 import unyt
 from joblib import Parallel, delayed
 
-from time import perf_counter
-
 from scipy.spatial import KDTree
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 
 # get mis for fof6d
+# FIXME: MIS is computed per-rank which is not globally-consistent.
 def get_mean_interparticle_separation(data_manager: 'DataManager') -> None:
   t = data_manager.simulation['time']
   a = data_manager.simulation['a']
@@ -49,7 +48,7 @@ def get_mean_interparticle_separation(data_manager: 'DataManager') -> None:
   data_manager.efres = efres
   data_manager.Ob = Ob
 
-
+# FIXME: this function is unnecessary; the KDTree takes care of spatial decomposition, and it is incompatible with PBCs
 # initial assignment of galaxy ids through sorting in x,y,z directions
 def fof_sort_halo(pos, vel, ptype, original_idx, minstars, fof_LL):
     n = len(pos)
@@ -76,13 +75,14 @@ def fof_sort_halo(pos, vel, ptype, original_idx, minstars, fof_LL):
 # helper functions
 #
 
+# REVIEW: necessity of these two functions, hangover from Caesar; we are probably efficient enough to refactor this.
 # kernel table for fof6d velocity criterion distance weights
 def create_kernel_table(fof_LL,ntab=1000):
     kerneltab = np.zeros(ntab+1)
     hinv = 1./fof_LL
     for i in range(ntab):
         r = 1. * i / ntab
-        q = 2 * r * hinv
+        q = 2 * r * hinv # FIXME: double normalisation
         if q > 2: kerneltab[i] = 0.0
         elif q > 1: kerneltab[i] = 0.25 * (2 - q)**3
         else: kerneltab[i] = 1 - 1.5 * q * q * (1 - 0.5 * q)
@@ -99,26 +99,23 @@ def kernel(r_over_h,kerneltab):
 # fof6d functions
 #
 
+# REVIEW: function needs single responsibility principle enforced.
 # fof6d function to apply on groups
 def run_fof6d_in_halo(
     pos, vel, ptype, original_idx,
     kernel_table, minstars, fof_LL, vel_LL=None
 ):
   
-  timings = {'n_particles': len(pos)}
   if len(pos) < minstars:
-      return [], timings
-
-  t0 = perf_counter()
+      return []
 
   # stage 1: directional group find
   pos, vel, ptype, original_idx, gal_ids = fof_sort_halo(
       pos, vel, ptype, original_idx, minstars, fof_LL
   )
-  timings['sort'] = perf_counter() - t0
 
   if len(pos) == 0:
-    return [], timings
+    return []
   
   # split into groups
   group_order = np.argsort(gal_ids, kind='stable')
@@ -137,7 +134,7 @@ def run_fof6d_in_halo(
               mask = g_ptype == pt
               galaxy.append((pt, g_idx[mask]))
           galaxies.append(galaxy)
-      return galaxies, timings
+      return galaxies
   
 
   #
@@ -146,12 +143,6 @@ def run_fof6d_in_halo(
   # updated vectorised loop implementation (JP)
   #
 
-  # diagnostics
-  t0 = perf_counter() # reset the clock
-  t_neighbors_tot = 0
-  t_weights_tot = 0
-  t_merge_tot = 0
-
   new_groups = []
   for indices in group_indices:
     g_pos = pos[indices]
@@ -159,17 +150,10 @@ def run_fof6d_in_halo(
     g_ptype = ptype[indices]
     g_idx = original_idx[indices]
     n = len(indices)
-    # NOTE: everything cast to KDTree with scipy functionality
-    t1 = perf_counter()
-    tree = KDTree(g_pos)
-    sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
-    t2 = perf_counter()
-    t_neighbors_tot += t2 - t1 # profiling: nearest neighbour speeds
 
-    # NOTE: new algorithm using a sparse matrix implementation to avoid expensive python loops and pass code into scipy's C
-    # vectorised COO (COOrdinate) construction (scipy recommended)
-    # meet the definition of a sparse matrix
-    # row[i], col[i] = value[i]
+    tree = KDTree(g_pos) # REVIEW: move this to PBCs
+    sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
+
     rows = sdm.row
     cols = sdm.col
     dists = sdm.data
@@ -183,22 +167,13 @@ def run_fof6d_in_halo(
 
     # vectorised sigma per particle
     weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) 
-    t3 = perf_counter()
-    t_weights_tot += t3 - t2 # profiling: weighting 
+    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
 
     # vectorised velocity criterion
     valid = vel_diff <= (vel_LL * sigmas[rows])
 
-    # build sparse matrix from valid edges only
-    # REVIEW: csr matrices
-    # https://stackoverflow.com/questions/11016256/connected-components-in-a-graph-with-100-million-nodes (the syntax has changed slightly with new scipy versions)
     adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
     n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
-
-    t4 = perf_counter()
-    t_merge_tot += t4 - t3 # profiling: merging (big python loop no more)
-
 
     # split by label — numpy instead of python loop
     label_order = np.argsort(labels)
@@ -213,11 +188,6 @@ def run_fof6d_in_halo(
       if np.sum(c_ptype == 'star') >= minstars:
           new_groups.append((g_ptype[component], g_idx[component]))
 
-  # profiling: timings
-  timings['neighbors'] = t_neighbors_tot
-  timings['weights'] = t_weights_tot
-  timings['merge'] = t_merge_tot
-
   # unavoidable python loop
   galaxies = []
   for g_ptype, g_idx in new_groups:
@@ -227,7 +197,7 @@ def run_fof6d_in_halo(
           galaxy.append((pt, g_idx[mask]))
       galaxies.append(galaxy)
 
-  return galaxies, timings
+  return galaxies
 
 # vectorised version of caesar fof6d
 def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
@@ -299,9 +269,7 @@ def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
   )
 
   # unpack results (same logic as before, just reordered)
-  galaxies = [g for gals, _ in results for g in gals if len(gals) != 0]
-  all_timings = [t for _, t in results]
-  timings_df = pd.DataFrame(all_timings)
+  galaxies = [g for gals in results for g in gals if len(gals) != 0]
 
   for ptype in config['ptypes']:
     data_manager.data[ptype]['GalID'] = -1
@@ -314,12 +282,3 @@ def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
     data_manager.data[ptype]['GalID'] = data_manager.data[ptype]['GalID'].astype('category')
 
   if np.all(data_manager.data['star']['GalID'] == -1): config['groups'] = ['halos']
-
-  print(f"\n=== FOF6D Timing Summary (rank {data_manager.rank}) ===")
-  print(f"Halos processed: {len(timings_df)}")
-  print(f"Total particles: {timings_df['n_particles'].sum()}")
-  print(timings_df[['sort', 'neighbors', 'weights', 'merge']].sum().to_string())
-  print(f"\nTop 5 halos by total time:")
-  timings_df['total'] = timings_df[['sort', 'neighbors', 'weights', 'merge']].sum(axis=1)
-  print(timings_df.nlargest(5, 'total').to_string())
-  print("=" * 40)

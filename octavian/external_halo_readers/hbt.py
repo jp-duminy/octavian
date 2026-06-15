@@ -8,19 +8,20 @@ Code is based on the architecture outlined therein.
 
 """
 
+# FIXME: likely dead code as we want to use HBT HERONS
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from octavian.data_manager import DataManager
+    from octavian.data_management import DataManager
 
 from pathlib import Path
-from time import perf_counter
 
 import numpy as np
 import pandas as pd
 import h5py
 
-from octavian.halo_reader.halo_utils import HaloMembership, HaloReader, HaloTree, PTYPE_ENCODE
+from octavian.external_halo_readers.halo_utils import HaloMembership, HaloReader, HaloTree, PTYPE_ENCODE
 
 def gather_subsnap_file(subhalo_path, snap_index) -> Path:
     """
@@ -147,47 +148,26 @@ def load_hbt(data_manager: DataManager, subhalo_path: str, snap_index: int, mode
     data_manager needs to be loaded on the original snapshot for cross-referencing ptypes.
     This also has the option to just do field halos or capture substructure.
     """
-    print('Reading HBT+ subhalos...')
-    t1 = perf_counter()
     filepath = gather_subsnap_file(subhalo_path, snap_index)
     properties = read_subhalos(filepath)
-    t2 = perf_counter()
-    print(f"{len(properties)} subhalos found")
-    print(f"Finished in {(t2 - t1):.3f} seconds.")
     
     track_ids = properties['TrackId'].to_numpy().astype(np.int64)
     parent_ids = build_parent_ids(properties)
     
-    t1 = perf_counter()
-    print("Reading HBT+ particles...")
     member_hids, member_pids = read_particles(filepath)
-    t2 = perf_counter()
-    print(f"  {len(member_pids)} particle entries read")
-    print(f"Finished in {(t2 - t1):.3f} seconds.")
-    
+
     # member_hids are subhalo indices (0, 1, 2...) — map to TrackIds
     member_hids = track_ids[member_hids]
-    
-    t1 = perf_counter()
-    print(f"Cross-referencing particle types from snapshot...")
     member_hids, member_pids, member_ptypes = label_ptypes(
         data_manager, member_hids, member_pids
     )
-    t2 = perf_counter()
-    print(f"Finished in {(t2 - t1):.3f} seconds.")
-    print(f"{len(member_pids)} particles matched to Octavian types")
     
     # remap TrackIds to the HaloReader-friendly 0, 1, 2 etc. format
     # HBT+ already uses -1 for field halos
-    print(f"Extracting halo structure and membership...")
-    t1 = perf_counter()
     reader = HaloReader(data_manager)
     track_ids, parent_ids, member_hids = reader.remap_ids(track_ids, parent_ids, member_hids)
-    
     tree = HaloTree(track_ids, parent_ids, properties)
     membership = HaloMembership(tree, member_hids, member_pids, member_ptypes, exclusive=True)
-    t2 = perf_counter()
-    print(f"Finished in {(t2 - t1):.3f} seconds.")
     
     data_manager.halo_tree = tree
     data_manager.halo_membership = membership
@@ -197,4 +177,3 @@ def load_hbt(data_manager: DataManager, subhalo_path: str, snap_index: int, mode
     # we adore diagnostics
     n_orphans = (properties['Nbound'].to_numpy() <= 1).sum()
     n_centrals = (properties['Rank'].to_numpy() == 0).sum()
-    print(f'  {n_centrals} centrals, {len(properties) - n_centrals} satellites, {n_orphans} orphans')

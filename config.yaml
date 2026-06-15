@@ -1,3 +1,8 @@
+# STAGES TO EXECUTE
+stages:
+  fof6d: true
+  group_properties: true
+
 # INTERNAL NAMES
 ptype_names:
   gas: PartType0
@@ -11,6 +16,7 @@ ptype_lists:
   star: slist
   bh: bhlist
 
+# FIXME: internalenergy is used instead of temperature
 prop_aliases:
   particle_index: particle_index
   pos: Coordinates
@@ -29,9 +35,8 @@ prop_aliases:
   bhmass: BH_Mass
   bhmdot: BH_Mdot
 
+# NOTE: need to separate into galaxy / halo
 dataset_columns:
-  groupID: 'HaloID'
-  groupID: 'GalID'
   parent_halo_index: 'parent_halo_index'
   ngas: 'ngas'
   nstar: 'nstar'
@@ -146,7 +151,7 @@ groupIDs:
   halos: HaloID
   galaxies: GalID
 
-
+# REVIEW: some of these are hangovers from Caesar
 # CONSTANTS
 MINIMUM_STARS_PER_GALAXY: 16
 MINIMUM_DM_PER_HALO: 24
@@ -163,10 +168,9 @@ prop_units:
   mass: 1.e10 * Msun/h
   temperature: K
   rho: 1.e10 * Msun/h / (kpc*a/h)**3
-  nh: 1.e10 * Msun/h
-  sfr: 1.e10 * Msun/h/s
+  sfr: Msun/yr
   bhmass: 1.e10 * Msun/h
-  bhmdot: 1.e10 * Msun/h/s
+  bhmdot: 10.2249488753 * Msun/h/yr
 
 code_units:
   pos: kpc*a
@@ -175,10 +179,9 @@ code_units:
   temperature: K
   rho: g/cm**3
   rhocrit: Msun/kpc**3
-  nh: Msun
-  sfr: Msun/s
+  sfr: Msun/yr
   bhmass: Msun
-  bhmdot: Msun/s
+  bhmdot: Msun/yr
 
 # PARALLELISM
 nproc: 1 # cores per node for joblib

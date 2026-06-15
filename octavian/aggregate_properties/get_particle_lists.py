@@ -1,11 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_manager import DataManager
+  from octavian.data_management import DataManager
 
 import numpy as np
 import pandas as pd
 
+# FIXME: same problems as save_group_properties and remerge_catalogues.
 
 def get_group_particle_indexes(data_manager: DataManager, group_name: str) -> None:
   config = data_manager.config

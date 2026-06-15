@@ -155,6 +155,7 @@ def sort_by_group(group_ids):
     
     return order, unique_ids, start, end
 
+# REVIEW: note this should go when the CGP/datamanager refactor occurs.
 def extract_particle_arrays(data_manager, config, include_hydrogen=False):
     """
     Extract flat particle arrays from all ptypes.

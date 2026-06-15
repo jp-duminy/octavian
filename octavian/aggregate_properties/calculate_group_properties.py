@@ -1,26 +1,27 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_manager import DataManager
+  from octavian.data_management import DataManager
 
 import numpy as np
 import pandas as pd
 import unyt
-from sklearn.neighbors import NearestNeighbors
 from functools import partial
 from astropy import constants as const
-from time import perf_counter
+
+# REVIEW: decompose functions, enforce single responsibility principle.
+# FIXME: importantly, all centre-of-mass properties are offset by BH using maximum mass.
 
 from scipy.spatial import KDTree
 
-from octavian.group_properties_calc.group_computations import (
+from octavian.aggregate_properties.group_computations import (
     compute_angular_momentum,
     compute_rotation_quantities,
     compute_radial_quantiles,
     compute_virial_quantities,
 )
 
-from octavian.group_properties_calc.group_helpers import (
+from octavian.aggregate_properties.group_helpers import (
     sum_per_group,
     count_per_group,
     max_value_per_group,
@@ -63,6 +64,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   # kinematics: positions, velocities
   positions_list, velocities_list = [], []
 
+  # REVIEW: note this causes a memory spike we want to avoid
   # cast the required data to numpy.
   for ptype in ptypes:
     df = data_manager.data[ptype]
@@ -104,14 +106,21 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
 
   group_idx = group_data.index.get_indexer(group_ids) # build a list of particles where the value of each particle is its group ID
 
+  # HACK: builds from original HIDs then reassigns 
   # parent halo assignment
   if group_name == 'galaxies' and particle_type == 'total':
-      parent = np.full(n_groups, -1, dtype=np.int64)
-      for i in range(len(group_ids)):
-          g = group_idx[i]
-          if parent[g] == -1:
-              parent[g] = halo_ids[i]
-      group_data['parent_halo_index'] = parent
+    parent = np.full(n_groups, -1, dtype=np.int64)
+    for i in range(len(group_ids)):
+        g = group_idx[i]
+        if parent[g] == -1:
+            parent[g] = halo_ids[i]
+    group_data['parent_halo_index'] = parent
+
+    max_hid = data_manager.group_data['halos'].index.max()
+    halo_index_lookup = np.full(max_hid + 1, -1, dtype=np.int64)
+    halo_index_lookup[data_manager.group_data['halos'].index] = np.arange(len(data_manager.group_data['halos']))
+    parent = np.where(parent != -1, halo_index_lookup[parent], -1)
+    group_data['parent_halo_index'] = parent
 
   # -
   # step 3: nparticles
@@ -126,6 +135,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
 
   if particle_type == 'bh':
     group_mass = max_value_per_group(masses, group_idx, n_groups) # REVIEW: why?
+    group_mass = np.where(np.isfinite(group_mass), group_mass, 0.0)
   else:
     group_mass = sum_per_group(masses, group_idx, n_groups)
 
@@ -188,11 +198,12 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   radii = np.linalg.norm(positions_rel, axis=1)
 
   # -
-  # step 8: velocity dispersion
+  # step 8: velocity dispersion 
+    # NOTE: different slightly to caesar (I think)
   # -
 
   disp_sums = sum_per_group(np.sum(velocities_rel_com**2, axis=1), group_idx, n_groups)
-  vel_disps = np.sqrt(disp_sums / counts)
+  vel_disps = np.where(counts > 0, np.sqrt(disp_sums / np.maximum(counts, 1)), np.nan)
   group_data[f'velocity_dispersion_{particle_type}'] = vel_disps
 
   # -
@@ -217,13 +228,14 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   group_data[f'kappa_rot_{particle_type}'] = krot / ktot
 
   angular_cols = [
-    f'velocity_dispersion_{particle_type}',
-    f'Lx_{particle_type}', f'Ly_{particle_type}', f'Lz_{particle_type}',
-    f'BoverT_{particle_type}', f'kappa_rot_{particle_type}',
-    ]
-  
+      f'velocity_dispersion_{particle_type}',
+      f'Lx_{particle_type}', f'Ly_{particle_type}', f'Lz_{particle_type}',
+      f'L_{particle_type}',
+      f'ALPHA_{particle_type}', f'BETA_{particle_type}',
+      f'BoverT_{particle_type}', f'kappa_rot_{particle_type}',
+  ]
   # for small groups: set quantites = 0 as they are not meaningful (as done in original code)
-  small = counts < 3
+  small = (counts > 0) & (counts < 3)
   for col in angular_cols:
       vals = group_data[col].to_numpy().copy()
       vals[small] = 0.
@@ -250,7 +262,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
     # from previous code
     group_data['r200'] = data_manager.simulation['r200_factor'] * group_mass**(1/3)
     G_factor = unyt.G.to('(km**2 * kpc)/(Msun * s**2)').d
-    group_data['circular_velocity'] = np.sqrt(G_factor * group_mass / group_data['r200'])
+    group_data['circular_velocity'] = np.sqrt(G_factor * group_mass / group_data['r200']) # FIXME: units, r200 is comoving (affects z > 0)
     group_data['temperature'] = 3.6e5 * (group_data['circular_velocity'] / 100.0)**2
     group_data['spin_param'] = L_mag / (
         np.sqrt(2) * group_mass * group_data['circular_velocity'].to_numpy() * group_data['r200'].to_numpy()
@@ -268,6 +280,23 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
     for f, factor in enumerate([200, 500, 2500]):
         group_data[f'radius_{factor}_c'] = virial_r[:, f]
         group_data[f'mass_{factor}_c'] = virial_m[:, f]
+
+  # NOTE: blanket pass at the end to enforce NaN vs zero convention.
+  empty = counts == 0
+  if np.any(empty):
+      nan_cols = [
+          f'velocity_dispersion_{particle_type}',
+          f'Lx_{particle_type}', f'Ly_{particle_type}', f'Lz_{particle_type}',
+          f'L_{particle_type}',
+          f'ALPHA_{particle_type}', f'BETA_{particle_type}',
+          f'BoverT_{particle_type}', f'kappa_rot_{particle_type}',
+          f'radius_{particle_type}_r20', f'radius_{particle_type}_half_mass', f'radius_{particle_type}_r80',
+      ]
+      for col in nan_cols:
+          if col in group_data.columns:
+              vals = group_data[col].to_numpy().copy()
+              vals[empty] = np.nan
+              group_data[col] = vals
 
 def gas_group_properties(data_manager: DataManager, group_name: str) -> None:
     
@@ -398,7 +427,7 @@ def bh_group_properties(data_manager: DataManager, group_name: str) -> None:
 
   n_groups = len(group_data)
   group_idx = group_data.index.get_indexer(group_ids)
-
+  
   # find most massive BH per group
   max_idx = max_idx_per_group(masses, group_idx, n_groups)
   valid = max_idx >= 0
@@ -425,7 +454,6 @@ def calculate_local_densities(data_manager: DataManager) -> None:
     group_data = data_manager.group_data[group]
 
     if len(group_data) == 0:
-      print(f"No group data!")
       continue
 
     pos = group_data[['x_total', 'y_total', 'z_total']].to_numpy()
@@ -508,6 +536,7 @@ def calculate_aperture_masses(data_manager, config):
 
     group_data['mass_total_30kpc'] = result[:, :len(config['ptypes'])].sum(axis=1)
 
+# REVIEW: eliminate boilerplate
 def calculate_group_properties(data_manager: DataManager) -> None:
 
   # admin
@@ -540,9 +569,10 @@ def calculate_group_properties(data_manager: DataManager) -> None:
     for property in ['rho', 'nh', 'fH2', 'metallicity', 'sfr', 'temperature']:
       data_manager.load_property(property, 'gas')
 
+    # FIXME: hydrogen fractions wrong (nh treated as a mass when it is a fraction)
     # gas masses
     data = data_manager.data['gas']
-    data['fHI'] = data.eval('nh / mass')
+    data['fHI'] = data.eval('nh')
     not_conserving_mass = data.eval('(fHI + fH2) > 1')
     data.loc[not_conserving_mass, 'fHI'] = 1. - data.loc[not_conserving_mass, 'fH2']
 

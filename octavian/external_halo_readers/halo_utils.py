@@ -19,9 +19,8 @@ I think OOP is good here because bespoke halo readers can use inheritance.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from octavian.data_manager import DataManager
+    from octavian.data_management import DataManager
 
-from time import perf_counter
 import numpy as np
 import pandas as pd
 from numba import njit
@@ -83,13 +82,10 @@ class HaloReader:
         Does one enormous sweep over the snapshot.
         """
         # admin
-        t = perf_counter()
         pids, ptypes, hids = membership.branch_membership(mode=mode)
-        print(f"    branch_membership: {perf_counter() - t:.1f}s")
         config = self.dm.config
 
         # build a giant snapshot array 
-        t = perf_counter()
         all_snap_pids = []
         all_snap_offsets = {} # track where each ptype starts
         offset = 0 # this will be used to move to the next ptype
@@ -104,25 +100,20 @@ class HaloReader:
             all_snap_offsets[ptype] = (offset, offset + len(snap_pids))
             offset += len(snap_pids)
         all_snap_pids = np.concatenate(all_snap_pids)
-        print(f"    build snap array: {perf_counter() - t:.1f}s")
 
         # this is the massive bottleneck
-        t = perf_counter()
         is_sorted = np.all(all_snap_pids[:-1] <= all_snap_pids[1:])
         # conditional: if satisfied, can save an enormous amount of time
         if is_sorted:
-            print(f"    snap already sorted, skipping argsort")
             snap_order = np.arange(len(all_snap_pids), dtype=np.int64)
             snap_pids_sorted = all_snap_pids
         else:
             snap_order = np.argsort(all_snap_pids)
             snap_pids_sorted = all_snap_pids[snap_order]
-        print(f"    sort snap: {perf_counter() - t:.1f}s")
 
         # are these externally sorted (HBT+) or not (AHF)
         ext_sorted = not membership.exclusive
 
-        t = perf_counter()
         if ext_sorted:
             # skip the sort
             ext_pids_sorted = pids
@@ -131,27 +122,20 @@ class HaloReader:
             ext_order = np.argsort(pids)
             ext_pids_sorted = pids[ext_order]
             ext_hids_sorted = hids[ext_order]
-        print(f"    sort ext: {perf_counter() - t:.1f}s")
 
-        t = perf_counter()
         # linear merge matches halo finder and original snapshot IDs
         halo_ids_sorted = merge_match(snap_pids_sorted, ext_pids_sorted, ext_hids_sorted) 
-        print(f"    merge: {perf_counter() - t:.1f}s")
     
         # then insert hids
-        t = perf_counter()
         halo_ids_all = np.empty_like(halo_ids_sorted)
         halo_ids_all[snap_order] = halo_ids_sorted
-        print(f"    unsort: {perf_counter() - t:.1f}s")
 
         # now distribute the ids to their ptypes
-        t = perf_counter()
         for ptype in config['ptypes']:
             if ptype not in all_snap_offsets:
                 continue
             start, end = all_snap_offsets[ptype]
             self.dm.data[ptype]['HaloID'] = pd.Series(halo_ids_all[start:end], dtype='category') # send to data manager
-        print(f"    distribute: {perf_counter() - t:.1f}s")
 
     def match_ptype(self, ptype, ext_pids, ext_hids, ext_sorted=False):
         """
@@ -201,7 +185,6 @@ class HaloTree:
 
         # guard against no halos being present
         if len(self.halo_ids) == 0:
-            print(f"No halos found.")
             self._id_to_idx = np.empty(0, dtype=np.int32)
             self.depths = np.empty(0, dtype=np.int32)
             self.field_map = np.empty(0, dtype=np.int64)
@@ -269,7 +252,6 @@ class HaloMembership:
 
         # guard for no halos
         if len(halo_ids) == 0:
-            print(f"No halos found.")
             self._member_hids = np.empty(0, dtype=np.int64)
             self._member_pids = np.empty(0, dtype=np.int64)
             self._member_ptypes = np.empty(0, dtype=np.int8)

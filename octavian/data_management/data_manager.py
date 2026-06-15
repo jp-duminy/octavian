@@ -5,6 +5,7 @@ import unyt
 from astropy.cosmology import FlatLambdaCDM
 from sympy import sympify
 
+# FIXME: compartmentalise the datamanager functionality
 
 class DataManager:
   def __init__(self, snapfile: str, config: dict, comm=None):
