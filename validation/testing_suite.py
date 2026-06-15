@@ -22,6 +22,7 @@ import subprocess
 from dataclasses import dataclass
 from yaml import safe_load
 from datetime import datetime
+from collections.abc import Generator
 
 # others
 import h5py
@@ -483,7 +484,7 @@ def check_for_nans(f: h5py.File) -> None:
         logger.info(f"{group} contains no dubious NaN occurences.")
 
 @contextmanager
-def record_assertion_result(label: str) -> None:
+def record_assertion_result(label: str) -> Generator[None, None, None]: # the collections import is used for this
     """
     Used for wrapping the validation checks in a try / except.
     Prevents an error being thrown.
