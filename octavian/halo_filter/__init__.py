@@ -1,1 +1,0 @@
-from octavian.halo_filter.filter_snapshot import filter_snapshot
