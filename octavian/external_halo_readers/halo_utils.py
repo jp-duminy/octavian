@@ -19,7 +19,7 @@ I think OOP is good here because bespoke halo readers can use inheritance.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from octavian.data_manager import DataManager
+    from octavian.data_management import DataManager
 
 from time import perf_counter
 import numpy as np

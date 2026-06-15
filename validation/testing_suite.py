@@ -30,14 +30,13 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # data
-from octavian.test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
+from validation.test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
-from octavian.data_manager import DataManager, save_group_properties
-from octavian.utils import wrap_positions, merge_catalogues
-from octavian.halo_finder import run_fof6d
-from octavian.group_properties_calc import calculate_group_properties, get_particle_lists
-from octavian.halo_filter import filter_snapshot
+from octavian.data_management import DataManager, save_group_properties, wrap_positions, filter_snapshot
+from octavian.utils import merge_catalogues
+from octavian.fof6d import run_fof6d
+from octavian.aggregate_properties import calculate_group_properties, get_particle_lists
 from octavian.run_octavian import _get_mpi_communicator
 
 @dataclass

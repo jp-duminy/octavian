@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_manager import DataManager
+  from octavian.data_management import DataManager
 
 import h5py
 import os

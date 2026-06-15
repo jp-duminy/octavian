@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_manager import DataManager
+  from octavian.data_management import DataManager
 
 import numpy as np
 import pandas as pd
@@ -12,14 +12,14 @@ from time import perf_counter
 
 from scipy.spatial import KDTree
 
-from octavian.group_properties_calc.group_computations import (
+from octavian.aggregate_properties.group_computations import (
     compute_angular_momentum,
     compute_rotation_quantities,
     compute_radial_quantiles,
     compute_virial_quantities,
 )
 
-from octavian.group_properties_calc.group_helpers import (
+from octavian.aggregate_properties.group_helpers import (
     sum_per_group,
     count_per_group,
     max_value_per_group,

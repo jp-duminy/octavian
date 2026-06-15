@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_manager import DataManager
+    from octavian.data_management import DataManager
 
 import ctypes # for accelerated reading
 import gzip
@@ -22,7 +22,7 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
-from octavian.halo_reader.halo_utils import HaloMembership, HaloReader, HaloTree
+from octavian.external_halo_readers.halo_utils import HaloMembership, HaloReader, HaloTree
 
 # AHF assigns ptype codes, we change these to ptype names for Octavian compatibility
 _PTYPE_MAP = {0: 0, # gas

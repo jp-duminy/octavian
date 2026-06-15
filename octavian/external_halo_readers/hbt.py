@@ -11,7 +11,7 @@ Code is based on the architecture outlined therein.
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from octavian.data_manager import DataManager
+    from octavian.data_management import DataManager
 
 from pathlib import Path
 from time import perf_counter
@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import h5py
 
-from octavian.halo_reader.halo_utils import HaloMembership, HaloReader, HaloTree, PTYPE_ENCODE
+from octavian.external_halo_readers.halo_utils import HaloMembership, HaloReader, HaloTree, PTYPE_ENCODE
 
 def gather_subsnap_file(subhalo_path, snap_index) -> Path:
     """

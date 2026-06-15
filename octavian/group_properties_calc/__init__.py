@@ -1,2 +1,0 @@
-from octavian.group_properties_calc.calculate_group_properties import calculate_group_properties
-from octavian.group_properties_calc.get_particle_lists import get_particle_lists
