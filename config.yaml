@@ -168,7 +168,6 @@ prop_units:
   mass: 1.e10 * Msun/h
   temperature: K
   rho: 1.e10 * Msun/h / (kpc*a/h)**3
-  nh: 1.e10 * Msun/h # FIXME: this is a fraction [0, 1] not a mass
   sfr: Msun/yr
   bhmass: 1.e10 * Msun/h
   bhmdot: 10.2249488753 * Msun/h/yr
@@ -180,7 +179,6 @@ code_units:
   temperature: K
   rho: g/cm**3
   rhocrit: Msun/kpc**3
-  nh: Msun # FIXME: fraction, same as above
   sfr: Msun/yr
   bhmass: Msun
   bhmdot: Msun/yr

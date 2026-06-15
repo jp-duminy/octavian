@@ -10,6 +10,7 @@ from functools import partial
 from astropy import constants as const
 
 # REVIEW: decompose functions, enforce single responsibility principle.
+# FIXME: importantly, all centre-of-mass properties are offset by BH using maximum mass.
 
 from scipy.spatial import KDTree
 
@@ -197,7 +198,8 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   radii = np.linalg.norm(positions_rel, axis=1)
 
   # -
-  # step 8: velocity dispersion
+  # step 8: velocity dispersion 
+    # NOTE: different slightly to caesar (I think)
   # -
 
   disp_sums = sum_per_group(np.sum(velocities_rel_com**2, axis=1), group_idx, n_groups)
@@ -260,7 +262,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
     # from previous code
     group_data['r200'] = data_manager.simulation['r200_factor'] * group_mass**(1/3)
     G_factor = unyt.G.to('(km**2 * kpc)/(Msun * s**2)').d
-    group_data['circular_velocity'] = np.sqrt(G_factor * group_mass / group_data['r200'])
+    group_data['circular_velocity'] = np.sqrt(G_factor * group_mass / group_data['r200']) # FIXME: units, r200 is comoving (affects z > 0)
     group_data['temperature'] = 3.6e5 * (group_data['circular_velocity'] / 100.0)**2
     group_data['spin_param'] = L_mag / (
         np.sqrt(2) * group_mass * group_data['circular_velocity'].to_numpy() * group_data['r200'].to_numpy()
@@ -567,9 +569,10 @@ def calculate_group_properties(data_manager: DataManager) -> None:
     for property in ['rho', 'nh', 'fH2', 'metallicity', 'sfr', 'temperature']:
       data_manager.load_property(property, 'gas')
 
+    # FIXME: hydrogen fractions wrong (nh treated as a mass when it is a fraction)
     # gas masses
     data = data_manager.data['gas']
-    data['fHI'] = data.eval('nh / mass')
+    data['fHI'] = data.eval('nh')
     not_conserving_mass = data.eval('(fHI + fH2) > 1')
     data.loc[not_conserving_mass, 'fHI'] = 1. - data.loc[not_conserving_mass, 'fH2']
 
