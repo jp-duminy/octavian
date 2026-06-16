@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+from pathlib import Path
 
 # NOTE: will likely be unnecessary after move to HDF5 MPI.
 
@@ -30,7 +31,7 @@ def get_id_filter(f: h5py.File, ptypes: list[str], nsplit: int) -> list[list[int
 
   return id_filter
 
-def filter_snapshot(snapfile: str, outfile: str, nsplit: int=4):
+def filter_snapshot(snapfile: str, outfile: Path, nsplit: int=4):
   """
   Weighted snapshot filter.
 
@@ -45,7 +46,7 @@ def filter_snapshot(snapfile: str, outfile: str, nsplit: int=4):
 
   with h5py.File(snapfile, 'r') as f:
     for i in range(nsplit):
-      with h5py.File(f'{outfile}_rank_{i}.hdf5', 'a') as f_out:
+      with h5py.File(outfile / f"rank_{i}.hdf5", 'a') as f_out:
         f.copy(f['Header'], f_out, 'Header')
 
     #
@@ -122,12 +123,12 @@ def filter_snapshot(snapfile: str, outfile: str, nsplit: int=4):
         else:
           data = f[ptype][dataset][:][in_halo][order]
         for i in range(nsplit):
-            with h5py.File(f'{outfile}_rank_{i}.hdf5', 'a') as f_out:
+            with h5py.File(outfile / f"rank_{i}.hdf5", 'a') as f_out:
                 f_out.require_group(ptype)
                 f_out[ptype][dataset] = data[rank_masks[i]]
 
     for i in range(nsplit):
-      with h5py.File(f'{outfile}_rank_{i}.hdf5', 'a') as f_out:
+      with h5py.File(outfile / f"rank_{i}.hdf5", 'a') as f_out:
           diag = f_out.require_group('Diagnostics')
           for pt in ptypes:  
               if pt in f_out:

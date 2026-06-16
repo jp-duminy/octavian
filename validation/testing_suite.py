@@ -46,6 +46,7 @@ class TestConfig:
     reference_catalogue: Path
     config_file: Path 
     working_directory: Path  # for the intermediate files
+    output_directory: Path # for the pass/fail .txt
     n_ranks: int = 4 # arbitrary default: 4 mpi ranks each with 6 cores
     n_proc: int = 6 
 
@@ -56,9 +57,10 @@ BARYONIC_PARTICLE_LISTS = ["glist", "slist", "bhlist"]
 SUFFIXES = ["lengths", "offsets", "indices"] # for csr indexing
 
 test_config = TestConfig(test_snapshot=Path(f"/home/jpduminy/Octavian/test_snapshot_large.hdf5"),
-                            reference_catalogue =Path(f"/home/jpduminy/Octavian/reference_catalogue_small.hdf5"),
+                            reference_catalogue =Path(f"/home/jpduminy/Octavian/Outputs/reference_catalogue_large.hdf5"),
                             config_file=Path(f"/home/jpduminy/Repositories/octavian/config.yaml"),
                             working_directory=Path(f"/home/jpduminy/Octavian/Intermediates/"),
+                            output_directory=Path(f"/home/jpduminy/Octavian/Outputs/"),
                             n_ranks = 2,
                             n_proc = 4
 )
@@ -128,7 +130,7 @@ def test_filter_snapshot(sentinel_value: int = 0) -> list[Path]:
     The sentinel value is usually 0.
     """
     for i in range(test_config.n_ranks):
-        Path(f"{test_config.working_directory}_rank_{i}.hdf5").unlink(missing_ok=True) # clears previous intermediates
+        (test_config.working_directory / f"rank_{i}.hdf5").unlink(missing_ok=True) # clears previous intermediates
 
     with time_and_memory(f"Filter Snapshot"):
 
@@ -147,7 +149,7 @@ def test_filter_snapshot(sentinel_value: int = 0) -> list[Path]:
 
         n_original = sum(np.sum(f[pt]['HaloID'][:] != sentinel_value) for pt in PTYPES) # particles in unfiltered snapshot
 
-    split_files = [f'{test_config.working_directory}_rank_{i}.hdf5' for i in range(test_config.n_ranks)]
+    split_files = [test_config.working_directory / f"rank_{i}.hdf5" for i in range(test_config.n_ranks)]
     n_filtered = 0
 
     for path in split_files:
@@ -523,13 +525,32 @@ def conduct_output_catalogue_validation(catalogue: str) -> None:
         with record_assertion_result(f"Mass Budget Validation"):
             validate_mass_budget(f=f)
 
+def check_output_against_reference(catalogue: str, group: str = "galaxy_data") -> None:
+    """
+    Checks how the number of galaxies and the mass budget changes between the output catalogue and reference catalogue.
+    Can check halos but really it is galaxies for now we should validate.
+    """
+    with h5py.File(catalogue, 'r') as f, h5py.File(str(test_config.reference_catalogue), 'r') as ref:
+
+        n_ref = len(ref[group]["dicts/masses.total"])
+        n_new = len(f[group]["dicts/masses.total"])
+        logger.info(f"{group} number: {n_ref} -> {n_new} ({n_new - n_ref:+d})")
+
+        for key in ["dicts/masses.total", "dicts/masses.stellar", "dicts/masses.gas", "dicts/masses.bh"]:
+                
+            ref_val = ref[group][key][:]
+            new_val = f[group][key][:]
+
+            # totals
+            logger.info(f"  {key} Difference: {ref_val.sum():.6e} -> {new_val.sum():.6e} ({(new_val.sum() - ref_val.sum()) / ref_val.sum():.4%} change)")
+
 def record_test_results(all_timings: list[dict[str, float]], all_memories: list[dict[str, float]],
                         results: list[tuple[str, bool, str]], peak_memory: list[float]):
     """
     Checks the validation outputs and writes the result to a .txt file.
     """
     COMMIT_HASH = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() # current version
-    filepath = test_config.working_directory / f"test_summary_{COMMIT_HASH[:8]}.txt"
+    filepath = test_config.output_directory / f"test_summary_{COMMIT_HASH[:8]}.txt"
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     passed = all(success for _, success, _ in results)
@@ -597,11 +618,11 @@ def test_full_serial_run() -> None:
         test_filter_snapshot()
         logger.info("Filtering complete.")
 
-        snapshot_file = f"{test_config.working_directory}_rank_0.hdf5"
-        intermediate_file = f"{test_config.working_directory}_rank_0_analysis.hdf5"
+        snapshot_file = test_config.working_directory / f"rank_0.hdf5"
+        intermediate_file = test_config.working_directory / f"rank_0_analysis.hdf5"
         _end_to_end_pipeline(snapshot_file=snapshot_file, output_file=intermediate_file, comm=None)
 
-        output_catalogue = f"{test_config.working_directory}_output_catalogue.hdf5"
+        output_catalogue = test_config.working_directory / f"output_catalogue.hdf5"
 
         test_remerge(files=[intermediate_file], outfile=output_catalogue, configfile=test_config.config_file)
         conduct_output_catalogue_validation(catalogue=output_catalogue)
@@ -636,17 +657,17 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
 
         comm.Barrier()
 
-        snapshot_file = f"{test_config.working_directory}_rank_{rank}.hdf5"
-        intermediate_file = f"{test_config.working_directory}_rank_{rank}_intermediate_analysis.hdf5"
+        snapshot_file = test_config.working_directory / f"rank_{rank}.hdf5"
+        intermediate_file = test_config.working_directory / f"rank_{rank}_intermediate_analysis.hdf5"
         _end_to_end_pipeline(snapshot_file=snapshot_file, output_file=intermediate_file, comm=comm)
 
         comm.Barrier()
 
-        output_catalogue = f"{test_config.working_directory}_output_catalogue.hdf5"
+        output_catalogue = test_config.working_directory / f"output_catalogue.hdf5"
 
         if rank == 0:
 
-            files = [f"{test_config.working_directory}_rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
+            files = [test_config.working_directory / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
             test_remerge(files=files, outfile=output_catalogue, configfile=test_config.config_file)
             conduct_output_catalogue_validation(catalogue=output_catalogue)
 
