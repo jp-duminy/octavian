@@ -54,13 +54,98 @@ class FOF6DParameters:
 def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6DParameters]:
     """
     Extracts relevant arrays/parameters & initialises dataclasses for the FOF6D algorithm.
+    Presently replicates the first few dozen lines of run_fof6d.
     """
     config = data_manager.config
-    
-    for ptype in config['ptypes']:
-        data_manager.load_property('mass', ptype)
-        data_manager.load_property('pos', ptype)
-        data_manager.load_property('vel', ptype)
+
+    star_halo_ids = data_manager.data['star']['HaloID'].to_numpy()
+    star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0]) # NOTE: sentinel convention
+    eligible_halos = np.where(star_counts >= config['MINIMUM_STARS_PER_GALAXY'])[0]
+    eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
+    eligible_set[eligible_halos] = True
+
+    for prop in ['rho', 'temperature', 'sfr']: # FIXME: temperature is mapped to internal energy
+
+        data_manager.load_property(prop, 'gas')
+
+    gas = data_manager.data['gas']
+    rho = gas['rho'].to_numpy()
+    sfr = gas['sfr'].to_numpy()
+    temperature = np.zeros(len(gas)) # NOTE: do actual conversion once bug fixed
+    dense_mask = (rho > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0))
+
+    pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
+    for ptype in ["star", "gas", "bh"]:
+
+        if ptype not in config['ptypes']:
+
+            continue
+
+        df = data_manager.data[ptype]
+        halo_ids = df['HaloID'].to_numpy()
+        
+        # per-ptype mask
+        if ptype == 'gas':
+            mask = dense_mask & (halo_ids >= 0) & (halo_ids < len(eligible_set)) & eligible_set[halo_ids]
+        else:
+            mask = (halo_ids >= 0) & (halo_ids < len(eligible_set)) & eligible_set[halo_ids]
+        
+        pos_list.append(df[['x', 'y', 'z']].to_numpy()[mask])
+        vel_list.append(df[['vx', 'vy', 'vz']].to_numpy()[mask])
+        ptype_list.append(df['ptype'].to_numpy()[mask])
+        index_list.append(df.index.to_numpy()[mask])
+        hid_list.append(halo_ids[mask])
+
+    get_mean_interparticle_separation(data_manager) # NOTE: see above, called-per rank
+
+    b = 0.02 # NOTE: move to config
+    fof_LL = data_manager.mis * b
+    vel_LL = 1. # NOTE: represents deviation from velocity dispersion rather than a distance in velocity space
+    boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
+    kernel_table = create_kernel_table(fof_LL)
+
+    params = FOF6DParameters(
+        kernel_table=kernel_table,
+        position_LL=fof_LL,
+        velocity_LL=vel_LL,
+        boxsize=boxsize,
+        minstars=config['MINIMUM_STARS_PER_GALAXY'],
+        cores_per_rank=config['nproc'],
+    )
+
+    # NOTE: this copies the same pattern as CGP does on read-in
+    all_pos = np.vstack(pos_list) # vstack and concatenate are doing the same thing here, a matter of what is more intuitive for vectors
+    all_vel = np.vstack(vel_list)
+    all_ptype = np.concatenate(ptype_list)
+    all_halo_ids = np.concatenate(hid_list)
+    all_write_key = np.concatenate(index_list)
+
+    order = np.argsort(all_halo_ids, kind='mergesort')
+    all_pos = all_pos[order]
+    all_vel = all_vel[order]
+    all_ptype = all_ptype[order]
+    all_halo_ids = all_halo_ids[order]
+    all_write_key = all_write_key[order]
+
+    sorted_halo_ids = all_halo_ids
+    changes = np.flatnonzero(np.diff(sorted_halo_ids)) + 1
+    starts = np.concatenate(([0], changes))
+    ends = np.concatenate((changes, [len(sorted_halo_ids)]))
+
+    sizes = ends - starts
+    size_order = np.argsort(sizes)[::-1] # largest halos first
+
+    items = []
+    for i in size_order:
+        s, e = starts[i], ends[i]
+        items.append(FOF6DItem(
+            pos=all_pos[s:e],
+            vel=all_vel[s:e],
+            ptype=all_ptype[s:e],
+            write_key=all_write_key[s:e],
+        ))
+
+    return items, params
 
 # get mis for fof6d
 # FIXME: MIS is computed per-rank which is not globally-consistent.
