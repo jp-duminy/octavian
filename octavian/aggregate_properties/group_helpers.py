@@ -108,6 +108,19 @@ def min_idx_per_group(values, group_idx, n_groups):
             result_idx[g] = i
     return result_idx
 
+@njit
+def first_idx_per_group(group_idx, n_groups):
+    """
+    Returns the index of the first member of a group.
+    Used for the (somewhat hacky) position unwrapping for galaxies.
+    """
+    result = np.full(n_groups, -1, dtype=np.int64)
+    for i in range(len(group_idx)):
+        g = group_idx[i]
+        if result[g] == -1:
+            result[g] = i
+    return result
+
 #
 # I/O: broadcasting and sorting
 #

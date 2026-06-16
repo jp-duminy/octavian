@@ -103,98 +103,60 @@ def kernel(r_over_h,kerneltab):
 # fof6d function to apply on groups
 def run_fof6d_in_halo(
     pos, vel, ptype, original_idx,
-    kernel_table, minstars, fof_LL, vel_LL=None
+    kernel_table, minstars, fof_LL, boxsize, 
+    vel_LL=None
 ):
-  
+
+  n = len(pos)
   if len(pos) < minstars:
       return []
-
-  # stage 1: directional group find
-  pos, vel, ptype, original_idx, gal_ids = fof_sort_halo(
-      pos, vel, ptype, original_idx, minstars, fof_LL
-  )
-
-  if len(pos) == 0:
-    return []
   
-  # split into groups
-  group_order = np.argsort(gal_ids, kind='stable')
-  sorted_gal_ids = gal_ids[group_order]
-  splits = np.flatnonzero(np.diff(sorted_gal_ids)) + 1
-  group_indices = np.split(group_order, splits)
+  tree = KDTree(pos, boxsize=boxsize) # REVIEW: move this to PBCs
+  sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
 
-  # skip stage 2 if vel_LL not defined, all members of a group form a galaxy
-  if vel_LL is None:
-      galaxies = []
-      for indices in group_indices:
-          g_ptype = ptype[indices]
-          g_idx = original_idx[indices]
-          galaxy = []
-          for pt in np.unique(g_ptype):
-              mask = g_ptype == pt
-              galaxy.append((pt, g_idx[mask]))
-          galaxies.append(galaxy)
-      return galaxies
-  
+  rows = sdm.row
+  cols = sdm.col
+  dists = sdm.data
 
-  #
-  # stage 2: fof6d
-  #
-  # updated vectorised loop implementation (JP)
-  #
+  # vectorised kernel weights (adapted from Jakub)
+  q = dists / fof_LL
+  w = kernel(q, kernel_table)  # already works on arrays
 
-  new_groups = []
-  for indices in group_indices:
-    g_pos = pos[indices]
-    g_vel = vel[indices]
-    g_ptype = ptype[indices]
-    g_idx = original_idx[indices]
-    n = len(indices)
+  # vectorised velocity differences
+  vel_diff = np.linalg.norm(vel[cols] - vel[rows], axis=1)
 
-    tree = KDTree(g_pos) # REVIEW: move this to PBCs
-    sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
+  # vectorised sigma per particle
+  weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
+  sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
 
-    rows = sdm.row
-    cols = sdm.col
-    dists = sdm.data
+  # vectorised velocity criterion
+  valid = vel_diff <= (vel_LL * sigmas[rows])
 
-    # vectorised kernel weights (adapted from Jakub)
-    q = dists / fof_LL
-    w = kernel(q, kernel_table)  # already works on arrays
+  adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
+  n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
 
-    # vectorised velocity differences
-    vel_diff = np.linalg.norm(g_vel[cols] - g_vel[rows], axis=1)
+  # split by label — numpy instead of python loop
+  label_order = np.argsort(labels)
+  sorted_labels = labels[label_order]
+  label_splits = np.flatnonzero(np.diff(sorted_labels)) + 1
+  component_groups = np.split(label_order, label_splits)
 
-    # vectorised sigma per particle
-    weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
+  groups = []
 
-    # vectorised velocity criterion
-    valid = vel_diff <= (vel_LL * sigmas[rows])
-
-    adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
-    n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
-
-    # split by label — numpy instead of python loop
-    label_order = np.argsort(labels)
-    sorted_labels = labels[label_order]
-    label_splits = np.flatnonzero(np.diff(sorted_labels)) + 1
-    component_groups = np.split(label_order, label_splits)
-
-    for component in component_groups:
-      if len(component) < minstars:
-          continue
-      c_ptype = g_ptype[component]
-      if np.sum(c_ptype == 'star') >= minstars:
-          new_groups.append((g_ptype[component], g_idx[component]))
+  for component in component_groups:
+    if len(component) < minstars:
+        continue
+    c_ptype = ptype[component]
+    if np.sum(c_ptype == 'star') >= minstars:
+        groups.append((ptype[component], original_idx[component]))
 
   # unavoidable python loop
   galaxies = []
-  for g_ptype, g_idx in new_groups:
+  for ptype, original_idx in groups:
       galaxy = []
-      for pt in np.unique(g_ptype):
-          mask = g_ptype == pt
-          galaxy.append((pt, g_idx[mask]))
+      for pt in np.unique(ptype):
+          mask = ptype == pt
+          galaxy.append((pt, original_idx[mask]))
       galaxies.append(galaxy)
 
   return galaxies
@@ -212,6 +174,7 @@ def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
   data_manager.mgas_total = 0. if 'gas' not in config['ptypes'] else np.sum(data_manager.data['gas']['mass'])
   data_manager.mstar_total = 0. if 'star' not in config['ptypes'] else np.sum(data_manager.data['star']['mass'])
   data_manager.mbh_total = 0. if 'bh' not in config['ptypes'] else np.sum(data_manager.data['bh']['mass'])
+  boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
 
   get_mean_interparticle_separation(data_manager)
 
@@ -263,7 +226,7 @@ def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
   results = Parallel(n_jobs=12, pre_dispatch='2*n_jobs', batch_size=1)(
       delayed(run_fof6d_in_halo)(
           pos, vel, ptype, idx,
-          kernel_table, config['MINIMUM_STARS_PER_GALAXY'], fof_LL, vel_LL
+          kernel_table, config['MINIMUM_STARS_PER_GALAXY'], fof_LL, boxsize, vel_LL
       )
       for pos, vel, ptype, idx in work_items
   )

@@ -27,6 +27,7 @@ from octavian.aggregate_properties.group_helpers import (
     max_value_per_group,
     max_idx_per_group,
     min_idx_per_group,
+    first_idx_per_group,
     broadcast_to_particles,
     sort_by_group,
     weighted_mean_per_group,
@@ -45,6 +46,8 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   groupID_key = config['groupIDs'][group_name]
   group_data = data_manager.group_data[group_name]
   n_groups = len(group_data)
+
+  boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
 
   # -
   # step 1: extract arrays from datamanager so the entire operation can be vectorised
@@ -166,9 +169,20 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
   com_positions = np.zeros((n_groups, 3))
   com_velocities = np.zeros((n_groups, 3))
 
+  anchor_idx = first_idx_per_group(group_idx=group_idx, n_groups=n_groups) # HACK: use first member of each group
+  anchor_positions = np.full((n_groups, 3), np.nan)
+  valid_anchors = anchor_idx >= 0
+  anchor_positions[valid_anchors] = positions[anchor_idx[valid_anchors]]
+
+  pos_shifted = positions - broadcast_to_particles(anchor_positions, group_idx)
+  pos_shifted -= boxsize * np.round(pos_shifted / boxsize)
+
   for d in range(3):
-    com_positions[:, d] = sum_per_group(positions[:, d] * masses, group_idx, n_groups) / group_mass
+    com_positions[:, d] = sum_per_group(pos_shifted[:, d] * masses, group_idx, n_groups) / group_mass
     com_velocities[:, d] = sum_per_group(velocities[:, d] * masses, group_idx, n_groups) / group_mass
+
+  com_positions += anchor_positions # return to box frame
+  com_positions %= boxsize # for output catalogue consistency (nothing outside the box)
 
   for i, d in enumerate(['x', 'y', 'z']):
     group_data[f'{d}_{particle_type}'] = com_positions[:, i]
@@ -192,6 +206,7 @@ def common_group_properties(data_manager: DataManager, group_name: str, particle
       ref_velocities = com_velocities
 
   positions_rel = positions - broadcast_to_particles(ref_positions, group_idx)
+  positions_rel -= boxsize * np.round(positions_rel / boxsize) # PBCs
   velocities_rel_com = velocities - broadcast_to_particles(com_velocities, group_idx)
   velocities_rel_ref = velocities - broadcast_to_particles(ref_velocities, group_idx)
 
@@ -447,6 +462,8 @@ def bh_group_properties(data_manager: DataManager, group_name: str) -> None:
 
 def calculate_local_densities(data_manager: DataManager) -> None:
 
+  boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
+
   config = data_manager.config
   groups = config['groups']
 
@@ -461,7 +478,7 @@ def calculate_local_densities(data_manager: DataManager) -> None:
 
     # REVIEW: moving a FOF6D optimisation into this function
     # previously the pandas .explode() calls were memory-intensive
-    tree = KDTree(pos)
+    tree = KDTree(pos, boxsize=boxsize)
     for radius in [300., 1000., 3000.]:
       volume = 4./3. * np.pi * radius**3
       index_lists = tree.query_ball_point(pos, radius, workers=-1) # workers=-1 means all processors are used (from documentation)
@@ -472,7 +489,9 @@ def calculate_local_densities(data_manager: DataManager) -> None:
       group_data[f'local_number_density_{int(radius)}'] = counts / volume
 
 def calculate_aperture_masses(data_manager, config):
-    
+  
+    boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
+
     group_data = data_manager.group_data['galaxies']
     n_galaxies = len(group_data)
     galaxy_pos = group_data[['x_total', 'y_total', 'z_total']].to_numpy()
@@ -517,7 +536,7 @@ def calculate_aperture_masses(data_manager, config):
             continue
 
         # build KDTree (explained in FOF6D code)
-        tree = KDTree(halo_pos)
+        tree = KDTree(halo_pos, boxsize=boxsize)
         neighbor_lists = tree.query_ball_point(galaxy_pos[gal_indices], aperture)
 
         for galaxies_idx_local, neighbours in enumerate(neighbor_lists):
