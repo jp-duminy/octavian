@@ -1,16 +1,55 @@
+"""
+
+Octavian 6D friends-of-friends galaxy-finding algorithm.
+
+For the deeper workings of the algorithm please refer to the scipy.spatial framework
+Original FoF: Davis et al. 1985, doi: 10.1086/163168
+
+"""
+
+# type checking (semantic)
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
   from octavian.data_management import DataManager
 
+# default library
+from dataclasses import dataclass
+
+# other libraries
 import numpy as np
 import pandas as pd
 import unyt
 from joblib import Parallel, delayed
-
 from scipy.spatial import KDTree
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
+
+# slots=True turns off unneeded dict behaviour which avoids accidental mutation & improves memory usage 
+# frozen=True adds tiny overhead but is safe
+# see https://github.com/orgs/community/discussions/168147#discussioncomment-15464120 if curious
+
+@dataclass(slots=True, frozen=True) 
+class FOF6DItem: 
+		"""
+		The attributes of a halo (but, in future, perhaps gas clouds?) being passed into FOF6D.
+		"""
+		pos: np.ndarray
+		vel: np.ndarray
+		ptype: np.ndarray # which particles are what ptype
+		write_key: np.ndarray # for writing back to data layers
+  
+@dataclass(slots=True, frozen=True) 
+class FOF6DParameters:
+		"""
+		Fixed simulation/runtime parameters which the algorithm needs.
+		"""
+		kernel_table: np.ndarray
+		position_LL: float
+		velocity_LL: float
+		boxsize: float
+		minstars: int
+		cores_per_rank: int   
 
 # get mis for fof6d
 # FIXME: MIS is computed per-rank which is not globally-consistent.
