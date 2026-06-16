@@ -632,6 +632,7 @@ def test_full_serial_run() -> None:
 
         # wrap function arguments in lists (it expects lists as it is parallelised)
         record_test_results(all_timings=[timings], all_memories=[memories], results=results, peak_memory=[peak_rss_gb()])
+        check_output_against_reference(catalogue=output_catalogue)
 
 def test_full_parallel_run(comm: MPI.Comm) -> None:
     """
@@ -688,6 +689,7 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
                 logger.info(f"{stage}: max={max(vals):.2f}s  spread={max(vals)-min(vals):.2f}")
 
             record_test_results(all_timings=all_timings, all_memories=all_memories, results=results, peak_memory=all_rss)
+            check_output_against_reference(catalogue=output_catalogue)
 
 def main():
 
