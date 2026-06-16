@@ -31,61 +31,72 @@ from scipy.sparse.csgraph import connected_components
 
 @dataclass(slots=True, frozen=True) 
 class FOF6DItem: 
-		"""
-		The attributes of a halo (but, in future, perhaps gas clouds?) being passed into FOF6D.
-		"""
-		pos: np.ndarray
-		vel: np.ndarray
-		ptype: np.ndarray # which particles are what ptype
-		write_key: np.ndarray # for writing back to data layers
+    """
+    The attributes of a halo (but, in future, perhaps gas clouds?) being passed into FOF6D.
+    """
+    pos: np.ndarray
+    vel: np.ndarray
+    ptype: np.ndarray # which particles are what ptype
+    write_key: np.ndarray # for writing back to data layers
   
 @dataclass(slots=True, frozen=True) 
 class FOF6DParameters:
-		"""
-		Fixed simulation/runtime parameters which the algorithm needs.
-		"""
-		kernel_table: np.ndarray
-		position_LL: float
-		velocity_LL: float
-		boxsize: float
-		minstars: int
-		cores_per_rank: int   
+    """
+    Fixed simulation/runtime parameters which the algorithm needs.
+    """
+    kernel_table: np.ndarray
+    position_LL: float
+    velocity_LL: float
+    boxsize: float
+    minstars: int
+    cores_per_rank: int
+    
+def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6DParameters]:
+    """
+    Extracts relevant arrays/parameters & initialises dataclasses for the FOF6D algorithm.
+    """
+    config = data_manager.config
+    
+    for ptype in config['ptypes']:
+        data_manager.load_property('mass', ptype)
+        data_manager.load_property('pos', ptype)
+        data_manager.load_property('vel', ptype)
 
 # get mis for fof6d
 # FIXME: MIS is computed per-rank which is not globally-consistent.
 def get_mean_interparticle_separation(data_manager: 'DataManager') -> None:
-  t = data_manager.simulation['time']
-  a = data_manager.simulation['a']
-  h = data_manager.simulation['h']
-  Om = data_manager.simulation['O0']
-  boxsize = data_manager.simulation['boxsize']
+    t = data_manager.simulation['time']
+    a = data_manager.simulation['a']
+    h = data_manager.simulation['h']
+    Om = data_manager.simulation['O0']
+    boxsize = data_manager.simulation['boxsize']
 
-  GRAV = unyt.G.to('cm**3/(g*s**2)').d
-  UL = (1. * unyt.kpc).to('cm').d
-  UM = data_manager.create_unit_quantity('mass').to('g').d
-  UT = t/a
+    GRAV = unyt.G.to('cm**3/(g*s**2)').d
+    UL = (1. * unyt.kpc).to('cm').d
+    UM = data_manager.create_unit_quantity('mass').to('g').d
+    UT = t/a
 
-  G = GRAV / UL**3 * UM * UT**2
-  Hubble = 3.2407789e-18 * UT
+    G = GRAV / UL**3 * UM * UT**2
+    Hubble = 3.2407789e-18 * UT
 
-  dmmass = data_manager.mdm_total
-  ndm = data_manager.ndm
+    dmmass = data_manager.mdm_total
+    ndm = data_manager.ndm
 
-  gmass = data_manager.mgas_total
-  smass = data_manager.mstar_total
-  bhmass = data_manager.mbh_total
+    gmass = data_manager.mgas_total
+    smass = data_manager.mstar_total
+    bhmass = data_manager.mbh_total
 
-  bmass = gmass + smass + bhmass
+    bmass = gmass + smass + bhmass
 
-  Ob = bmass / (bmass + dmmass) * Om
-  rhodm = (Om - Ob) * 3.0 * Hubble**2 / (8.0 * np.pi * G) / h
+    Ob = bmass / (bmass + dmmass) * Om
+    rhodm = (Om - Ob) * 3.0 * Hubble**2 / (8.0 * np.pi * G) / h
 
-  mis = ((dmmass / ndm / rhodm)**(1./3.))/h
-  efres = int(boxsize/h/mis)
+    mis = ((dmmass / ndm / rhodm)**(1./3.))/h
+    efres = int(boxsize/h/mis)
 
-  data_manager.mis = mis
-  data_manager.efres = efres
-  data_manager.Ob = Ob
+    data_manager.mis = mis
+    data_manager.efres = efres
+    data_manager.Ob = Ob
 
 # FIXME: this function is unnecessary; the KDTree takes care of spatial decomposition, and it is incompatible with PBCs
 # initial assignment of galaxy ids through sorting in x,y,z directions
@@ -146,141 +157,141 @@ def run_fof6d_in_halo(
     vel_LL=None
 ):
 
-  n = len(pos)
-  if len(pos) < minstars:
-      return []
-  
-  tree = KDTree(pos, boxsize=boxsize) # REVIEW: move this to PBCs
-  sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
+    n = len(pos)
+    if len(pos) < minstars:
+        return []
 
-  rows = sdm.row
-  cols = sdm.col
-  dists = sdm.data
+    tree = KDTree(pos, boxsize=boxsize) # REVIEW: move this to PBCs
+    sdm = tree.sparse_distance_matrix(tree, fof_LL, output_type='coo_matrix')
 
-  # vectorised kernel weights (adapted from Jakub)
-  q = dists / fof_LL
-  w = kernel(q, kernel_table)  # already works on arrays
+    rows = sdm.row
+    cols = sdm.col
+    dists = sdm.data
 
-  # vectorised velocity differences
-  vel_diff = np.linalg.norm(vel[cols] - vel[rows], axis=1)
+    # vectorised kernel weights (adapted from Jakub)
+    q = dists / fof_LL
+    w = kernel(q, kernel_table)  # already works on arrays
 
-  # vectorised sigma per particle
-  weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-  sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
+    # vectorised velocity differences
+    vel_diff = np.linalg.norm(vel[cols] - vel[rows], axis=1)
 
-  # vectorised velocity criterion
-  valid = vel_diff <= (vel_LL * sigmas[rows])
+    # vectorised sigma per particle
+    weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
+    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
 
-  adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
-  n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
+    # vectorised velocity criterion
+    valid = vel_diff <= (vel_LL * sigmas[rows])
 
-  # split by label — numpy instead of python loop
-  label_order = np.argsort(labels)
-  sorted_labels = labels[label_order]
-  label_splits = np.flatnonzero(np.diff(sorted_labels)) + 1
-  component_groups = np.split(label_order, label_splits)
+    adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
+    n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
 
-  groups = []
+    # split by label — numpy instead of python loop
+    label_order = np.argsort(labels)
+    sorted_labels = labels[label_order]
+    label_splits = np.flatnonzero(np.diff(sorted_labels)) + 1
+    component_groups = np.split(label_order, label_splits)
 
-  for component in component_groups:
-    if len(component) < minstars:
-        continue
-    c_ptype = ptype[component]
-    if np.sum(c_ptype == 'star') >= minstars:
-        groups.append((ptype[component], original_idx[component]))
+    groups = []
 
-  # unavoidable python loop
-  galaxies = []
-  for ptype, original_idx in groups:
-      galaxy = []
-      for pt in np.unique(ptype):
-          mask = ptype == pt
-          galaxy.append((pt, original_idx[mask]))
-      galaxies.append(galaxy)
+    for component in component_groups:
+        if len(component) < minstars:
+            continue
+        c_ptype = ptype[component]
+        if np.sum(c_ptype == 'star') >= minstars:
+            groups.append((ptype[component], original_idx[component]))
 
-  return galaxies
+    # unavoidable python loop
+    galaxies = []
+    for ptype, original_idx in groups:
+        galaxy = []
+        for pt in np.unique(ptype):
+            mask = ptype == pt
+            galaxy.append((pt, original_idx[mask]))
+        galaxies.append(galaxy)
+
+    return galaxies
 
 # vectorised version of caesar fof6d
 def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
-  config = data_manager.config
+    config = data_manager.config
 
-  for ptype in config['ptypes']:
-    data_manager.load_property('mass', ptype)
+    for ptype in config['ptypes']:
+        data_manager.load_property('mass', ptype)
 
-  data_manager.mdm_total = np.sum(data_manager.data['dm']['mass'])
-  data_manager.ndm = len(data_manager.data['dm'])
+    data_manager.mdm_total = np.sum(data_manager.data['dm']['mass'])
+    data_manager.ndm = len(data_manager.data['dm'])
 
-  data_manager.mgas_total = 0. if 'gas' not in config['ptypes'] else np.sum(data_manager.data['gas']['mass'])
-  data_manager.mstar_total = 0. if 'star' not in config['ptypes'] else np.sum(data_manager.data['star']['mass'])
-  data_manager.mbh_total = 0. if 'bh' not in config['ptypes'] else np.sum(data_manager.data['bh']['mass'])
-  boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
+    data_manager.mgas_total = 0. if 'gas' not in config['ptypes'] else np.sum(data_manager.data['gas']['mass'])
+    data_manager.mstar_total = 0. if 'star' not in config['ptypes'] else np.sum(data_manager.data['star']['mass'])
+    data_manager.mbh_total = 0. if 'bh' not in config['ptypes'] else np.sum(data_manager.data['bh']['mass'])
+    boxsize = data_manager.simulation['boxsize'] / data_manager.simulation['h']
 
-  get_mean_interparticle_separation(data_manager)
+    get_mean_interparticle_separation(data_manager)
 
-  b = 0.02
-  fof_LL = data_manager.mis * b
-  vel_LL = 1.
+    b = 0.02
+    fof_LL = data_manager.mis * b
+    vel_LL = 1.
 
-  for ptype in config['ptypes']:
-    data_manager.load_property('vel', ptype)
+    for ptype in config['ptypes']:
+        data_manager.load_property('vel', ptype)
 
-  # check dense
-  for prop in ['rho', 'temperature', 'sfr']:
-    data_manager.load_property(prop, 'gas')
+    # check dense
+    for prop in ['rho', 'temperature', 'sfr']:
+        data_manager.load_property(prop, 'gas')
 
-  data_manager.data['gas']['temperature'] = 0.
-  data_manager.data['gas']['dense_gas'] = (data_manager.data['gas']['rho'] > config['nHlim']) & ((data_manager.data['gas']['temperature'] < config['Tlim']) | (data_manager.data['gas']['sfr'] > 0))
-  
-  # combine dfs, reduce the gas df to common columns
-  fof_columns = ['HaloID', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'ptype']
-  fof_filter = lambda halo: len(halo) >= config['MINIMUM_STARS_PER_GALAXY']
-  fof_halos = data_manager.data['star'].groupby('HaloID', observed=True).filter(fof_filter)
-  fof_haloids = np.unique(fof_halos['HaloID']) 
+    data_manager.data['gas']['temperature'] = 0.
+    data_manager.data['gas']['dense_gas'] = (data_manager.data['gas']['rho'] > config['nHlim']) & ((data_manager.data['gas']['temperature'] < config['Tlim']) | (data_manager.data['gas']['sfr'] > 0))
 
-  if 'bh' in config['ptypes']:
-    fof_halos = pd.concat([data_manager.data['gas'].loc[data_manager.data['gas']['dense_gas'], fof_columns], data_manager.data['star'][fof_columns], data_manager.data['bh'][fof_columns]]).query('HaloID in @fof_haloids')
-  else:
-    fof_halos = pd.concat([data_manager.data['gas'].loc[data_manager.data['gas']['dense_gas'], fof_columns], data_manager.data['star'][fof_columns]]).query('HaloID in @fof_haloids')
+    # combine dfs, reduce the gas df to common columns
+    fof_columns = ['HaloID', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'ptype']
+    fof_filter = lambda halo: len(halo) >= config['MINIMUM_STARS_PER_GALAXY']
+    fof_halos = data_manager.data['star'].groupby('HaloID', observed=True).filter(fof_filter)
+    fof_haloids = np.unique(fof_halos['HaloID']) 
 
-  fof_halos['GalID'] = 0
-  kernel_table = create_kernel_table(fof_LL)
-  grouped = fof_halos.groupby(by='HaloID', observed=True)
+    if 'bh' in config['ptypes']:
+        fof_halos = pd.concat([data_manager.data['gas'].loc[data_manager.data['gas']['dense_gas'], fof_columns], data_manager.data['star'][fof_columns], data_manager.data['bh'][fof_columns]]).query('HaloID in @fof_haloids')
+    else:
+        fof_halos = pd.concat([data_manager.data['gas'].loc[data_manager.data['gas']['dense_gas'], fof_columns], data_manager.data['star'][fof_columns]]).query('HaloID in @fof_haloids')
 
-  work_items = []
-  halo_ids = []
-  for halo_id, halo_df in grouped:
-      work_items.append((
-          halo_df[['x', 'y', 'z']].to_numpy(),
-          halo_df[['vx', 'vy', 'vz']].to_numpy(),
-          halo_df['ptype'].to_numpy(),
-          halo_df.index.to_numpy(),
-      ))
-      halo_ids.append(halo_id)
+    fof_halos['GalID'] = 0
+    kernel_table = create_kernel_table(fof_LL)
+    grouped = fof_halos.groupby(by='HaloID', observed=True)
 
-  # sort largest first — memory-aware scheduling
-  order = sorted(range(len(work_items)), key=lambda i: len(work_items[i][0]), reverse=True)
-  work_items = [work_items[i] for i in order]
-  halo_ids = [halo_ids[i] for i in order]
+    work_items = []
+    halo_ids = []
+    for halo_id, halo_df in grouped:
+        work_items.append((
+            halo_df[['x', 'y', 'z']].to_numpy(),
+            halo_df[['vx', 'vy', 'vz']].to_numpy(),
+            halo_df['ptype'].to_numpy(),
+            halo_df.index.to_numpy(),
+        ))
+        halo_ids.append(halo_id)
 
-  results = Parallel(n_jobs=12, pre_dispatch='2*n_jobs', batch_size=1)(
-      delayed(run_fof6d_in_halo)(
-          pos, vel, ptype, idx,
-          kernel_table, config['MINIMUM_STARS_PER_GALAXY'], fof_LL, boxsize, vel_LL
-      )
-      for pos, vel, ptype, idx in work_items
-  )
+    # sort largest first — memory-aware scheduling
+    order = sorted(range(len(work_items)), key=lambda i: len(work_items[i][0]), reverse=True)
+    work_items = [work_items[i] for i in order]
+    halo_ids = [halo_ids[i] for i in order]
 
-  # unpack results (same logic as before, just reordered)
-  galaxies = [g for gals in results for g in gals if len(gals) != 0]
+    results = Parallel(n_jobs=12, pre_dispatch='2*n_jobs', batch_size=1)(
+        delayed(run_fof6d_in_halo)(
+            pos, vel, ptype, idx,
+            kernel_table, config['MINIMUM_STARS_PER_GALAXY'], fof_LL, boxsize, vel_LL
+        )
+        for pos, vel, ptype, idx in work_items
+    )
 
-  for ptype in config['ptypes']:
-    data_manager.data[ptype]['GalID'] = -1
-  
-  for i, galaxy in enumerate(galaxies):
-    for ptype, ptype_indexes in galaxy:
-      data_manager.data[ptype].loc[ptype_indexes, 'GalID'] = i
+    # unpack results (same logic as before, just reordered)
+    galaxies = [g for gals in results for g in gals if len(gals) != 0]
 
-  for ptype in config['ptypes']:
-    data_manager.data[ptype]['GalID'] = data_manager.data[ptype]['GalID'].astype('category')
+    for ptype in config['ptypes']:
+        data_manager.data[ptype]['GalID'] = -1
 
-  if np.all(data_manager.data['star']['GalID'] == -1): config['groups'] = ['halos']
+    for i, galaxy in enumerate(galaxies):
+        for ptype, ptype_indexes in galaxy:
+            data_manager.data[ptype].loc[ptype_indexes, 'GalID'] = i
+
+    for ptype in config['ptypes']:
+        data_manager.data[ptype]['GalID'] = data_manager.data[ptype]['GalID'].astype('category')
+
+    if np.all(data_manager.data['star']['GalID'] == -1): config['groups'] = ['halos']
