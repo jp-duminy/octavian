@@ -36,7 +36,7 @@ class FOF6DItem:
     """
     pos: np.ndarray
     vel: np.ndarray
-    ptype: np.ndarray # which particles are what ptype
+    ptype: np.ndarray # which particles are what ptype (move to integer codings eventually)
     write_key: np.ndarray # for writing back to data layers
   
 @dataclass(slots=True, frozen=True) 
@@ -50,6 +50,16 @@ class FOF6DParameters:
     boxsize: float
     minstars: int
     cores_per_rank: int
+
+@dataclass(slots=True, frozen=True)
+class FOF6DResult:
+    """
+    Assignments made by FOF6D for writing back to datamanager.
+    """
+    write_keys: np.ndarray # for now, indexes back into datamanager
+    galaxy_ids: np.ndarray 
+    ptypes: np.ndarray # move to integer codings eventually
+    n_galaxies: int
     
 def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6DParameters]:
     """
@@ -60,7 +70,7 @@ def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6
 
     star_halo_ids = data_manager.data['star']['HaloID'].to_numpy()
     star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0]) # NOTE: sentinel convention
-    eligible_halos = np.where(star_counts >= config['MINIMUM_STARS_PER_GALAXY'])[0]
+    eligible_halos = np.where(star_counts >= config['MINIMUM_STARS_PER_GALAXY'])[0] # disregard halos which would have no galaxies
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
     eligible_set[eligible_halos] = True
 
@@ -75,6 +85,7 @@ def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6
     dense_mask = (rho > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0))
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
+
     for ptype in ["star", "gas", "bh"]:
 
         if ptype not in config['ptypes']:
@@ -83,18 +94,27 @@ def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6
 
         df = data_manager.data[ptype]
         halo_ids = df['HaloID'].to_numpy()
+        in_range = (halo_ids >= 0) & (halo_ids < len(eligible_set))
+        masked_hids = np.where(in_range, halo_ids, 0) # have to mask before & operator 
         
         # per-ptype mask
         if ptype == 'gas':
-            mask = dense_mask & (halo_ids >= 0) & (halo_ids < len(eligible_set)) & eligible_set[halo_ids]
+            mask = dense_mask & in_range & eligible_set[masked_hids]
         else:
-            mask = (halo_ids >= 0) & (halo_ids < len(eligible_set)) & eligible_set[halo_ids]
+            mask = in_range & eligible_set[masked_hids]
         
         pos_list.append(df[['x', 'y', 'z']].to_numpy()[mask])
         vel_list.append(df[['vx', 'vy', 'vz']].to_numpy()[mask])
         ptype_list.append(df['ptype'].to_numpy()[mask])
         index_list.append(df.index.to_numpy()[mask])
         hid_list.append(halo_ids[mask])
+
+    data_manager.mdm_total = np.sum(data_manager.data['dm']['mass'])
+    data_manager.ndm = len(data_manager.data['dm'])
+
+    data_manager.mgas_total = 0. if 'gas' not in config['ptypes'] else np.sum(data_manager.data['gas']['mass'])
+    data_manager.mstar_total = 0. if 'star' not in config['ptypes'] else np.sum(data_manager.data['star']['mass'])
+    data_manager.mbh_total = 0. if 'bh' not in config['ptypes'] else np.sum(data_manager.data['bh']['mass'])
 
     get_mean_interparticle_separation(data_manager) # NOTE: see above, called-per rank
 
@@ -156,7 +176,7 @@ def get_mean_interparticle_separation(data_manager: 'DataManager') -> None:
     Om = data_manager.simulation['O0']
     boxsize = data_manager.simulation['boxsize']
 
-    GRAV = unyt.G.to('cm**3/(g*s**2)').d
+    GRAV = unyt.G.to('cm**3/(g*s**2)').d # REVIEW: may want to streamline this
     UL = (1. * unyt.kpc).to('cm').d
     UM = data_manager.create_unit_quantity('mass').to('g').d
     UT = t/a
@@ -295,6 +315,134 @@ def run_fof6d_in_halo(
         galaxies.append(galaxy)
 
     return galaxies
+
+def run_fof6d_in_halo_new(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+
+    n = len(work_item.pos)
+    if n < params.minstars:
+        return []
+
+    tree = KDTree(work_item.pos, boxsize=params.boxsize) # REVIEW: move this to PBCs
+    sdm = tree.sparse_distance_matrix(tree, params.position_LL, output_type='coo_matrix')
+
+    rows = sdm.row
+    cols = sdm.col
+    dists = sdm.data
+
+    # vectorised kernel weights (adapted from Jakub)
+    q = dists / params.position_LL
+    w = kernel(q, params.kernel_table)  # already works on arrays
+
+    # vectorised velocity differences
+    vel_diff = np.linalg.norm(work_item.vel[cols] - work_item.vel[rows], axis=1)
+
+    # vectorised sigma per particle
+    weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
+    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
+
+    # vectorised velocity criterion
+    valid = vel_diff <= (params.velocity_LL * sigmas[rows])
+
+    adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
+    n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
+
+    # split by label — numpy instead of python loop
+    label_order = np.argsort(labels)
+    sorted_labels = labels[label_order]
+    label_splits = np.flatnonzero(np.diff(sorted_labels)) + 1
+    component_groups = np.split(label_order, label_splits)
+
+    out_keys = []
+    out_gids = []
+    out_ptypes = []
+    local_gal_id = 0
+
+    for component in component_groups:
+
+        if len(component) < params.minstars:
+            continue
+
+        component_ptype = work_item.ptype[component]
+
+        if np.sum(component_ptype == 'star') < params.minstars:
+            continue
+
+        out_keys.append(work_item.write_key[component])
+        out_gids.append(np.full(len(component), local_gal_id, dtype=np.int64))
+        out_ptypes.append(component_ptype)
+        local_gal_id += 1
+
+    if local_gal_id == 0: # no galaxies
+
+        empty = np.empty(0, dtype=np.int64)
+        return empty, empty, np.empty(0, dtype=object), 0
+
+    return np.concatenate(out_keys), np.concatenate(out_gids), np.concatenate(out_ptypes), local_gal_id # local_gal_id is proxy for n_galaxies
+
+def collect_fof6d_results(results: tuple[np.ndarray, np.ndarray, np.ndarray, int]) -> FOF6DResult:
+    """
+    Collates and unpacks all the results from the FOF6DItems and concatenates them into a result for broadcasting.
+    """
+    not_empty = [(k, g, p, n) for k, g, p, n in results if n > 0]
+
+    if not not_empty: # NOTE: flag this in the logger when added
+
+        return FOF6DResult(write_keys=np.empty(shape=not_empty), 
+                           galaxy_ids=np.empty(shape=not_empty),
+                           ptypes=np.empty(shape=not_empty),
+                           n_galaxies=0)
+    
+    keys, gids, ptypes, counts = zip(*results)
+
+    all_keys = np.concatenate(keys)
+    all_gids = np.concatenate(gids)
+    all_ptypes = np.concatenate(ptypes)
+    counts_array = np.array(counts, dtype=np.int64)
+    offsets = np.cumsum(counts_array) - counts_array
+
+    particles_per_halo = np.array([len(k) for k in keys], dtype=np.int64)
+    all_gids += np.repeat(offsets, particles_per_halo)
+
+    return FOF6DResult(
+        write_keys=all_keys,
+        galaxy_ids=all_gids,
+        ptypes=all_ptypes,
+        n_galaxies=counts_array.sum())
+
+def dispatch_fof6d(items: list[FOF6DItem], params: FOF6DParameters) -> FOF6DResult:
+    """
+    Runs the FOF6D algorithm by dispatching work items to cores using joblib.
+    """
+    per_halo_results = Parallel(n_jobs=params.cores_per_rank, batch_size=1)(
+        delayed(run_fof6d_in_halo_new)(work_item=w, params=params) for w in items)
+    
+    return collect_fof6d_results(per_halo_results)
+
+def store_fof6d_results(data_manager: DataManager, result: FOF6DResult) -> None:
+    """
+    Stores the galaxy-finding results in datamanager (and is vectorised compared to the original).
+    """
+    config = data_manager.config
+
+    for ptype in config['ptypes']:
+
+        data_manager.data[ptype]['GalID'] = -1 # NOTE: sentinel value
+
+        mask = result.ptypes == ptype
+        write_keys, galaxy_ids = result.write_keys[mask], result.galaxy_ids[mask]
+        data_manager.data[ptype].loc[write_keys, 'GalID'] = galaxy_ids
+
+        data_manager.data[ptype]['GalID'] = data_manager.data[ptype]['GalID'].astype('category') # I assume category is for performance
+
+def run_fof6d_new(data_manager: DataManager) -> None:
+    """
+    Handles the end-to-end galaxy-finding pipeline; writes back to datamanager.
+    """
+    work_items, params = prepare_fof6d_data(data_manager=data_manager)
+    result = dispatch_fof6d(items=work_items, params=params)
+    store_fof6d_results(data_manager=data_manager, result=result)
+
+    if np.all(data_manager.data['star']['GalID'] == -1): data_manager.config['groups'] = ['halos']
 
 # vectorised version of caesar fof6d
 def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:

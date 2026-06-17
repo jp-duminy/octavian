@@ -184,4 +184,4 @@ code_units:
   bhmdot: Msun/yr
 
 # PARALLELISM
-nproc: 1 # cores per node for joblib
+nproc: 4 # cores per node for joblib

@@ -36,7 +36,7 @@ from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, Z
 # octavian pipeline stages
 from octavian.data_management import DataManager, save_group_properties, wrap_positions, filter_snapshot
 from octavian.utils import merge_catalogues
-from octavian.fof6d import run_fof6d
+from octavian.fof6d import run_fof6d, run_fof6d_new
 from octavian.aggregate_properties import calculate_group_properties, get_particle_lists
 from octavian.run_octavian import _get_mpi_communicator
 
@@ -182,7 +182,7 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
         wrap_positions(data_manager=data_manager)
 
     with time_and_memory(f"FOF6D"):
-        run_fof6d(data_manager=data_manager, nproc=test_config.n_proc)
+        run_fof6d_new(data_manager=data_manager)
 
     data_manager.initialise_group_data()
 
