@@ -1,19 +1,24 @@
 """
 
-Octavian data structures (dataclasses, units, their conventions).
+Octavian data structures (readers, stores, dataclasses).
 This is a modularised version of the old DataManager, its functionality divided amongst smaller objects.
 
 """
 
+# defaults
+from pathlib import Path
 from dataclasses import dataclass
+
+# others
 import numpy as np
+import h5py
+from astropy.cosmology import FlatLambdaCDM
+
+# from the backend
 from octavian.data_management.conventions import (
     CONSTANTS, DTYPES, SimulationAttributes, SnapshotReader,
     gizmo_unit_conversion_factor, derive_stellar_age,
 )
-import h5py
-from pathlib import Path
-from astropy.cosmology import FlatLambdaCDM
 
 class GizmoReader(SnapshotReader):
     """
@@ -164,3 +169,58 @@ class ParticleStore:
         Internally, this is effectively the same as the del method.
         """
         for name in names: self.columns.pop(name, None) 
+
+class GroupStore:
+    """
+    Effectively the same idea as the ParticleStore class, but storing group-level information.
+    """
+    def __init__(self, group_ids: np.ndarray, original_ids: np.ndarray | None = None): # original_ids is for external halo readers
+
+        self.group_ids = group_ids
+        self.n_groups = len(group_ids)
+        self.columns: dict[str, np.ndarray] = {}
+
+        max_id = group_ids.max() if self.n_groups > 0 else 0 # TODO: add this to logger since guard should not be hit in principle
+        self.id_to_idx = np.full(shape=max_id+1, fill_value=-1, dtype=DTYPES["pid"])
+        self.id_to_idx[group_ids] = np.arange(self.n_groups, dtype=DTYPES["csr_offsets"])
+
+        if original_ids is not None:
+            self.columns["original_id"] = original_ids
+
+    def __getitem__(self, key: str) -> np.ndarray:
+        """
+        Use GroupStore["key"] to access array.
+        """
+        return self.columns[key]
+    
+    def __setitem__(self, key: str, array: np.ndarray) -> None:
+        """
+        Use GroupStore["key"] = array to add/modify an entry.
+        """
+        assert array.shape[0] == self.n_groups
+        self.columns[key] = array
+
+    def __contains__(self, key: str) -> bool:
+        """
+        Controls {"key" in GroupStore} behaviour
+        """
+        return key in self.columns
+    
+    def get_indexer(self, group_id: np.ndarray) -> np.ndarray:
+        """
+        Returns the corresponding index array from the group ID array (vectorised).
+        """
+        return self.id_to_idx[group_id]
+    
+@dataclass(slots=True) # no frozen=True as this is inherently supposed to be mutable
+class SimulationData:
+    """
+    Object containing simulation data ready for analysis:
+
+    - hdf5 groups converted to np.ndarrays in code units with correct datatype
+    - group IDs (at instantiation, HIDs)
+    - Simulation-specific attributes (boxsize, cosmological parameters, etc).
+    """
+    simulation:  SimulationAttributes
+    particles:   dict[str, ParticleStore]
+    groups:      dict[str, GroupStore]
