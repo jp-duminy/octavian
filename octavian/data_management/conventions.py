@@ -1,6 +1,7 @@
 """
 
-Octavian units/dtype conventions.
+Octavian units/dtype conventions and conversions.
+Also contains backend dataclasses.
 
 """
 
@@ -29,9 +30,32 @@ class PhysicalConstants:
 
     HUBBLE_UNIT:          float = (1 * u.km / u.s / u.Mpc).to(1/u.s).value
     RHO_CGS_TO_MSUN_KPC3: float = (1 * u.g / u.cm**3).to(u.M_sun / u.kpc**3).value
-    G_VCIRC:              float = codata.G.to('km**2 * kpc / (M_sun * s**2)').value
+    G_VCIRC:              float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
 
 CONSTANTS = PhysicalConstants()
+
+@dataclass(slots=True, frozen=True)
+class SimulationAttributes:
+    """
+    Simulation attributes (e.g. hubble parameter), read/derived from the header information.
+    """
+    # header attributes
+    boxsize:        float
+    h:              float
+    a:              float
+    redshift:       float
+    omega_matter:   float # I renamed this because O0 isn't very readable
+    omega_lambda:   float
+
+    # derived
+    cosmology:      FLRW
+    time_gyr:       float
+    time:         float
+    Hz:             float
+    rhocrit:        float
+    E_z:            float
+    omega_matter_z: float
+    r200_factor:    float
 
 CODE_UNITS = {
 
@@ -85,33 +109,32 @@ DTYPES = {
 
 def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     """
-    Gizmo snapshot unit conversion factors.
-
+    Gizmo snapshot unit conversion factors (pulled from config.yaml)
     Please see http://www.tapir.caltech.edu/~phopkins/Site/GIZMO_files/gizmo_documentation.html#snaps-units
-
     Astropy for automatic dimensional analysis.
     """
     conversions = {
-        "pos":             (u.kpc * a / h,                                  u.kpc * a),
-        "vel":             (u.km / u.s * np.sqrt(a),                        u.km / u.s),
-        "mass":            (1e10 * u.M_sun / h,                             u.M_sun),
-        "rho":             (1e10 * u.M_sun * h**2 / (u.kpc**3 * a**3),      u.g / u.cm**3),
-        "internal_energy": (u.km**2 / u.s**2,                               u.km**2 / u.s**2),
-        "sfr":             (u.M_sun / u.yr,                                 u.M_sun / u.yr),
-        "metallicity":     (u.dimensionless_unscaled,                       u.dimensionless_unscaled),
-        "nh":              (u.dimensionless_unscaled,                       u.dimensionless_unscaled),
-        "fH2":             (u.dimensionless_unscaled,                       u.dimensionless_unscaled),
-        "potential":       (u.km**2 / u.s**2,                               u.km**2 / u.s**2),
-        "formation_time":  (u.dimensionless_unscaled,                       u.dimensionless_unscaled),
-        "bhmass":          (1e10 * u.M_sun / h,                             u.M_sun),
-        "bhmdot":          (10.2249488753 * u.M_sun / (h * u.yr),           u.M_sun / u.yr),
+        "pos":             (u.kpc * a / h,                                      u.kpc * a),
+        "vel":             (u.km / u.s * np.sqrt(a),                            u.km / u.s),
+        "mass":            (1e10 * u.M_sun / h,                                 u.M_sun), # 1e10 factor is just a Gizmo scaling convention
+        "rho":             (1e10 * u.M_sun * h**2 / (u.kpc**3 * a**3),          u.g / u.cm**3),
+        "internal_energy": (u.km**2 / u.s**2,                                   u.km**2 / u.s**2),
+        "sfr":             (u.M_sun / u.yr,                                     u.M_sun / u.yr),
+        "metallicity":     (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
+        "nh":              (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
+        "fH2":             (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
+        "potential":       (u.km**2 / u.s**2,                                   u.km**2 / u.s**2),
+        "formation_time":  (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
+        "bhmass":          (1e10 * u.M_sun / h,                                 u.M_sun),
+        "bhmdot":          (1e10 * u.M_sun / (h * u.kpc / (u.km / u.s)),        u.M_sun / u.yr),
     }
 
     if dataset not in conversions:
         raise KeyError(f"{dataset} is not recognised in the unit conversions.")
 
     snap_unit, internal_unit = conversions[dataset]
-    return (1 * snap_unit).to(internal_unit).value
+
+    return (1 * snap_unit).to(internal_unit).value # 1 * snap_unit is needed to convert to an astropy Quantity
 
 def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: FLRW) -> np.ndarray:
     """
@@ -127,3 +150,26 @@ def calculate_hydrogen_number_density(rho_cgs: np.ndarray, XH: float) -> np.ndar
     return rho_cgs * XH / CONSTANTS.PROTON_MASS_G
 
 # TODO: temperature from internal energy.
+
+class SnapshotReader:
+    """
+    Base reader class (for inheritance). I tucked it away here.
+    """
+    
+    def read_header(self, snapfile: str) -> SimulationAttributes:
+        """
+        Read header attributes and, where necessary, convert units.
+        """
+        raise NotImplementedError
+    
+    def read_dataset(self, snapfile: str, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Returns array in Octavian code units with the correct dtype.
+        """
+        raise NotImplementedError
+    
+    def available_ptypes(self, snapfile: str) -> list[str]:
+        """
+        List of available ptypes in Octavian convention (gas, star, etc.)
+        """
+        raise NotImplementedError

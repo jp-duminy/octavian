@@ -1,0 +1,129 @@
+"""
+
+Octavian data structures (dataclasses, units, their conventions).
+This is a modularised version of the old DataManager, its functionality divided amongst smaller objects.
+
+"""
+
+from dataclasses import dataclass
+import numpy as np
+from octavian.data_management.conventions import (
+    CONSTANTS, DTYPES, SimulationAttributes, SnapshotReader,
+    gizmo_unit_conversion_factor, derive_stellar_age,
+)
+import h5py
+from pathlib import Path
+from astropy.cosmology import FlatLambdaCDM
+
+class GizmoReader(SnapshotReader):
+    """
+    Gizmo (SIMBA) snapshot reader; assumes default units.
+    """
+    ptype_map = {"PartType0": "gas",
+                 "PartType1": "dm",
+                 "PartType4": "star",
+                 "PartType5": "bh",
+                          }
+    dataset_map = {"pos": "Coordinates",
+                   "vel": "Velocities",
+                   "mass": "Masses",
+                   "potential": "Potential",
+                   "temperature": "InternalEnergy", # FIXME: should map properly
+                   "rho": "Density",
+                   "nh": "NeutralHydrogenAbundance",
+                   "sfr": "StarFormationRate",
+                   "formation_time": "StellarFormationTime",
+                   "metallicity": "Metallicity",
+                   "fh2": "FractionH2",
+                   "bhmass": "BH_Mass",
+                   "bhmdot": "BH_Mdot",
+                   "HaloID": "HaloID", # TODO: come back to this when doing external halo finders
+                            }
+    
+    inverse_ptype_map = {v: k for k, v in ptype_map.items()} # for convenience
+
+    def __init__(self, snapshot_file: Path):
+
+        self.snapshot_file = snapshot_file
+
+        self.read_header()
+        self.unit_conversions = {
+            dataset: gizmo_unit_conversion_factor(dataset, self.simulation_attributes.h, self.simulation_attributes.a)
+            for dataset in self.dataset_map
+            if dataset in DTYPES 
+        }
+
+    def read_header(self) -> SimulationAttributes:
+        """
+        Parses header attributes into a dataclass (does derived quantities too); assumes FlatLambdaCDM
+        """
+        with h5py.File(self.snapshot_file, "r") as f:
+
+            header = f["Header"].attrs
+
+            h = header["HubbleParam"]
+            omega_matter = header["Omega0"]
+            omega_lambda = header["OmegaLambda"]
+            a = header["Time"]
+            redshift = header["Redshift"]
+
+            cosmology = FlatLambdaCDM(H0=100*h, Om0=omega_matter)
+            time_gyr = cosmology.age(redshift).value
+            Hz = 100 * h * np.sqrt(omega_lambda + omega_matter * a**-3) * CONSTANTS.HUBBLE_UNIT
+            E_z = np.sqrt(omega_lambda * a**-2 + omega_matter * a**-3)
+            rhocrit = (3. * Hz**2 / (8 * np.pi * CONSTANTS.G_CGS)) * CONSTANTS.RHO_CGS_TO_MSUN_KPC3
+            omega_matter_z = (omega_matter * a**-3) / E_z**2
+
+            self.simulation_attributes = SimulationAttributes(
+
+                h = h,
+                boxsize = header["BoxSize"] / h,
+                a = a,
+                redshift = redshift,
+                omega_matter = omega_matter,
+                omega_lambda = omega_lambda,
+
+                cosmology = cosmology, # perhaps slightly hacky but astropy builds all its cosmo classes on FLRW
+                time_gyr = time_gyr,
+                time = time_gyr * CONSTANTS.GYR_S,
+                
+                Hz = Hz,
+                rhocrit = rhocrit,
+                E_z = E_z,
+                omega_matter_z = omega_matter_z,
+                r200_factor = (200 * 4./3. * np.pi * omega_matter_z * rhocrit * a**3)**(-1./3.)
+            )
+
+        return self.simulation_attributes
+
+    def available_ptypes(self) -> list[str]:
+        """
+        Finds which Octavia-compatible ptypes are available in the snapshot.
+        """
+        with h5py.File(self.snapshot_file) as f:
+            return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
+        
+    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision).
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        hdf5_name = self.dataset_map[dataset]
+
+        with h5py.File(self.snapshot_file, "r") as f:
+            raw_hdf5_array = f[hdf5_group][hdf5_name][:]
+
+        if dataset == "metallicity": # I think it's okay to have these as conditionals by way of being explicit
+            raw_hdf5_array = raw_hdf5_array[:, 0]
+
+        if dataset == "formation_time":
+            raw_hdf5_array = derive_stellar_age(formation_time=raw_hdf5_array, time_gyr=self.simulation_attributes.time_gyr, 
+                                                cosmology=self.simulation_attributes.cosmology)
+
+        conversion_factor = self.unit_conversions.get(dataset, 1.0)
+        if conversion_factor != 1.0: # skip unnecessary multiplication on (potentially giant) arrays
+            raw_hdf5_array = raw_hdf5_array * conversion_factor
+
+        return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+    
+
