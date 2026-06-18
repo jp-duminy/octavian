@@ -22,8 +22,6 @@ prop_aliases:
   pos: Coordinates
   vel: Velocities
   mass: Masses
-  u: InternalEnergy
-  temp: InternalEnergy
   temperature: InternalEnergy
   rho: Density
   nh: NeutralHydrogenAbundance
