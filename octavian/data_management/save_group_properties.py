@@ -1,17 +1,84 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import DataManager
-  from octavian.data_management import SimulationData
+  from octavian.data_management import DataManager, SimulationData, convert_data_manager
 
 import h5py
 import os
+from pathlib import Path
 import numpy as np
 import warnings
 
 # REVIEW: needs refactoring to avoid all the conditionals
 
-warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning) # FIXME:  aim to get rid of this (I think this is pre-csr?)
+
+GROUP_PTYPE_LISTS = {
+    "halos":    ["glist", "slist", "dmlist", "bhlist"],
+    "galaxies": ["glist", "slist", "bhlist"],
+}
+
+HDF5_GROUP_NAMES = {
+    "halos": "halo_data",
+    "galaxies": "galaxy_data",
+}
+
+map_group_to_gid_name = {
+    "halos": "haloID",
+    "galaxies": "galaxyID",
+}
+
+def _resolve_columns(group_store, column: list[str]):
+    """
+    Small helper function for resolving vectors in columns (which are stored as separate entries).
+    """
+    if isinstance(column, list):
+        return np.column_stack([group_store[c] for c in column])
+    
+    return group_store[column]
+
+def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, config: dict, output_file: Path) -> None:
+    """
+    Takes in the SimulationData object and writes it to a .hdf5 file.
+    """
+    if output_file.is_file(): # pathlib version of previous os logic
+        output_file.unlink()
+
+    with h5py.File(output_file, "w") as out:
+
+        for group_name, hdf5_name in HDF5_GROUP_NAMES.items():
+           
+            if group_name not in data.groups:
+                continue
+
+            group_store = data.groups[group_name] # quickhand
+            hdf5_group = out.create_group(hdf5_name)
+
+            hdf5_group.create_dataset(name=f"{map_group_to_gid_name[group_name]}", data=group_store.group_ids, compression=1)
+
+            for ptype in GROUP_PTYPE_LISTS[group_name]: # in theory these could be split up into different functions
+
+                if ptype not in particle_lists[group_name]:
+                    continue
+
+                pl = particle_lists[group_name][ptype]
+                hdf5_group.create_dataset(f'{ptype}_indices', data=pl['indices'], compression=1)
+                hdf5_group.create_dataset(f'{ptype}_offsets', data=pl['offsets'], compression=1)
+                hdf5_group.create_dataset(f'{ptype}_lengths', data=pl['lengths'], compression=1)
+
+            for dataset_name, column_key in config['dataset_columns'].items():
+
+                if dataset_name in GROUP_PTYPE_LISTS[group_name]:
+                    continue
+
+                if column_key not in GROUP_PTYPE_LISTS[group_name]:
+
+                    if isinstance(column_key, list): # for 3D attributes (pos, vel)
+                        if all(c in group_store.columns for c in column_key):
+                            hdf5_group.create_dataset(dataset_name, data=_resolve_columns(group_store, column_key), compression=1)
+                    else:
+                        if column_key in group_store.columns:
+                            hdf5_group.create_dataset(dataset_name, data=group_store[column_key], compression=1)
 
 def save_group_properties(data_manager: DataManager, filename: str) -> None:
     config = data_manager.config
