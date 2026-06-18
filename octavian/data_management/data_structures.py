@@ -126,4 +126,41 @@ class GizmoReader(SnapshotReader):
 
         return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
     
+class ParticleStore:
+    """
+    Stores dictionaries of properties for one particle type.
+    """
+    __slots__ = ("columns", "n_particles", "ptype") # fixed slots
 
+    def __init__(self, ptype: str, n_particles: int):
+
+        self.ptype = ptype
+        self.n_particles = n_particles
+        self.columns: dict[str, np.ndarray] = {} # O(1) lookup on a lightweight np array (preconverted units)
+
+    def __getitem__(self, key: str) -> np.ndarray:
+        """
+        Use ParticleStore["key"] to access array.
+        """
+        return self.columns[key]
+    
+    def __setitem__(self, key: str, array: np.ndarray) -> None:
+        """
+        Use ParticleStore["key"] = array to add/modify an entry.
+        """
+        assert array.shape[0] == self.n_particles
+        self.columns[key] = array
+
+    def __contains__(self, key: str) -> bool:
+        """
+        Controls {"key" in ParticleStore} behaviour
+        """
+        return key in self.columns
+    
+    def release(self, *names: str) -> None: # chose *names as an alternative to names: list[str] for readability
+        """
+        Call ParticleStore.release("key1", "key2") to delete references to no-longer needed columns (like drop from old datamanager).
+
+        Internally, this is effectively the same as the del method.
+        """
+        for name in names: self.columns.pop(name, None) 
