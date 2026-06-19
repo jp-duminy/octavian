@@ -1,6 +1,5 @@
 from octavian.data_management.data_manager import DataManager
 from octavian.data_management.save_group_properties import save_group_properties, write_analysis_to_output_file
 from octavian.data_management.filter_snapshot import filter_snapshot
-from octavian.data_management.wrap_positions import wrap_positions
 from octavian.data_management.data_structures import SimulationData, convert_data_manager, ParticleStore, GroupStore, SimulationAttributes
 from octavian.data_management.conventions import CONSTANTS, DTYPES

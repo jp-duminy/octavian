@@ -35,7 +35,7 @@ import pandas as pd # REVIEW: temporary
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
-from octavian.data_management import DataManager, save_group_properties, wrap_positions, filter_snapshot, write_analysis_to_output_file, convert_data_manager
+from octavian.data_management import DataManager, save_group_properties, filter_snapshot, write_analysis_to_output_file, convert_data_manager
 from octavian.utils import merge_catalogues
 from octavian.fof6d import run_fof6d, run_fof6d_new
 from octavian.aggregate_properties import calculate_group_properties, get_particle_lists, construct_particle_csr_lists
@@ -179,12 +179,10 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
         data_manager.load_halo_ids() # keep these stages in since I expect this takes a while
         data_manager.add_ptype_columns()
 
-    with time_and_memory(f"Unwrap Positions"):
-        wrap_positions(data_manager=data_manager)
-
     with time_and_memory(f"FOF6D"):
-        for ptype in config['ptypes']:
+        for ptype in config['ptypes']: # what wrap_positions did in its near-death state
             data_manager.load_property('mass', ptype)
+            data_manager.load_property('pos', ptype)
             data_manager.load_property('vel', ptype)
         for prop in ['rho', 'temperature', 'sfr']: 
             data_manager.load_property(prop, 'gas')

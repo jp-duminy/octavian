@@ -20,7 +20,7 @@ from yaml import safe_load
 from pathlib import Path
 
 # octavian pipeline stages
-from octavian.data_management import DataManager, save_group_properties, wrap_positions
+from octavian.data_management import DataManager, save_group_properties
 from octavian.fof6d import run_fof6d
 from octavian.aggregate_properties import calculate_group_properties, get_particle_lists
 
