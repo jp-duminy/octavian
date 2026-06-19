@@ -29,6 +29,7 @@ import h5py
 import memray
 import numpy as np
 from matplotlib import pyplot as plt
+import pandas as pd # REVIEW: temporary
 
 # data
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
@@ -182,7 +183,18 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
         wrap_positions(data_manager=data_manager)
 
     with time_and_memory(f"FOF6D"):
-        run_fof6d_new(data_manager=data_manager)
+        for ptype in config['ptypes']:
+            data_manager.load_property('mass', ptype)
+            data_manager.load_property('vel', ptype)
+        for prop in ['rho', 'temperature', 'sfr']: 
+            data_manager.load_property(prop, 'gas')
+        simdata = convert_data_manager(data_manager)
+        run_fof6d_new(simdata.particles, simdata.simulation, config)
+
+        for ptype in config['ptypes']:
+            data_manager.data[ptype]['GalID'] = pd.Series(
+                simdata.particles[ptype]["GalID"], dtype='category'
+            ) # CGP not yet decoupled, so return the galids there.
 
     data_manager.initialise_group_data()
 

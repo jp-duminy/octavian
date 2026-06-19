@@ -12,7 +12,9 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
   from octavian.data_management import DataManager
+  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes
 
+from octavian.data_management import CONSTANTS, DTYPES
 # default library
 from dataclasses import dataclass
 
@@ -166,6 +168,115 @@ def prepare_fof6d_data(data_manager: DataManager) -> tuple[list[FOF6DItem], FOF6
         ))
 
     return items, params
+
+# NOTE: just pass the simulationattributes dataclass when this gets moved to read-in 
+def compute_mean_interparticle_separation(dm_mass_total: float, n_dm: int, baryonic_mass_total: float, omega_matter: float,
+                                          h: float, a: float, time_s: float) -> float:
+    """
+    Computes the mean separation between particles (lambda) across the box.
+    """
+    G_CODE = CONSTANTS.G_CGS / CONSTANTS.KPC_CM**3 * CONSTANTS.M_SUN_G * (time_s / a)**2 # G [kpc^3/(M_sun * t/a)^2]
+    H0_CODE = 100 * CONSTANTS.HUBBLE_UNIT * (time_s / a) # H0 = 100h^-1 in hubble units (work in h^-1)
+
+    omega_baryon = baryonic_mass_total / (baryonic_mass_total + dm_mass_total) * omega_matter
+    rho_dm = (omega_matter - omega_baryon) * 3.0 * H0_CODE**2 / (8.0 * np.pi * G_CODE) / h
+    mean_interparticle_separation = ((dm_mass_total / n_dm / rho_dm)**(1./3.)) / h
+
+    return mean_interparticle_separation # NOTE: old code returned efres and omega_baryon but they were unused
+
+def prepare_fof6d_data_new(particles: dict[str, ParticleStore], simulation: SimulationAttributes, 
+                           config: dict,) -> tuple[list[FOF6DItem], FOF6DParameters]:
+    """
+    Extracts relevant arrays/parameters & initialises dataclasses for the FOF6D algorithm.
+    """
+    star_halo_ids = particles["star"]["HaloID"]
+    star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0]) # NOTE: work sentinel value into here
+
+    eligible_halos = np.where(star_counts >= config['MINIMUM_STARS_PER_GALAXY'])[0] # disregard halos which would have no galaxies
+    eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
+    eligible_set[eligible_halos] = True
+
+    gas = particles["gas"]
+    rho, sfr = gas["rho"], gas["sfr"]
+    temperature = np.zeros(shape=gas.n_particles) # FIXME: temperature=0 for now
+    dense_mask = (rho > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0))
+
+    pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
+
+    n_dm, dm_mass_total = particles["dm"].n_particles, np.sum(particles["dm"]["mass"])
+    baryonic_mass_total = sum(
+        particles[pt]["mass"].sum() for pt in ["gas", "star", "bh"] if pt in particles
+    )
+
+    for ptype in ["star", "gas", "bh"]:
+
+        if ptype not in particles:
+            continue
+
+        halo_ids = particles[ptype]["HaloID"]
+        in_range = (halo_ids >= 0) & (halo_ids < len(eligible_set))
+        masked_hids = np.where(in_range, halo_ids, 0) # have to mask before & operator 
+        
+        if ptype == 'gas':
+            mask = dense_mask & in_range & eligible_set[masked_hids] # dense criterion for gas specifically
+        else:
+            mask = in_range & eligible_set[masked_hids]
+        
+        pos_list.append(particles[ptype].get_columns(["x", "y", "z"])[mask])
+        vel_list.append(particles[ptype].get_columns(["vx", "vy", "vz"])[mask])
+        ptype_list.append(particles[ptype]["ptype"][mask])
+        index_list.append(np.arange(particles[ptype].n_particles)[mask])
+        hid_list.append(halo_ids[mask])
+
+    mis = compute_mean_interparticle_separation(dm_mass_total=dm_mass_total, n_dm=n_dm, baryonic_mass_total=baryonic_mass_total,
+                                                omega_matter=simulation.omega_matter, h=simulation.h, a=simulation.a,
+                                                time_s=simulation.time)
+    
+    b = 0.02 # NOTE: move to config
+    fof_LL = mis * b
+    vel_LL = 1. # NOTE: represents deviation from velocity dispersion rather than a distance in velocity space
+    boxsize = simulation.boxsize
+    kernel_table = create_kernel_table(fof_LL)
+
+    params = FOF6DParameters(
+        kernel_table=kernel_table,
+        position_LL=fof_LL,
+        velocity_LL=vel_LL,
+        boxsize=boxsize,
+        minstars=config['MINIMUM_STARS_PER_GALAXY'],
+        cores_per_rank=config['nproc'],
+    )
+
+    # NOTE: this copies the same pattern as CGP does on read-in
+    all_pos, all_vel = np.vstack(pos_list), np.vstack(vel_list) # vstack (vectors)
+    all_ptype, all_halo_ids = np.concatenate(ptype_list), np.concatenate(hid_list)
+    all_write_key = np.concatenate(index_list)
+
+    order = np.argsort(all_halo_ids, kind='mergesort')
+    all_pos, all_vel = all_pos[order], all_vel[order]
+    all_ptype, all_halo_ids = all_ptype[order], all_halo_ids[order]
+    all_write_key = all_write_key[order]
+
+    sorted_halo_ids = all_halo_ids # just for readability
+    changes = np.flatnonzero(np.diff(sorted_halo_ids)) + 1
+    starts = np.concatenate(([0], changes))
+    ends = np.concatenate((changes, [len(sorted_halo_ids)]))
+
+    sizes = ends - starts
+    size_order = np.argsort(sizes)[::-1] # largest halos first
+
+    items = []
+    for i in size_order:
+        s, e = starts[i], ends[i]
+        items.append(FOF6DItem(
+            pos=all_pos[s:e],
+            vel=all_vel[s:e],
+            ptype=all_ptype[s:e],
+            write_key=all_write_key[s:e],
+        ))
+
+    return items, params
+
 
 # get mis for fof6d
 # FIXME: MIS is computed per-rank which is not globally-consistent.
@@ -426,7 +537,7 @@ def store_fof6d_results(data_manager: DataManager, result: FOF6DResult) -> None:
 
     for ptype in config['ptypes']:
 
-        data_manager.data[ptype]['GalID'] = -1 # NOTE: sentinel value
+        data_manager.data[ptype]['GalID'] = -1 
 
         mask = result.ptypes == ptype
         write_keys, galaxy_ids = result.write_keys[mask], result.galaxy_ids[mask]
@@ -434,15 +545,34 @@ def store_fof6d_results(data_manager: DataManager, result: FOF6DResult) -> None:
 
         data_manager.data[ptype]['GalID'] = data_manager.data[ptype]['GalID'].astype('category') # I assume category is for performance
 
-def run_fof6d_new(data_manager: DataManager) -> None:
+def store_fof6d_results_new(particles: dict[str, ParticleStore], result: FOF6DResult) -> None:
     """
-    Handles the end-to-end galaxy-finding pipeline; writes back to datamanager.
+    Appends the galaxy-finding results to ParticleStore (and is vectorised compared to the original).
     """
-    work_items, params = prepare_fof6d_data(data_manager=data_manager)
-    result = dispatch_fof6d(items=work_items, params=params)
-    store_fof6d_results(data_manager=data_manager, result=result)
+    for ptype in particles:
 
-    if np.all(data_manager.data['star']['GalID'] == -1): data_manager.config['groups'] = ['halos']
+        particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64) # NOTE: sentinel value
+
+        mask = result.ptypes == ptype
+
+        if not mask.any():
+            continue
+
+        particles[ptype]["GalID"][result.write_keys[mask]] = result.galaxy_ids[mask]
+
+def run_fof6d_new(particles: dict[str, ParticleStore], simulation: SimulationAttributes, 
+              config: dict) -> FOF6DResult:
+    """
+    Handles the end-to-end galaxy-finding pipeline; writes back to ParticleStore.
+    """
+    work_items, params = prepare_fof6d_data_new(particles=particles, simulation=simulation, config=config)
+    result = dispatch_fof6d(items=work_items, params=params)
+    store_fof6d_results_new(particles=particles, result=result)
+
+    if result.n_galaxies == 0: # NOTE: move this outside FOF6D to the run function
+        config["groups"] = ["halos"]
+
+    return result
 
 # vectorised version of caesar fof6d
 def run_fof6d(data_manager: DataManager, nproc: int = 1) -> None:
