@@ -31,6 +31,7 @@ class PhysicalConstants:
     HUBBLE_UNIT:          float = (1 * u.km / u.s / u.Mpc).to(1/u.s).value
     RHO_CGS_TO_MSUN_KPC3: float = (1 * u.g / u.cm**3).to(u.M_sun / u.kpc**3).value
     G_VCIRC:              float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
+    VIRIAL_TEMP_FACTOR:   float = (0.6 * codata.m_p.cgs.value * (100 * u.km).to(u.cm).value**2 / (2 * codata.k_B.cgs.value))
 
 CONSTANTS = PhysicalConstants()
 
