@@ -3,3 +3,4 @@ from octavian.data_management.save_group_properties import save_group_properties
 from octavian.data_management.filter_snapshot import filter_snapshot
 from octavian.data_management.wrap_positions import wrap_positions
 from octavian.data_management.data_structures import SimulationData, convert_data_manager
+from octavian.data_management.conventions import DTYPES

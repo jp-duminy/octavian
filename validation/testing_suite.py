@@ -37,7 +37,7 @@ from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, Z
 from octavian.data_management import DataManager, save_group_properties, wrap_positions, filter_snapshot, write_analysis_to_output_file, convert_data_manager
 from octavian.utils import merge_catalogues
 from octavian.fof6d import run_fof6d, run_fof6d_new
-from octavian.aggregate_properties import calculate_group_properties, get_particle_lists
+from octavian.aggregate_properties import calculate_group_properties, get_particle_lists, construct_particle_csr_lists
 from octavian.run_octavian import _get_mpi_communicator
 
 @dataclass
@@ -190,9 +190,10 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
         calculate_group_properties(data_manager=data_manager)
 
     with time_and_memory(f"Save data"):
-        get_particle_lists(data_manager=data_manager)
+        for ptype in config['ptypes']:
+            data_manager.load_property('particle_index', ptype)
         simdata = convert_data_manager(data_manager=data_manager)
-        particle_lists = data_manager.particle_lists
+        particle_lists = construct_particle_csr_lists(data=simdata, config=config)
         write_analysis_to_output_file(data=simdata, config=config, particle_lists=particle_lists, output_file=output_file)
 
 def _assert_conserved(label: str, pre: int, post: int):
