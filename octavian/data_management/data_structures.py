@@ -37,12 +37,13 @@ class GizmoReader(SnapshotReader):
                    "rho": "Density",
                    "nh": "NeutralHydrogenAbundance",
                    "sfr": "StarFormationRate",
-                   "formation_time": "StellarFormationTime",
+                   "age": "StellarFormationTime", # NOTE: we compute age from formationtime, but using "age" is for reader agnosticity
                    "metallicity": "Metallicity",
-                   "fh2": "FractionH2",
+                   "fH2": "FractionH2",
                    "bhmass": "BH_Mass",
                    "bhmdot": "BH_Mdot",
                    "HaloID": "HaloID", # TODO: come back to this when doing external halo finders
+                   "particle_index": "particle_index" # NOTE: this is not written from the snapshot directly
                             }
     
     inverse_ptype_map = {v: k for k, v in ptype_map.items()} # for convenience
@@ -121,7 +122,7 @@ class GizmoReader(SnapshotReader):
         if dataset == "metallicity": # I think it's okay to have these as conditionals by way of being explicit
             raw_hdf5_array = raw_hdf5_array[:, 0]
 
-        if dataset == "formation_time":
+        if dataset == "age":
             raw_hdf5_array = derive_stellar_age(formation_time=raw_hdf5_array, time_gyr=self.simulation_attributes.time_gyr, 
                                                 cosmology=self.simulation_attributes.cosmology)
 
@@ -174,9 +175,7 @@ class ParticleStore:
         """
         Allows you to use len() on the ParticleStore to find the length of its arrays, avoiding using something (I usually used mass) as a proxy.
         """
-        if not self.columns:
-            return 0
-        return len(next(iter(self.columns.values())))
+        return self.n_particles
     
     def release(self, *names: str) -> None: # chose *names as an alternative to names: list[str] for readability
         """
