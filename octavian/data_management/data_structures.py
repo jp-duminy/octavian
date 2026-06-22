@@ -169,6 +169,14 @@ class ParticleStore:
         Controls {"key" in ParticleStore} behaviour
         """
         return key in self.columns
+
+    def __len__(self) -> int:
+        """
+        Allows you to use len() on the ParticleStore to find the length of its arrays, avoiding using something (I usually used mass) as a proxy.
+        """
+        if not self.columns:
+            return 0
+        return len(next(iter(self.columns.values())))
     
     def release(self, *names: str) -> None: # chose *names as an alternative to names: list[str] for readability
         """
@@ -229,7 +237,7 @@ class GroupStore:
         id_to_idx = np.full(len(group_id), -1, dtype=DTYPES["csr_offsets"])
         valid = (group_id >= 0) & (group_id < len(self.id_to_idx))
         id_to_idx[valid] = self.id_to_idx[group_id[valid]] # mask valid indices (-1, the sentinel, is the last array element)
-        
+
         return id_to_idx
     
 def build_group_stores(particles: dict[str, ParticleStore], config: dict) -> dict[str, GroupStore]:
