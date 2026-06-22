@@ -13,6 +13,9 @@ import astropy.units as u
 from astropy.cosmology import FLRW
 import numpy as np
 
+FRAD = 0.1  # radiative efficiency of accretion
+MU = 0.6    # mean molecular weight (assuming X=0.7, Y=0.28, Z=0.02)
+
 @dataclass(frozen=True, slots=True)
 class PhysicalConstants:
     """
@@ -31,7 +34,8 @@ class PhysicalConstants:
     HUBBLE_UNIT:          float = (1 * u.km / u.s / u.Mpc).to(1/u.s).value
     RHO_CGS_TO_MSUN_KPC3: float = (1 * u.g / u.cm**3).to(u.M_sun / u.kpc**3).value
     G_VCIRC:              float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
-    VIRIAL_TEMP_FACTOR:   float = (0.6 * codata.m_p.cgs.value * (100 * u.km).to(u.cm).value**2 / (2 * codata.k_B.cgs.value))
+    VIRIAL_TEMP_FACTOR:   float = (MU * codata.m_p.cgs.value * (100 * u.km).to(u.cm).value**2 / (2 * codata.k_B.cgs.value))
+    EDD_FACTOR:           float = (4 * np.pi * codata.G.cgs * codata.m_p.cgs / (FRAD * codata.c.cgs * codata.sigma_T.cgs)).to(1 / u.yr).value
 
 CONSTANTS = PhysicalConstants()
 
@@ -51,7 +55,7 @@ class SimulationAttributes:
     # derived
     cosmology:      FLRW
     time_gyr:       float
-    time:         float
+    time:           float
     Hz:             float
     rhocrit:        float
     E_z:            float
