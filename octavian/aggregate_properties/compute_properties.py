@@ -36,6 +36,8 @@ from octavian.aggregate_properties.group_helpers import (
     weighted_mean_per_group,
 )
 
+BARYONIC_PTYPES = ["star", "gas", "bh"]
+
 @dataclass(slots=True) 
 class GroupContext: # I'm sure this could have a better name but I feel context -> ctx improves readability
     """
@@ -66,7 +68,7 @@ class GroupContext: # I'm sure this could have a better name but I feel context 
 
 def extract_particles(particles: dict[str, ParticleStore], ptypes: list[str], group_key: str) -> tuple[np.ndarray, ...]: 
     """
-    Unpacks the ParticleStore for the group, then concatenates the particle arrays across ptypes for vectorisation.
+    Unpacks the ParticleStore(s) for the group, then concatenates the particle arrays across ptypes for vectorisation.
 
     group_key: the corresponding ID, so HaloID or GalID
     """
@@ -279,6 +281,33 @@ def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
     gas["mass_HI"] = XH * fHI * mass
     gas["mass_H2"] = XH * fH2 * mass
 
+def _assign_parent_halo_indices(particles: dict[str, ParticleStore], galaxies: GroupStore, halos: GroupStore) -> None:
+    """
+    Assigns galaxies their parent halo indices (slightly hacky, assigns based on membership of first).
+
+    This may move elsewhere depending on how we do subhalos with FOF6D.
+    """    
+    gids_list, hids_list = [], []
+
+    for ptype in BARYONIC_PTYPES:
+
+        store = particles[ptype]
+        gids_list.append(store["GalID"])
+        hids_list.append(store["HaloID"])
+
+    all_gids, all_hids = np.concatenate(gids_list, dtype=DTYPES["GalID"]), np.concatenate(hids_list, dtype=DTYPES["HaloID"])
+    in_galaxy = all_gids >= 0
+    all_gids, all_hids = all_gids[in_galaxy], all_hids[in_galaxy]
+
+    galaxy_idx = galaxies.get_indexer(group_id=all_gids)
+    first_particle_idx = first_idx_per_group(group_idx=galaxy_idx, n_groups=galaxies.n_groups)
+    valid = first_particle_idx >= 0 # NOTE: add note in logger if this triggers
+    galaxy_halo_id = np.full(shape=galaxies.n_groups, fill_value=-1, dtype=DTYPES["HaloID"])
+    galaxy_halo_id[valid] = all_hids[first_particle_idx[valid]]
+
+    parent_halo_index = halos.get_indexer(group_id=galaxy_halo_id)
+    galaxies["parent_halo_index"] = parent_halo_index
+
 def compute_gas_properties(gas: ParticleStore, group_store: GroupStore, group_idx: np.ndarray, nHlim: float) -> None:
     """
     Computes gas-specific properties; second block is for CGM.
@@ -474,12 +503,80 @@ def compute_galaxy_aperture_masses(particles: dict[str, ParticleStore], galaxies
 def compute_common_properties(particles: dict[str, ParticleStore], group_store: GroupStore, sim: SimulationAttributes, group_name: str, 
                               ptype: str, ptypes: list[str], group_key: str) -> None:
     """
-    Computes properties common to both halos & galaxies.
+    Computes properties common to both halos & galaxies for specified particle type(s).
     """
-    pass
+    halo_ids, group_ids, masses, potentials, positions, velocities = \
+        extract_particles(particles=particles, ptypes=ptypes, group_key=group_key) # NOTE: potentials only used for halos
+    
+    if len(masses) == 0:
+        return
+    
+    group_idx = group_store.get_indexer(group_ids)
 
-def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: dict[str, GroupStore], sim: SimulationAttributes) -> None:
+    ctx = GroupContext(
+        group_name=group_name,
+        particle_type=ptype,
+        group_idx=group_idx,
+        n_groups=group_store.n_groups,
+        positions=positions,
+        velocities=velocities,
+        masses=masses,
+    )
+
+    _compute_counts_and_mass(ctx=ctx, group_store=group_store)
+    _compute_centre_of_mass(ctx=ctx, group_store=group_store, boxsize=sim.boxsize)
+
+    if group_name == "halos": # halo and galaxy centres are defined differently
+        _compute_minimal_potential(ctx=ctx, group_store=group_store, potentials=potentials)
+        # NOTE: this is not a common property but requires the context dataclass so for sensibility purposes it goes here
+        _compute_halo_quantities(ctx=ctx, group_store=group_store, r200_factor=sim.r200_factor, rhocrit=sim.rhocrit)
+
+    _compute_relative_quantities(ctx=ctx, boxsize=sim.boxsize)
+    _compute_kinematics(ctx=ctx, group_store=group_store)
+    _compute_radial_quantities(ctx=ctx, group_store=group_store)
+
+def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: dict[str, GroupStore], sim: SimulationAttributes,
+                                 config: dict) -> None:
     """
-    Orchestrator of the 
+    Aggregate properties orchestrator, loads all requisite data and drops unneeded columns after use. 
+
+    Calls all compute functions for both halos and galaxies.
     """    
-    pass
+    PTYPE_PASSES = [
+        ("total",   config["ptypes"]),
+        ("dm",      ["dm"]),
+        ("baryon",  BARYONIC_PTYPES),
+        ("gas",     ["gas"]),
+        ("star",    ["star"]),
+        ("bh",      ["bh"]),
+    ]
+
+    group_keys = {"halos": "HaloID", "galaxies": "GalID"}
+
+    for group_name in config["groups"]:
+
+        store = groups[group_name]
+        group_key = group_keys[group_name]
+
+        for particle_type, ptypes in PTYPE_PASSES:
+            compute_common_properties(
+                particles=particles, group_store=store, group_name=group_name, sim=sim,
+                ptype=particle_type, ptypes=ptypes, group_key=group_key,
+            )
+
+        gas_idx = store.get_indexer(group_id=particles["gas"][group_key])
+        _prepare_hydrogen_fractions(gas=particles["gas"], XH=config["XH"])
+        compute_gas_properties(gas=particles["gas"], group_store=store, group_idx=gas_idx, nHlim=config["nHlim"])
+
+        star_idx = store.get_indexer(group_id=particles["star"][group_key])
+        compute_star_properties(star=particles["star"], group_store=store, group_idx=star_idx)
+
+        bh_idx = store.get_indexer(group_id=particles["bh"][group_key])
+        compute_bh_properties(bh=particles["bh"], group_store=store, group_idx=bh_idx, edd_factor=CONSTANTS.EDD_FACTOR)
+
+        if group_name == "galaxies":
+            _assign_parent_halo_indices(particles=particles, galaxies=store, halos=groups["halos"])
+            compute_galaxy_aperture_masses(particles=particles, galaxies=store, boxsize=sim.boxsize, aperture_size=30.)
+
+        compute_local_densities(group_store=store, boxsize=sim.boxsize, radii=[300., 1000., 3000.])
+        
