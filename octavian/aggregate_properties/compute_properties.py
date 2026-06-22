@@ -262,3 +262,113 @@ def compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_fac
     group_store[f"temperature"] = temperature # NOTE: this is virial temperature, maybe worth making explicit
     group_store[f"spin_param"] = spin_param
 
+def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
+    """
+    Derive HI/H2 masses from snapshot information, mutates the gas ParticleStore.
+    """
+    fHI = gas["nh"].copy()
+    fH2 = gas["fH2"]
+
+    # enforce mass conservation: fHI + fH2 <= 1
+    not_conserving = (fHI + fH2) > 1.0
+    fHI[not_conserving] = 1.0 - fH2[not_conserving]
+
+    mass = gas["mass"]
+    gas["fHI"] = fHI
+    gas["mass_HI"] = XH * fHI * mass
+    gas["mass_H2"] = XH * fH2 * mass
+
+def compute_gas_properties(gas: ParticleStore, group_store: GroupStore, group_idx: np.ndarray, nHlim: float) -> None:
+    """
+    Computes gas-specific properties; second block is for CGM.
+    """
+    valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
+    group_idx = group_idx[valid]
+    n_groups = group_store.n_groups
+
+    temperatures = gas["temperature"][valid]
+    metallicities = gas["metallicity"][valid]
+    sfrs = gas["sfr"][valid]
+    masses = gas["mass"][valid] # particle-level
+    group_mass = group_store["mass_gas"] # group-level (computed earlier in cgp)
+
+    mass_HI = sum_per_group(values=gas["mass_HI"][valid], group_idx=group_idx, n_groups=n_groups)
+    mass_H2 = sum_per_group(values=gas["mass_H2"][valid], group_idx=group_idx, n_groups=n_groups)
+    sfr = sum_per_group(values=sfrs, group_idx=group_idx, n_groups=n_groups)
+    metal_mass = sum_per_group(values=(metallicities * masses), group_idx=group_idx, n_groups=n_groups)
+    metal_sfr = sum_per_group(values=(metallicities * sfrs), group_idx=group_idx, n_groups=n_groups)
+    temp_mass = sum_per_group(values=(temperatures * masses), group_idx=group_idx, n_groups=n_groups)
+
+    group_store["mass_HI"] = mass_HI
+    group_store["mass_H2"] = mass_H2
+    group_store["sfr"] = sfr
+    group_store["metallicity_mass_weighted"] =  metal_mass / group_mass
+    group_store["metallicity_sfr_weighted"] =  metal_sfr / sfr
+    group_store["temp_mass_weighted"] = temp_mass / group_mass
+
+    # cgm 
+    rhos = gas["rho"][valid]
+    cgm_criterion = rhos < nHlim
+    cgm_idx = group_idx[cgm_criterion]
+    cgm_masses = masses[cgm_criterion]
+    cgm_temperatures = temperatures[cgm_criterion]
+    cgm_metallicities = metallicities[cgm_criterion]
+
+    cgm_mass = sum_per_group(values=cgm_masses, group_idx=cgm_idx, n_groups=n_groups)
+    cgm_temp_mass = sum_per_group(values=(cgm_temperatures * cgm_masses), group_idx=cgm_idx, n_groups=n_groups)
+    cgm_temp_metal = sum_per_group(values=(cgm_temperatures * cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
+    cgm_metal_mass = sum_per_group(values=(cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
+
+    group_store["mass_cgm"] = cgm_mass
+    group_store["temp_mass_weighted_cgm"] = cgm_temp_mass / cgm_mass
+    group_store["temp_metal_weighted_cgm"] = cgm_temp_metal / cgm_temp_mass
+    group_store["metallicity_mass_weighted_cgm"] = cgm_metal_mass / cgm_mass
+    group_store["metallicity_temp_weighted_cgm"] = cgm_temp_metal / cgm_metal_mass
+
+def compute_star_properties(star: ParticleStore, group_store: GroupStore, group_idx: np.ndarray) -> None:
+    """
+    Computes star-specific properties.
+    """
+    valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
+    group_idx = group_idx[valid]
+    n_groups = group_store.n_groups
+
+    metallicities = star["metallicity"][valid]
+    ages = star["age"][valid]
+    masses = star["mass"][valid] # particle-level
+    group_mass = group_store["mass_star"] # group-level
+
+    metal_mass = sum_per_group(values=(masses * metallicities), group_idx=group_idx, n_groups=n_groups)
+    age_mass = sum_per_group(values=(ages * masses), group_idx=group_idx, n_groups=n_groups)
+    age_metal = sum_per_group(values=(ages * masses * metallicities), group_idx=group_idx, n_groups=n_groups)
+
+    group_store["metallicity_stellar"] = metal_mass / group_mass
+    group_store["age_mass_weighted"] = age_mass / group_mass
+    group_store["age_metal_weighted"] = age_metal / metal_mass
+
+def compute_bh_properties(bh: ParticleStore, group_store: GroupStore, group_idx: np.ndarray, edd_factor: float) -> None:
+    """
+    Computes black-hole specific properties.
+
+    Note bh mass for galaxies is the most massive black hole, not the total.
+    """
+    valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
+    group_idx = group_idx[valid]
+    n_groups = group_store.n_groups
+
+    masses = bh["mass"][valid]
+    bhmdots = bh["bhmdot"][valid]
+
+    max_idx = max_idx_per_group(values=masses, group_idx=group_idx, n_groups=n_groups) # also assigns -1 as sentinel
+    with_bh = max_idx >= 0
+
+    mass = np.full(shape=n_groups, fill_value=np.nan) # split across line for when more properties are added
+    bhmdot = np.full(shape=n_groups, fill_value=np.nan)
+
+    mass[with_bh] = masses[max_idx[with_bh]]
+    bhmdot[with_bh] = bhmdots[max_idx[with_bh]]
+
+    group_store["bhmdot"] = bhmdot
+    group_store["bh_fedd"] = bhmdot / (edd_factor * mass)
+
+
