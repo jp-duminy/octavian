@@ -78,7 +78,7 @@ def extract_particles(particles: dict[str, ParticleStore], ptypes: list[str], gr
 
         data = particles[ptype]
 
-        halo_ids_list.append(data[group_key])
+        group_ids_list.append(data[group_key])
         halo_ids_list.append(data["HaloID"])
         masses_list.append(data["mass"])
         potentials_list.append(data["potential"])
@@ -471,7 +471,8 @@ def compute_galaxy_aperture_masses(particles: dict[str, ParticleStore], galaxies
 
     galaxies["mass_total_30kpc"] = result[:, :len(ptypes)].sum(axis=1)
 
-def compute_common_properties(particles: dict[str, ParticleStore], groups: dict[str, ParticleStore]) -> None:
+def compute_common_properties(particles: dict[str, ParticleStore], group_store: GroupStore, sim: SimulationAttributes, group_name: str, 
+                              ptype: str, ptypes: list[str], group_key: str) -> None:
     """
     Computes properties common to both halos & galaxies.
     """
