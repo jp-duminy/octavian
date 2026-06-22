@@ -35,10 +35,10 @@ import pandas as pd # REVIEW: temporary
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
-from octavian.data_management import DataManager, save_group_properties, filter_snapshot, write_analysis_to_output_file, convert_data_manager
+from octavian.data_management import DataManager, save_group_properties, filter_snapshot, write_analysis_to_output_file, convert_data_manager, build_group_stores
 from octavian.utils import merge_catalogues
 from octavian.fof6d import run_fof6d, run_fof6d_new
-from octavian.aggregate_properties import calculate_group_properties, get_particle_lists, construct_particle_csr_lists
+from octavian.aggregate_properties import calculate_group_properties, get_particle_lists, construct_particle_csr_lists, compute_aggregate_properties
 from octavian.run_octavian import _get_mpi_communicator
 
 @dataclass
@@ -197,12 +197,23 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
     data_manager.initialise_group_data()
 
     with time_and_memory(f"Group Properties"):
-        calculate_group_properties(data_manager=data_manager)
+        for ptype in config['ptypes']:
+            data_manager.load_property('potential', ptype)
+        for prop in ['rho', 'nh', 'fH2', 'metallicity', 'sfr', 'temperature']:
+            data_manager.load_property(prop, 'gas')
+        for prop in ['metallicity', 'age']:
+            data_manager.load_property(prop, 'star')
+        data_manager.load_property('bhmdot', 'bh')
+
+        simdata = convert_data_manager(data_manager)
+        groups = build_group_stores(simdata.particles, config)
+        compute_aggregate_properties(simdata.particles, groups, simdata.simulation, config)
+        simdata.groups = groups
 
     with time_and_memory(f"Save data"):
         for ptype in config['ptypes']:
             data_manager.load_property('particle_index', ptype)
-        simdata = convert_data_manager(data_manager=data_manager)
+            simdata.particles[ptype]["particle_index"] = data_manager.data[ptype]["particle_index"].to_numpy()
         particle_lists = construct_particle_csr_lists(data=simdata, config=config)
         write_analysis_to_output_file(data=simdata, config=config, particle_lists=particle_lists, output_file=output_file)
 

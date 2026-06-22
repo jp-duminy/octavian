@@ -1,3 +1,4 @@
 from octavian.aggregate_properties.calculate_group_properties import calculate_group_properties
+from octavian.aggregate_properties.compute_properties import compute_aggregate_properties
 from octavian.aggregate_properties.group_helpers import sort_by_group
 from octavian.aggregate_properties.get_particle_lists import get_particle_lists, construct_particle_csr_lists
