@@ -226,7 +226,33 @@ class GroupStore:
         """
         Returns the corresponding index array from the group ID array (vectorised).
         """
-        return self.id_to_idx[group_id]
+        id_to_idx = np.full(len(group_id), -1, dtype=DTYPES["csr_offsets"])
+        valid = (group_id >= 0) & (group_id < len(self.id_to_idx))
+        id_to_idx[valid] = self.id_to_idx[group_id[valid]] # mask valid indices (-1, the sentinel, is the last array element)
+        
+        return id_to_idx
+    
+def build_group_stores(particles: dict[str, ParticleStore], config: dict) -> dict[str, GroupStore]:
+    """
+    Constructs GroupStore classes (for halos and galaxies) from the ParticleStores.
+    """
+    group_stores = {}
+
+    for group_name in config["groups"]:
+
+        group_key = {"halos": "HaloID", "galaxies": "GalID"}[group_name]
+        ids = []
+
+        for ptype in config["ptypes"]:
+            ids.append(particles[ptype][group_key])
+
+        unique_ids = np.unique(np.concatenate(ids))
+        if group_name == "galaxies":
+            unique_ids = unique_ids[unique_ids != -1]
+
+        group_stores[group_name] = GroupStore(group_ids=unique_ids)
+
+    return group_stores
     
 @dataclass(slots=True) # no frozen=True as this is inherently supposed to be mutable
 class SimulationData:
