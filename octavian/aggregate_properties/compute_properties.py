@@ -42,6 +42,8 @@ BARYONIC_PTYPES = ["star", "gas", "bh"]
 class GroupContext: # I'm sure this could have a better name but I feel context -> ctx improves readability
     """
     Dataclass containing information about a group particle type.
+
+    This information is needed for the pipeline (to avoid functions having ten arguments)
     """
     # make these on instantiation
     group_name: str
@@ -58,7 +60,6 @@ class GroupContext: # I'm sure this could have a better name but I feel context 
     group_mass: np.ndarray | None = None
     ref_positions: np.ndarray | None = None     
     ref_velocities: np.ndarray | None = None
-    com_positions: np.ndarray | None = None
     com_velocities: np.ndarray | None = None    
     positions_rel: np.ndarray | None = None     
     velocities_rel_com: np.ndarray | None = None
@@ -89,7 +90,7 @@ def extract_particles(particles: dict[str, ParticleStore], ptypes: list[str], gr
 
     halo_ids, group_ids = np.concatenate(halo_ids_list, dtype=DTYPES["HaloID"]), np.concatenate(group_ids_list, dtype=DTYPES["GalID"])
     masses, potentials = np.concatenate(masses_list, dtype=DTYPES["mass"]), np.concatenate(potentials_list, dtype=DTYPES["potential"])
-    positions, velocities = np.vstack(positions_list, dtype=DTYPES["pos"]), np.vstack(velocities_list, dtype=DTYPES["vel"])
+    positions, velocities = np.vstack(positions_list).astype(DTYPES["pos"], copy=False), np.vstack(velocities_list).astype(DTYPES["vel"], copy=False)
 
     if group_key == "GalID":
         keep = group_ids != -1
@@ -252,7 +253,7 @@ def _compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_fa
     virial_radius, virial_mass = compute_virial_quantities(radius=ctx.radii, mass=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups,
                                                    rhocrit=rhocrit, factors=factors)
 
-    for f, factor in enumerate(int(factor)): # cast array to ints for f-string name
+    for f, factor in enumerate(factors.astype(int)): # cast array to ints for f-string name
         group_store[f"radius_{factor}_c"] = virial_radius[:, f]
         group_store[f"mass_{factor}_c"] = virial_mass[:, f]
 
@@ -490,8 +491,8 @@ def compute_galaxy_aperture_masses(particles: dict[str, ParticleStore], galaxies
                 continue
 
             neighbours = np.array(neighbours)
-            result_HI[gal_indices] = halo_mass_HI[neighbours].sum()
-            result_H2[gal_indices] = halo_mass_H2[neighbours].sum()
+            result_HI[gal_indices[galaxies_idx_local]] = halo_mass_HI[neighbours].sum()
+            result_H2[gal_indices[galaxies_idx_local]] = halo_mass_H2[neighbours].sum()
             masses_by_type = np.bincount(x=halo_ptypes[neighbours], weights=halo_mass[neighbours], minlength=len(ptypes))
             result[gal_indices[galaxies_idx_local], :] = masses_by_type
 
@@ -528,12 +529,14 @@ def compute_common_properties(particles: dict[str, ParticleStore], group_store: 
 
     if group_name == "halos": # halo and galaxy centres are defined differently
         _compute_minimal_potential(ctx=ctx, group_store=group_store, potentials=potentials)
-        # NOTE: this is not a common property but requires the context dataclass so for sensibility purposes it goes here
-        _compute_halo_quantities(ctx=ctx, group_store=group_store, r200_factor=sim.r200_factor, rhocrit=sim.rhocrit)
 
     _compute_relative_quantities(ctx=ctx, boxsize=sim.boxsize)
     _compute_kinematics(ctx=ctx, group_store=group_store)
     _compute_radial_quantities(ctx=ctx, group_store=group_store)
+
+    if group_name == "halos" and ptype == "total":
+        # NOTE: this is not a common property but requires the context dataclass so for sensibility purposes it goes here
+        _compute_halo_quantities(ctx=ctx, group_store=group_store, r200_factor=sim.r200_factor, rhocrit=sim.rhocrit)
 
 def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: dict[str, GroupStore], sim: SimulationAttributes,
                                  config: dict) -> None:
@@ -545,13 +548,14 @@ def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: di
     PTYPE_PASSES = [
         ("total",   config["ptypes"]),
         ("dm",      ["dm"]),
-        ("baryon",  BARYONIC_PTYPES),
+        ("baryon",  BARYONIC_PTYPES), # NOTE: this means we reallocate large arrays for baryons, but I'm unsure how to optimise this
         ("gas",     ["gas"]),
         ("star",    ["star"]),
         ("bh",      ["bh"]),
     ]
 
     group_keys = {"halos": "HaloID", "galaxies": "GalID"}
+    _prepare_hydrogen_fractions(gas=particles["gas"], XH=config["XH"])
 
     for group_name in config["groups"]:
 
@@ -559,13 +563,13 @@ def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: di
         group_key = group_keys[group_name]
 
         for particle_type, ptypes in PTYPE_PASSES:
+
             compute_common_properties(
                 particles=particles, group_store=store, group_name=group_name, sim=sim,
                 ptype=particle_type, ptypes=ptypes, group_key=group_key,
             )
 
         gas_idx = store.get_indexer(group_id=particles["gas"][group_key])
-        _prepare_hydrogen_fractions(gas=particles["gas"], XH=config["XH"])
         compute_gas_properties(gas=particles["gas"], group_store=store, group_idx=gas_idx, nHlim=config["nHlim"])
 
         star_idx = store.get_indexer(group_id=particles["star"][group_key])
