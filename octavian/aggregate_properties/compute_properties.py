@@ -100,7 +100,7 @@ def extract_particles(particles: dict[str, ParticleStore], ptypes: list[str], gr
 
     return halo_ids, group_ids, masses, potentials, positions, velocities
 
-def compute_counts_and_mass(ctx: GroupContext, group_store: GroupStore) -> None:
+def _compute_counts_and_mass(ctx: GroupContext, group_store: GroupStore) -> None:
     """
     Computes number counts and masses of groups.
     """
@@ -115,7 +115,7 @@ def compute_counts_and_mass(ctx: GroupContext, group_store: GroupStore) -> None:
     group_store[f"n{ctx.particle_type}"] = ctx.counts
     group_store[f"mass_{ctx.particle_type}"] = ctx.group_mass
     
-def compute_minimal_potential(ctx: GroupContext, group_store: GroupStore, potentials: np.ndarray | None) -> None:
+def _compute_minimal_potential(ctx: GroupContext, group_store: GroupStore, potentials: np.ndarray | None) -> None:
     """
     Finds potential well of a halo. Do not pass galaxy GroupStore.
     """
@@ -141,7 +141,7 @@ def compute_minimal_potential(ctx: GroupContext, group_store: GroupStore, potent
         ctx.ref_positions = group_store.get_columns(['minpot_x', 'minpot_y', 'minpot_z'])
         ctx.ref_velocities = group_store.get_columns(['minpot_vx', 'minpot_vy', 'minpot_vz'])
 
-def compute_centre_of_mass(ctx: GroupContext, group_store: GroupStore, boxsize: float) -> None:
+def _compute_centre_of_mass(ctx: GroupContext, group_store: GroupStore, boxsize: float) -> None:
     """
     Computes centre-of-mass, accounting for PBCs.
     """
@@ -173,7 +173,7 @@ def compute_centre_of_mass(ctx: GroupContext, group_store: GroupStore, boxsize: 
     for i, d in enumerate(['x', 'y', 'z']):
         group_store[f"v{d}_{ctx.particle_type}"] = com_velocities[:, i]
 
-def compute_relative_quantities(ctx: GroupContext, boxsize: float) -> None:    
+def _compute_relative_quantities(ctx: GroupContext, boxsize: float) -> None:    
     """
     Relative positions and velocities, with PBCs: middle man, does not write to output.
     """
@@ -184,7 +184,7 @@ def compute_relative_quantities(ctx: GroupContext, boxsize: float) -> None:
 
     ctx.radii = np.linalg.norm(ctx.positions_rel, axis=1)
 
-def compute_kinematics(ctx: GroupContext, group_store: GroupStore) -> None:
+def _compute_kinematics(ctx: GroupContext, group_store: GroupStore) -> None:
     """
     Kinematics: velocity dispersions & angular momentum.
     """
@@ -224,7 +224,7 @@ def compute_kinematics(ctx: GroupContext, group_store: GroupStore) -> None:
     group_store[f'BoverT_{ctx.particle_type}'] = BoverT
     group_store[f'kappa_rot_{ctx.particle_type}'] = kappa_rot
 
-def compute_radial_quantities(ctx: GroupContext, group_store: GroupStore) -> None:
+def _compute_radial_quantities(ctx: GroupContext, group_store: GroupStore) -> None:
     """
     Radial quantities: r20, half-mass, r80.
     """
@@ -237,7 +237,7 @@ def compute_radial_quantities(ctx: GroupContext, group_store: GroupStore) -> Non
     for q, col_name in enumerate(quantile_names):
         group_store[f"radius_{ctx.particle_type}_{col_name}"] = radial_results[:, q]
 
-def compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_factor: float, rhocrit: float) -> None:
+def _compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_factor: float, rhocrit: float) -> None:
     """
     Quantities (which as of 19/06 should only be computed for halos).
     """
@@ -396,3 +396,89 @@ def compute_local_densities(group_store: GroupStore, boxsize: float, radii: list
 
         group_store[f"local_mass_density_{int(radius)}"] = local_mass / volume
         group_store[f"local_number_density_{int(radius)}"] = local_number_count / volume  
+
+def compute_galaxy_aperture_masses(particles: dict[str, ParticleStore], galaxies: GroupStore, boxsize: float, aperture_size: float) -> None:
+    """
+    Computes mass in an aperture of defined size around galaxies.
+
+    I know this code looks really messy but I don't know how it can be tidied up.
+    """
+    pos_list, mass_list = [], []
+    ptype_list, hids_list = [], []
+
+    ptypes = ["star", "gas", "bh", "dm"]
+    ptype_to_int = {p: i for i, p in enumerate(ptypes)} # integer comparison is more straightforward
+
+    for ptype in ptypes:
+
+        data = particles[ptype]
+        pos_list.append(data.get_columns(["x", "y", "z"]))
+        mass_list.append(data["mass"])
+        ptype_list.append(np.full(shape=len(data), fill_value=ptype_to_int[ptype], dtype=DTYPES["ptype"]))
+        hids_list.append(data["HaloID"])
+
+    all_pos, all_mass = np.concatenate(pos_list, dtype=DTYPES["pos"]), np.concatenate(mass_list, dtype=DTYPES["mass"])
+    all_ptypes, all_hids = np.concatenate(ptype_list, dtype=DTYPES["ptype"]), np.concatenate(hids_list, dtype=DTYPES["HaloID"])
+    
+    # original version kind of hacked the hydrogens into ptypes, do them explicitly instead
+    all_mass_HI, all_mass_H2 = np.zeros_like(a=all_mass), np.zeros_like(a=all_mass)
+    gas_start = len(particles["star"]) # HACK: gas offset is length of preceding start array (will break if changed)
+    gas_end = gas_start + len(particles["gas"])
+    all_mass_HI[gas_start:gas_end] = particles["gas"]["mass_HI"]
+    all_mass_H2[gas_start:gas_end] = particles["gas"]["mass_H2"]
+
+    order, unique_halos, halo_start, halo_end = sort_by_group(group_ids=all_hids) # sort particles by halo
+    all_pos, all_mass = all_pos[order], all_mass[order]
+    all_ptypes = all_ptypes[order]
+    all_mass_HI, all_mass_H2 = all_mass_HI[order], all_mass_H2[order]
+
+    # pre-sort galaxies by parent halo
+    gal_order, halos_with_galaxies, gal_start, gal_end = sort_by_group(group_ids=galaxies["parent_halo_index"]) # sort galaxies by halo
+    gal_pos = galaxies.get_columns(["x_total", "y_total", "z_total"])
+
+    result = np.zeros(shape=(galaxies.n_groups,len(ptypes)))
+    result_HI, result_H2 = np.zeros(shape=galaxies.n_groups), np.zeros(shape=galaxies.n_groups)
+
+    for h in range(len(unique_halos)):
+
+        halo_id = unique_halos[h]
+        halo_pos, halo_mass = all_pos[halo_start[h]:halo_end[h]], all_mass[halo_start[h]:halo_end[h]]
+        halo_mass_HI, halo_mass_H2 = all_mass_HI[halo_start[h]:halo_end[h]], all_mass_H2[halo_start[h]:halo_end[h]]
+        halo_ptypes = all_ptypes[halo_start[h]:halo_end[h]]
+        galaxy_halo_idx = np.searchsorted(a=halos_with_galaxies, v=halo_id) # find where the hid sits in halos_with_galaxies
+
+        if galaxy_halo_idx >= len(halos_with_galaxies) or halos_with_galaxies[galaxy_halo_idx] != halo_id:
+            continue # skip halos with no galaxies
+
+        gal_indices = gal_order[gal_start[galaxy_halo_idx]:gal_end[galaxy_halo_idx]]
+
+        tree = KDTree(data=halo_pos, boxsize=boxsize)
+        neighbor_lists = tree.query_ball_point(x=gal_pos[gal_indices], r=aperture_size)
+
+        for galaxies_idx_local, neighbours in enumerate(neighbor_lists):
+
+            if len(neighbours) == 0:
+                continue
+
+            neighbours = np.array(neighbours)
+            result_HI[gal_indices] = halo_mass_HI[neighbours].sum()
+            result_H2[gal_indices] = halo_mass_H2[neighbours].sum()
+            masses_by_type = np.bincount(x=halo_ptypes[neighbours], weights=halo_mass[neighbours], minlength=len(ptypes))
+            result[gal_indices[galaxies_idx_local], :] = masses_by_type
+
+    for i, name in enumerate(ptypes):
+        galaxies[f"mass_{name}_30kpc"] = result[:, i]
+
+    galaxies["mass_total_30kpc"] = result[:, :len(ptypes)].sum(axis=1)
+
+def compute_common_properties(particles: dict[str, ParticleStore], groups: dict[str, ParticleStore]) -> None:
+    """
+    Computes properties common to both halos & galaxies.
+    """
+    pass
+
+def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: dict[str, GroupStore], sim: SimulationAttributes) -> None:
+    """
+    Orchestrator of the 
+    """    
+    pass
