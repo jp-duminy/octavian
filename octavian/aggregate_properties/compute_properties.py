@@ -11,6 +11,7 @@ from dataclasses import dataclass
 # others
 import numpy as np
 from scipy.spatial import KDTree # remember, always pass boxsize
+from scipy.sparse import csr_array
 
 # other Octavian data structures
 from octavian.data_management.data_structures import ParticleStore, GroupStore, SimulationAttributes
@@ -371,4 +372,27 @@ def compute_bh_properties(bh: ParticleStore, group_store: GroupStore, group_idx:
     group_store["bhmdot"] = bhmdot
     group_store["bh_fedd"] = bhmdot / (edd_factor * mass)
 
+def compute_local_densities(group_store: GroupStore, boxsize: float, radii: list[float]) -> None:
+    """
+    Computes local mass and number densities for groups.
+    """
+    pos = group_store.get_columns(keys=["x_total", "y_total", "z_total"])
+    mass = group_store["mass_total"]
+    n_groups = len(mass)
 
+    r_max = np.max(radii)
+    tree = KDTree(data=pos, boxsize=boxsize)
+    sdm = tree.sparse_distance_matrix(other=tree, max_distance=r_max, output_type="coo_array") # if your scipy is pre-1.18, use "coo_matrix"
+
+    for radius in radii:
+
+        in_range = sdm.data <= radius
+        valid_array = np.ones(in_range.sum())
+        adj = csr_array(arg1=(valid_array, (sdm.row[in_range],sdm.col[in_range])), shape=(n_groups,n_groups)) # unhelpful argument name
+
+        local_mass = adj @ mass
+        local_number_count = adj @ np.ones(shape=n_groups)
+        volume = 4./3. * np.pi * radius**3
+
+        group_store[f"local_mass_density_{int(radius)}"] = local_mass / volume
+        group_store[f"local_number_density_{int(radius)}"] = local_number_count / volume  
