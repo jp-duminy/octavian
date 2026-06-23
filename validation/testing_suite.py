@@ -35,7 +35,7 @@ import pandas as pd # REVIEW: temporary
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
-from octavian.data_management import DataManager, save_group_properties, filter_snapshot, write_analysis_to_output_file, convert_data_manager, build_group_stores
+from octavian.data_management import DataManager, save_group_properties, filter_snapshot, write_analysis_to_output_file, convert_data_manager, build_group_stores, GizmoReader, ParticleStore, GroupStore, SimulationData
 from octavian.utils import merge_catalogues
 from octavian.fof6d import run_fof6d, run_fof6d_new
 from octavian.aggregate_properties import calculate_group_properties, get_particle_lists, construct_particle_csr_lists, compute_aggregate_properties
@@ -173,49 +173,67 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
     with open(test_config.config_file, 'r') as f:
         config = safe_load(f)
     config['Tlim'] = float(config['Tlim'])
+    config["ptypes"] = ["star", "gas", "bh", "dm"]
 
-    with time_and_memory(f"Data Manager Initialisation"):
-        data_manager = DataManager(snapfile=snapshot_file, config=config, comm=comm)
-        data_manager.load_halo_ids() # keep these stages in since I expect this takes a while
-        data_manager.add_ptype_columns()
+    with time_and_memory("Read-in Data"):
+        reader = GizmoReader(snapshot_file)
+        sim = reader.simulation_attributes
+        config["ptypes"] = reader.available_ptypes()
+        config["ptypes_baryon"] = [p for p in config["ptypes"] if p != "dm"]
 
-    with time_and_memory(f"FOF6D"):
-        for ptype in config['ptypes']: # what wrap_positions did in its near-death state
-            data_manager.load_property('mass', ptype)
-            data_manager.load_property('pos', ptype)
-            data_manager.load_property('vel', ptype)
-        for prop in ['rho', 'temperature', 'sfr']: 
-            data_manager.load_property(prop, 'gas')
-        simdata = convert_data_manager(data_manager)
-        run_fof6d_new(simdata.particles, simdata.simulation, config)
+        particles = {}
+        for ptype in config["ptypes"]:
+            halo_ids = reader.read_dataset(ptype, "HaloID")
+            store = ParticleStore(ptype=ptype, n_particles=len(halo_ids))
+            store["HaloID"] = halo_ids
 
-        for ptype in config['ptypes']:
-            data_manager.data[ptype]['GalID'] = pd.Series(
-                simdata.particles[ptype]["GalID"], dtype='category'
-            ) # CGP not yet decoupled, so return the galids there.
+            # HACK: reader reads in 3D dataset, split into components for now to avoid refactor
+            pos = reader.read_dataset(ptype=ptype, dataset="pos")
+            store["x"] = pos[:, 0] # TODO: migrate to vectors
+            store["y"] = pos[:, 1]
+            store["z"] = pos[:, 2]
 
-    data_manager.initialise_group_data()
+            vel = reader.read_dataset(ptype=ptype, dataset="vel")
+            store["vx"] = vel[:, 0]
+            store["vy"] = vel[:, 1]
+            store["vz"] = vel[:, 2]
+            for prop in ["mass"]:
+                store[prop] = reader.read_dataset(ptype, prop)
+            store["ptype"] = np.full(len(store), ptype)
+            particles[ptype] = store
 
-    with time_and_memory(f"Group Properties"):
-        for ptype in config['ptypes']:
-            data_manager.load_property('potential', ptype)
-        for prop in ['rho', 'nh', 'fH2', 'metallicity', 'sfr', 'temperature']:
-            data_manager.load_property(prop, 'gas')
-        for prop in ['metallicity', 'age']:
-            data_manager.load_property(prop, 'star')
-        data_manager.load_property('bhmdot', 'bh')
+    with time_and_memory("FOF6D"):
+        for prop in ["rho", "temperature", "sfr"]:
+            particles["gas"][prop] = reader.read_dataset("gas", prop)
+        run_fof6d_new(particles, sim, config)
 
-        simdata = convert_data_manager(data_manager)
-        groups = build_group_stores(simdata.particles, config)
-        compute_aggregate_properties(simdata.particles, groups, simdata.simulation, config)
-        simdata.groups = groups
+    with time_and_memory("Aggregate Properties"):
+        for ptype in config["ptypes"]:
+            particles[ptype]["potential"] = reader.read_dataset(ptype, "potential")
+        for prop in ["nh", "fH2", "metallicity"]:  # rho, temperature, sfr already loaded
+            particles["gas"][prop] = reader.read_dataset("gas", prop)
+        for prop in ["metallicity", "age"]:
+            particles["star"][prop] = reader.read_dataset("star", prop)
+        particles["bh"]["bhmdot"] = reader.read_dataset("bh", "bhmdot")
 
-    with time_and_memory(f"Save data"):
-        for ptype in config['ptypes']:
-            data_manager.load_property('particle_index', ptype)
-            simdata.particles[ptype]["particle_index"] = data_manager.data[ptype]["particle_index"].to_numpy()
+        groups = build_group_stores(particles, config)
+        compute_aggregate_properties(particles, groups, sim, config)
+
+    with time_and_memory("Release unneeded columns"):
+
+        for ptype in config["ptypes"]:
+            particles[ptype].release("pos", "vel", "mass", "potential", "ptype")
+        particles["gas"].release("rho", "nh", "fH2", "metallicity", "sfr", "temperature", "fHI", "mass_HI", "mass_H2")
+        particles["star"].release("metallicity", "age")
+        particles["bh"].release("bhmdot")
+
+    with time_and_memory("Save data"):
+        for ptype in config["ptypes"]:
+            particles[ptype]["particle_index"] = reader.read_dataset(ptype, "particle_index")
+        simdata = SimulationData(simulation=sim, particles=particles, groups=groups)
         particle_lists = construct_particle_csr_lists(data=simdata, config=config)
-        write_analysis_to_output_file(data=simdata, config=config, particle_lists=particle_lists, output_file=output_file)
+        write_analysis_to_output_file(data=simdata, config=config, 
+                                      particle_lists=particle_lists, output_file=output_file)
 
 def _assert_conserved(label: str, pre: int, post: int):
     """

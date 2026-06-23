@@ -199,7 +199,8 @@ def prepare_fof6d_data_new(particles: dict[str, ParticleStore], simulation: Simu
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
     temperature = np.zeros(shape=gas.n_particles) # FIXME: temperature=0 for now
-    dense_mask = (rho > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0))
+    nH = rho * config["XH"] / CONSTANTS.PROTON_MASS_G
+    dense_mask = (nH > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0))
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
 

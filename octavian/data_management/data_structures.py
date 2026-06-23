@@ -250,7 +250,7 @@ def build_group_stores(particles: dict[str, ParticleStore], config: dict) -> dic
         group_key = {"halos": "HaloID", "galaxies": "GalID"}[group_name]
         ids = []
 
-        for ptype in config["ptypes"]:
+        for ptype in ["star", "gas", "bh", "dm"]:
             ids.append(particles[ptype][group_key])
 
         unique_ids = np.unique(np.concatenate(ids))

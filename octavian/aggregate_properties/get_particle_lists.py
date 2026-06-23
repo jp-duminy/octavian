@@ -47,11 +47,20 @@ def construct_particle_csr_lists(data: SimulationData, config: dict) -> dict[str
             sorted_particle_group_ids = particle_group_ids[order] 
             sorted_indices = particle_indices[order]
 
+            group_store = data.groups[group_name]
+
+            if len(sorted_particle_group_ids) == 0:
+                result[group_name][ptype_list] = {
+                    "indices": np.array([], dtype=DTYPES["csr_indices"]),
+                    "offsets": np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_offsets"]),
+                    "lengths": np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_lengths"]),
+                }
+                continue
+
             breaks = np.flatnonzero(np.diff(sorted_particle_group_ids)) + 1 # +1 shifts index array right
             split_lengths = np.diff(np.concatenate([[0], breaks, [len(sorted_particle_group_ids)]])) # prepend/append position of first/last group ID
             split_ids = sorted_particle_group_ids[np.concatenate([[0], breaks])] # equivalent to np.unique
 
-            group_store = data.groups[group_name]
             lengths = np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_lengths"]) # a group can be empty for a certain ptype
             group_indices = group_store.get_indexer(group_id=split_ids)
             lengths[group_indices] = split_lengths

@@ -313,6 +313,9 @@ def compute_gas_properties(gas: ParticleStore, group_store: GroupStore, group_id
     """
     Computes gas-specific properties; second block is for CGM.
     """
+    if "mass_gas" not in group_store: # guard for empty groups
+        return
+    
     valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
     group_idx = group_idx[valid]
     n_groups = group_store.n_groups
@@ -360,6 +363,9 @@ def compute_star_properties(star: ParticleStore, group_store: GroupStore, group_
     """
     Computes star-specific properties.
     """
+    if "mass_gas" not in group_store: # guard for empty groups
+        return
+    
     valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
     group_idx = group_idx[valid]
     n_groups = group_store.n_groups
@@ -383,6 +389,10 @@ def compute_bh_properties(bh: ParticleStore, group_store: GroupStore, group_idx:
 
     Note bh mass for galaxies is the most massive black hole, not the total.
     """
+
+    if "mass_bh" not in group_store: # guard for empty groups
+        return
+    
     valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
     group_idx = group_idx[valid]
     n_groups = group_store.n_groups
@@ -499,6 +509,8 @@ def compute_galaxy_aperture_masses(particles: dict[str, ParticleStore], galaxies
     for i, name in enumerate(ptypes):
         galaxies[f"mass_{name}_30kpc"] = result[:, i]
 
+    galaxies["mass_HI_30kpc"] = result_HI
+    galaxies["mass_H2_30kpc"] = result_H2
     galaxies["mass_total_30kpc"] = result[:, :len(ptypes)].sum(axis=1)
 
 def compute_common_properties(particles: dict[str, ParticleStore], group_store: GroupStore, sim: SimulationAttributes, group_name: str, 
@@ -512,16 +524,17 @@ def compute_common_properties(particles: dict[str, ParticleStore], group_store: 
     if len(masses) == 0:
         return
     
-    group_idx = group_store.get_indexer(group_ids)
+    group_idx = group_store.get_indexer(group_id=group_ids)
+    valid = group_idx >= 0
 
     ctx = GroupContext(
         group_name=group_name,
         particle_type=ptype,
-        group_idx=group_idx,
+        group_idx=group_idx[valid],
         n_groups=group_store.n_groups,
-        positions=positions,
-        velocities=velocities,
-        masses=masses,
+        positions=positions[valid],
+        velocities=velocities[valid],
+        masses=masses[valid],
     )
 
     _compute_counts_and_mass(ctx=ctx, group_store=group_store)
@@ -569,14 +582,17 @@ def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: di
                 ptype=particle_type, ptypes=ptypes, group_key=group_key,
             )
 
-        gas_idx = store.get_indexer(group_id=particles["gas"][group_key])
-        compute_gas_properties(gas=particles["gas"], group_store=store, group_idx=gas_idx, nHlim=config["nHlim"])
+        if "gas" in config["ptypes"]:
+            gas_idx = store.get_indexer(group_id=particles["gas"][group_key])
+            compute_gas_properties(gas=particles["gas"], group_store=store, group_idx=gas_idx, nHlim=config["nHlim"])
 
-        star_idx = store.get_indexer(group_id=particles["star"][group_key])
-        compute_star_properties(star=particles["star"], group_store=store, group_idx=star_idx)
+        if "star" in config["ptypes"]:
+            star_idx = store.get_indexer(group_id=particles["star"][group_key])
+            compute_star_properties(star=particles["star"], group_store=store, group_idx=star_idx)
 
-        bh_idx = store.get_indexer(group_id=particles["bh"][group_key])
-        compute_bh_properties(bh=particles["bh"], group_store=store, group_idx=bh_idx, edd_factor=CONSTANTS.EDD_FACTOR)
+        if "bh" in config["ptypes"]:
+            bh_idx = store.get_indexer(group_id=particles["bh"][group_key])
+            compute_bh_properties(bh=particles["bh"], group_store=store, group_idx=bh_idx, edd_factor=CONSTANTS.EDD_FACTOR)
 
         if group_name == "galaxies":
             _assign_parent_halo_indices(particles=particles, galaxies=store, halos=groups["halos"])

@@ -135,7 +135,7 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     }
 
     if dataset not in conversions:
-        raise KeyError(f"{dataset} is not recognised in the unit conversions.")
+        return 1.0 # TODO: add a warning in the logger for this later.
 
     snap_unit, internal_unit = conversions[dataset]
 
