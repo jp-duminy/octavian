@@ -2,7 +2,7 @@
 
 Executes Octavian analysis pipeline.
 
-Author: @jp // June 2026
+NOTE: this is now calling dead code as of v0.3.0, so it will need to be refactored (easy, see validation/testing_suite.py)
 
 """
 
@@ -20,7 +20,6 @@ from yaml import safe_load
 from pathlib import Path
 
 # octavian pipeline stages
-from octavian.galaxy_finding import run_fof6d
 
 def _get_mpi_communicator() -> MPI.Comm | None:
     """

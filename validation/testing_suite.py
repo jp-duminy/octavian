@@ -29,14 +29,13 @@ import h5py
 import memray
 import numpy as np
 from matplotlib import pyplot as plt
-import pandas as pd # REVIEW: temporary
 
 # data
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
 from octavian.data_management import filter_snapshot, write_analysis_to_output_file, build_group_stores, GizmoReader, ParticleStore, GroupStore, SimulationData, construct_particle_csr_lists, merge_catalogues
-from octavian.galaxy_finding import run_fof6d_new
+from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import compute_aggregate_properties
 from octavian.run_octavian import _get_mpi_communicator
 
@@ -204,7 +203,7 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
     with time_and_memory("FOF6D"):
         for prop in ["rho", "temperature", "sfr"]:
             particles["gas"][prop] = reader.read_dataset("gas", prop)
-        run_fof6d_new(particles, sim, config)
+        find_galaxies(particles=particles, simulation=sim, config=config)
 
     with time_and_memory("Aggregate Properties"):
         for ptype in config["ptypes"]:
