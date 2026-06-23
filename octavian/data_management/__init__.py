@@ -1,4 +1,4 @@
 from octavian.data_management.write_data import construct_particle_csr_lists, write_analysis_to_output_file
 from octavian.data_management.snapshot_splitting import filter_snapshot, merge_catalogues
-from octavian.data_management.data_structures import SimulationData, convert_data_manager, ParticleStore, GroupStore, SimulationAttributes, build_group_stores, GizmoReader
+from octavian.data_management.data_structures import SimulationData, ParticleStore, GroupStore, SimulationAttributes, build_group_stores, GizmoReader
 from octavian.data_management.conventions import CONSTANTS, DTYPES

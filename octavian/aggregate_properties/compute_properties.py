@@ -33,9 +33,7 @@ from octavian.aggregate_properties.group_helpers import (
     max_idx_per_group,
     min_idx_per_group,
     first_idx_per_group,
-    broadcast_to_particles,
     sort_by_group,
-    weighted_mean_per_group,
 )
 
 BARYONIC_PTYPES = ["star", "gas", "bh"]

@@ -37,17 +37,6 @@ def count_per_group(group_idx, n_groups):
     """
     return np.bincount(group_idx, minlength=n_groups)
 
-def weighted_mean_per_group(values, weights, group_idx, n_groups):
-    """
-    Weighted mean per group.
-
-    Same logic as above. Here 'weighted' means the actual physical weight of another quantity
-    e.g. mass-weighted metallicity
-    """
-    weighted_sum = np.bincount(group_idx, weights=values * weights, minlength=n_groups)
-    total_weight = np.bincount(group_idx, weights=weights, minlength=n_groups)
-    return weighted_sum / total_weight
-
 #
 # per-group min/max and for indices too
 #
@@ -125,14 +114,6 @@ def first_idx_per_group(group_idx, n_groups):
 # I/O: broadcasting and sorting
 #
 
-def broadcast_to_particles(group_values, group_idx):
-    """
-    Transform an array into one where val[i] = group_value
-
-    e.g. setting particles to their groupIDs
-    """
-    return group_values[group_idx]
-
 def sort_by_group(group_ids):
     """
     Constructs slices of the bulk for efficient data processing.
@@ -168,44 +149,3 @@ def sort_by_group(group_ids):
     
     return order, unique_ids, start, end
 
-# REVIEW: note this should go when the CGP/datamanager refactor occurs.
-def extract_particle_arrays(data_manager, config, include_hydrogen=False):
-    """
-    Extract flat particle arrays from all ptypes.
-    Useful for anytime you want a list of particles, positions, masses and ptypes in a given area (like a halo).
-    """
-
-    ptype_names = list(config['ptypes'])
-    ptype_to_int = {p: i for i, p in enumerate(ptype_names)}
-
-    pos_list, mass_list, code_list, halo_list = [], [], [], []
-
-    for ptype in config['ptypes']:
-
-        df = data_manager.data[ptype]
-        n = len(df)
-        pos_list.append(df[['x', 'y', 'z']].to_numpy())
-        mass_list.append(df['mass'].to_numpy())
-        code_list.append(np.full(n, ptype_to_int[ptype], dtype=np.int32)) # always easier to store ptypes as int rather than str
-        halo_list.append(df['HaloID'].to_numpy())
-
-    # this is for aperture_masses currently, not sure whether this is useful
-    if include_hydrogen:
-        gas = data_manager.data['gas']
-        gas_pos = gas[['x', 'y', 'z']].to_numpy()
-        gas_halos = gas['HaloID'].to_numpy()
-        for col, name in [('mass_HI', 'HI'), ('mass_H2', 'H2')]:
-            ptype_names.append(name)
-            ptype_to_int[name] = len(ptype_names) - 1
-            pos_list.append(gas_pos)
-            mass_list.append(gas[col].to_numpy())
-            code_list.append(np.full(len(gas), ptype_to_int[name], dtype=np.int32))
-            halo_list.append(gas_halos)
-
-    return (
-        np.concatenate(pos_list),
-        np.concatenate(mass_list),
-        np.concatenate(code_list),
-        np.concatenate(halo_list),
-        ptype_names,
-    )

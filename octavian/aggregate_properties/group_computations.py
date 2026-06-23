@@ -19,28 +19,6 @@ Physical Quantities
 """
 
 @njit(parallel=True)
-def compute_centre_of_mass(pos, vel, mass, group_idx, n_groups):
-    com_pos = np.zeros((n_groups, 3))
-    com_vel = np.zeros((n_groups, 3))
-    total_mass = np.zeros(n_groups)
-    
-    for i in prange(len(mass)):
-        g = group_idx[i]
-        m = mass[i]
-        total_mass[g] += m
-        for d in range(3):
-            com_pos[g, d] += pos[i, d] * m
-            com_vel[g, d] += vel[i, d] * m
-    
-    for g in range(n_groups):
-        if total_mass[g] > 0:
-            for d in range(3):
-                com_pos[g, d] /= total_mass[g]
-                com_vel[g, d] /= total_mass[g]
-    
-    return com_pos, com_vel, total_mass
-
-@njit(parallel=True)
 def compute_angular_momentum(pos_rel, vel_rel, mass, group_idx, n_groups):
     L = np.zeros((n_groups, 3))
     ktot_sum = np.zeros(n_groups)

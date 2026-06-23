@@ -8,7 +8,7 @@ Functions which write data from analysis stages into CSR format lists for HDF5 c
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import SimulationData, convert_data_manager
+  from octavian.data_management import SimulationData
 
 # octavian modules
 from octavian.data_management.conventions import DTYPES # NOTE: import from within-file, not module level (to avoid circular import)

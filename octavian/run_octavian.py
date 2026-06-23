@@ -56,28 +56,7 @@ def _execute_pipeline(snapshot_file: str, config_file: str, output_file: str, co
     """
     Executes each toggled stage of the Octavian pipeline.
     """
-    with open(config_file, 'r') as f:
-        config = safe_load(f)
-    config['Tlim'] = float(config['Tlim'])
-
-    enabled = resolve_stages(config)
-
-    data_manager = DataManager(snapfile=snapshot_file, config=config, comm=comm)
-    data_manager.load_halo_ids()
-    data_manager.add_ptype_columns()
-
-    wrap_positions(data_manager=data_manager)
-
-    if "fof6d" in enabled:
-        run_fof6d(data_manager=data_manager, nproc=config['nproc'])
-
-    data_manager.initialise_group_data()
-
-    if "group_properties" in enabled:
-        calculate_group_properties(data_manager=data_manager)
-
-    get_particle_lists(data_manager=data_manager)
-    save_group_properties(data_manager=data_manager, filename=output_file)
+    pass # NOTE: needs updating for new functions.
 
 def run(snapshot_file: str, config_file: str, output_directory: str) -> None:
     """
