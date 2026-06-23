@@ -177,10 +177,11 @@ def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:
   galaxy_masses = np.concatenate(galaxy_masses)
   galaxy_parent_halo = np.concatenate(galaxy_parent_halo)
 
-  halo_order = np.argsort(halo_masses)
-  inverse_order = np.argsort(halo_order)  # maps old index -> new index
+  # NOTE: stable sort preserves deterministic results (otherwise galaxies have different numbers when sorted between runs).
+  halo_order = np.argsort(halo_masses, kind="stable")
+  inverse_order = np.argsort(halo_order, kind="stable")  # maps old index -> new index
   galaxy_parent_halo = inverse_order[galaxy_parent_halo]
-  galaxy_order = np.argsort(galaxy_masses)
+  galaxy_order = np.argsort(galaxy_masses, kind="stable")
 
   with h5py.File(outfile, 'w') as f_out:
     halo_group = f_out.create_group('halo_data')

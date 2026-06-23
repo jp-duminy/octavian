@@ -76,7 +76,7 @@ class GizmoReader(SnapshotReader):
             cosmology = FlatLambdaCDM(H0=100*h, Om0=omega_matter)
             time_gyr = cosmology.age(redshift).value
             Hz = 100 * h * np.sqrt(omega_lambda + omega_matter * a**-3) * CONSTANTS.HUBBLE_UNIT
-            E_z = np.sqrt(omega_lambda * a**-2 + omega_matter * a**-3)
+            E_z = np.sqrt(omega_lambda + omega_matter * a**-3)
             rhocrit = (3. * Hz**2 / (8 * np.pi * CONSTANTS.G_CGS)) * CONSTANTS.RHO_CGS_TO_MSUN_KPC3
             omega_matter_z = (omega_matter * a**-3) / E_z**2
 
@@ -95,6 +95,7 @@ class GizmoReader(SnapshotReader):
                 
                 Hz = Hz,
                 rhocrit = rhocrit,
+                rhocrit_comoving = rhocrit * a**3,
                 E_z = E_z,
                 omega_matter_z = omega_matter_z,
                 r200_factor = (200 * 4./3. * np.pi * omega_matter_z * rhocrit * a**3)**(-1./3.)

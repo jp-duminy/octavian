@@ -525,6 +525,87 @@ def check_for_nans(f: h5py.File) -> None:
             
         logger.info(f"{group} contains no dubious NaN occurences.")
 
+def validate_against_reference(catalogue: str, reference: str, rtol: float = 1e-6, atol: float = 1e-10) -> None:
+    """
+    Validates output vs reference more rigorously, comparing specific fields within tolerance.
+
+    Also validates whether NaNs occur in the same place.
+    """
+    with h5py.File(catalogue, "r") as new, h5py.File(reference, "r") as ref:
+
+        for group_name in ["halo_data", "galaxy_data"]:
+
+            if group_name not in ref or group_name not in new:
+                continue
+
+            ref_group = ref[group_name]
+            new_group = new[group_name]
+
+            ref_keys = set() # set notation makes this much easier
+            new_keys = set()
+            # visit returns all fields (so not just headers), otherwise we get stuck on /dicts
+            ref_group.visit(lambda k: ref_keys.add(k) if isinstance(ref_group[k], h5py.Dataset) else None) # lambda filters out headers
+            new_group.visit(lambda k: new_keys.add(k) if isinstance(new_group[k], h5py.Dataset) else None)
+
+            only_ref = ref_keys - new_keys
+            only_new = new_keys - ref_keys
+
+            # check datasets are consistent
+            assert len(only_ref) == 0, f"{group_name}: datasets missing from new catalogue: {sorted(only_ref)}"
+            if only_new:
+                logger.warning(f"{group_name}: new datasets not in reference (do check): {sorted(only_new)}")
+
+            logger.info(f"{group_name} dataset names match between output and reference.")
+
+            for key in sorted(ref_keys & new_keys):
+
+                if isinstance(ref_group[key], h5py.Group): # ignore groups
+                    continue
+
+                ref_data = ref_group[key][:]
+                new_data = new_group[key][:]
+
+                assert ref_data.shape == new_data.shape, f"{group_name}/{key}: array shpe mismatch (ref={ref_data.shape}, new={new_data.shape})"
+
+                if not np.issubdtype(ref_data.dtype, np.floating):
+                    assert np.array_equal(ref_data, new_data), f"{group_name}/{key}: dtype data mismatch"
+                    continue
+
+                # check any existing NaN columns have the NaNs in the same place (groups should remain empty, analysis is deterministic)
+                ref_finite = np.isfinite(ref_data)
+                new_finite = np.isfinite(new_data)
+                nan_mismatch = np.sum(ref_finite != new_finite)
+                assert nan_mismatch == 0, (
+                    f"{group_name}/{key}: {nan_mismatch} NaNs occur in different places (different groups potentially)"
+                    f"(ref has {np.sum(~ref_finite)} NaN, new has {np.sum(~new_finite)} NaN)"
+                )
+
+                both_finite = ref_finite & new_finite
+                if not np.any(both_finite):
+                    continue
+
+                r = ref_data[both_finite]
+                n = new_data[both_finite]
+
+                if np.array_equal(r, n):
+                    continue
+
+                abs_diff = np.abs(r - n)
+                scale = np.maximum(np.abs(r), atol)
+                rel_diff = abs_diff / scale
+
+                max_rel = rel_diff.max()
+                n_exceed = np.sum(rel_diff > rtol)
+
+                assert n_exceed == 0, (
+                    f"{group_name}/{key}: {n_exceed}/{len(r)} values exceed relative tolerance of {rtol} "
+                    f"(max_rel={max_rel:.6e}, max_abs={abs_diff.max():.6e})" # shorthand to fit across line
+                )
+
+            logger.info(f"{group_name} dataset values match to within tolerance between reference and output.")
+
+    logger.info("Reference catalogue comparison passes.")
+
 @contextmanager
 def record_assertion_result(label: str) -> Generator[None, None, None]: # the collections import is used for this
     """

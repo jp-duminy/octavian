@@ -240,7 +240,7 @@ def _compute_radial_quantities(ctx: GroupContext, group_store: GroupStore) -> No
     for q, col_name in enumerate(quantile_names):
         group_store[f"radius_{ctx.particle_type}_{col_name}"] = radial_results[:, q]
 
-def _compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_factor: float, rhocrit: float) -> None:
+def _compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_factor: float, rhocrit_comoving: float) -> None:
     """
     Quantities (which as of 19/06 should only be computed for halos).
     """
@@ -251,7 +251,7 @@ def _compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_fa
 
     factors = np.array([200., 500., 2500.])
     virial_radius, virial_mass = compute_virial_quantities(radius=ctx.radii, mass=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups,
-                                                   rhocrit=rhocrit, factors=factors)
+                                                   rhocrit=rhocrit_comoving, factors=factors)
 
     for f, factor in enumerate(factors.astype(int)): # cast array to ints for f-string name
         group_store[f"radius_{factor}_c"] = virial_radius[:, f]
@@ -272,6 +272,7 @@ def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
     """
     fHI = gas["nh"].copy()
     fH2 = gas["fH2"]
+    gas["nH"] = gas["rho"] * XH / CONSTANTS.PROTON_MASS_G # neutral hydrogen abundance
 
     # enforce mass conservation: fHI + fH2 <= 1
     not_conserving = (fHI + fH2) > 1.0
@@ -341,8 +342,8 @@ def compute_gas_properties(gas: ParticleStore, group_store: GroupStore, group_id
     group_store["temp_mass_weighted"] = temp_mass / group_mass
 
     # cgm 
-    rhos = gas["rho"][valid]
-    cgm_criterion = rhos < nHlim
+    nH = gas["nH"][valid]
+    cgm_criterion = nH < nHlim
     cgm_idx = group_idx[cgm_criterion]
     cgm_masses = masses[cgm_criterion]
     cgm_temperatures = temperatures[cgm_criterion]
@@ -549,7 +550,7 @@ def compute_common_properties(particles: dict[str, ParticleStore], group_store: 
 
     if group_name == "halos" and ptype == "total":
         # NOTE: this is not a common property but requires the context dataclass so for sensibility purposes it goes here
-        _compute_halo_quantities(ctx=ctx, group_store=group_store, r200_factor=sim.r200_factor, rhocrit=sim.rhocrit)
+        _compute_halo_quantities(ctx=ctx, group_store=group_store, r200_factor=sim.r200_factor, rhocrit_comoving=sim.rhocrit_comoving)
 
 def compute_aggregate_properties(particles: dict[str, ParticleStore], groups: dict[str, GroupStore], sim: SimulationAttributes,
                                  config: dict) -> None:

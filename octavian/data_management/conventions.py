@@ -48,22 +48,23 @@ class SimulationAttributes:
     Simulation attributes (e.g. hubble parameter), read/derived from the header information.
     """
     # header attributes
-    boxsize:        float
-    h:              float
-    a:              float
-    redshift:       float
-    omega_matter:   float # I renamed this because O0 isn't very readable
-    omega_lambda:   float
+    boxsize:            float
+    h:                  float
+    a:                  float
+    redshift:           float
+    omega_matter:       float # I renamed this because O0 isn't very readable
+    omega_lambda:       float
 
     # derived
-    cosmology:      FLRW
-    time_gyr:       float
-    time:           float
-    Hz:             float
-    rhocrit:        float
-    E_z:            float
-    omega_matter_z: float
-    r200_factor:    float
+    cosmology:          FLRW
+    time_gyr:           float
+    time:               float
+    Hz:                 float
+    rhocrit:            float
+    rhocrit_comoving:   float
+    E_z:                float
+    omega_matter_z:     float
+    r200_factor:        float
 
 CODE_UNITS = {
 
