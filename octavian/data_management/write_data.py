@@ -1,14 +1,22 @@
+"""
+
+Functions which write data from analysis stages into CSR format lists for HDF5 compatibility (and fast, straightforward access) and create output HDF5 files (per-rank currently).
+
+"""
+
+# type checking (semantic)
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import DataManager, SimulationData
+  from octavian.data_management import SimulationData, convert_data_manager
 
-from octavian.data_management import DTYPES
+# octavian modules
+from octavian.data_management.conventions import DTYPES # NOTE: import from within-file, not module level (to avoid circular import)
 
+# others
+import h5py
+from pathlib import Path # NOTE: migrated fully to pathlib in v0.3
 import numpy as np
-import pandas as pd
-
-# FIXME: same problems as save_group_properties and remerge_catalogues.
 
 GROUP_PTYPE_LISTS = {
     "halos":    ["glist", "slist", "dmlist", "bhlist"],
@@ -21,6 +29,26 @@ PLIST_TO_PTYPE = {
     "bhlist": "bh",
     "dmlist": "dm",
 }
+
+
+HDF5_GROUP_NAMES = {
+    "halos": "halo_data",
+    "galaxies": "galaxy_data",
+}
+
+map_group_to_gid_name = {
+    "halos": "haloID",
+    "galaxies": "galaxyID",
+}
+
+def _resolve_columns(group_store, column: list[str]):
+    """
+    Small helper function for resolving vectors in columns (which are stored as separate entries).
+    """
+    if isinstance(column, list):
+        return np.column_stack([group_store[c] for c in column])
+    
+    return group_store[column]
 
 def construct_particle_csr_lists(data: SimulationData, config: dict) -> dict[str, dict[str, dict]]:
     """
@@ -80,65 +108,45 @@ def construct_particle_csr_lists(data: SimulationData, config: dict) -> dict[str
     return result
 
 
-def get_group_particle_indexes(data_manager: DataManager, group_name: str) -> None:
+def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, config: dict, output_file: Path) -> None:
+    """
+    Takes in the SimulationData object and writes it to a .hdf5 file.
+    """
+    if output_file.is_file(): # pathlib version of previous os logic
+        output_file.unlink()
 
-    config = data_manager.config
-    group_data = data_manager.group_data[group_name]
-    groupID = config['groupIDs'][group_name]
+    with h5py.File(output_file, "w") as out:
 
-    for ptype in config['ptypes']:
+        for group_name, hdf5_name in HDF5_GROUP_NAMES.items():
+           
+            if group_name not in data.groups:
+                continue
 
-        data = data_manager.data[ptype][['HaloID', 'GalID', 'particle_index']]
-        ptype_list = config['ptype_lists'][ptype]
+            group_store = data.groups[group_name] # quickhand
+            hdf5_group = out.create_group(hdf5_name)
 
-        if group_name == 'galaxies':
-            data = data.loc[data['GalID'] != -1]
+            hdf5_group.create_dataset(name=f"{map_group_to_gid_name[group_name]}", data=group_store.group_ids, compression=1)
 
-        if len(data) == 0:
-            data_manager.particle_lists[group_name][ptype_list] = {
-                'indices': np.array([], dtype='int32'),
-                'offsets': np.zeros(len(group_data), dtype='int64'),
-                'lengths': np.zeros(len(group_data), dtype='int32'),
-            }
-            continue
+            for ptype in GROUP_PTYPE_LISTS[group_name]: # in theory these could be split up into different functions
 
-        sorted_data = data.sort_values(groupID)
-        ids = sorted_data[groupID].values
-        indices = sorted_data['particle_index'].values.astype('int32')
+                if ptype not in particle_lists[group_name]:
+                    continue
 
-        breaks = np.flatnonzero(np.diff(ids)) + 1
-        split_lengths = np.diff(np.concatenate([[0], breaks, [len(ids)]]))
-        split_ids = ids[np.concatenate([[0], breaks])]
+                pl = particle_lists[group_name][ptype]
+                hdf5_group.create_dataset(f'{ptype}_indices', data=pl['indices'], compression=1)
+                hdf5_group.create_dataset(f'{ptype}_offsets', data=pl['offsets'], compression=1)
+                hdf5_group.create_dataset(f'{ptype}_lengths', data=pl['lengths'], compression=1)
 
-        # map to group_data index (some groups may have no particles of this ptype)
-        length_series = pd.Series(split_lengths, index=split_ids).reindex(group_data.index, fill_value=0)
-        lengths = length_series.values.astype('int32')
-        offsets = np.concatenate([[0], np.cumsum(lengths[:-1])]).astype('int64')
+            for dataset_name, column_key in config['dataset_columns'].items():
 
-        # reorder indices to match group_data index order
-        # split_ids order may differ from group_data.index order
-        reordered = []
-        old_offsets = np.concatenate([[0], np.cumsum(split_lengths)])
-        id_to_pos = {gid: i for i, gid in enumerate(split_ids)}
-        for gid in group_data.index:
-            if gid in id_to_pos:
-                pos = id_to_pos[gid]
-                reordered.append(indices[old_offsets[pos]:old_offsets[pos+1]])
-        indices = np.concatenate(reordered) if reordered else np.array([], dtype='int32')
+                if dataset_name in GROUP_PTYPE_LISTS[group_name]:
+                    continue
 
-        data_manager.particle_lists[group_name][ptype_list] = {
-            'indices': indices,
-            'offsets': offsets,
-            'lengths': lengths,
-        }
+                if column_key not in GROUP_PTYPE_LISTS[group_name]:
 
-def get_particle_lists(data_manager: DataManager) -> None:
-    config = data_manager.config
-
-    data_manager.particle_lists = {group: {} for group in config['groups']}
-
-    for ptype in config['ptypes']:
-        data_manager.load_property('particle_index', ptype)
-
-    for group in config['groups']:
-        get_group_particle_indexes(data_manager, group)
+                    if isinstance(column_key, list): # for 3D attributes (pos, vel)
+                        if all(c in group_store.columns for c in column_key):
+                            hdf5_group.create_dataset(dataset_name, data=_resolve_columns(group_store, column_key), compression=1)
+                    else:
+                        if column_key in group_store.columns:
+                            hdf5_group.create_dataset(dataset_name, data=group_store[column_key], compression=1)

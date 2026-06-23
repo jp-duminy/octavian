@@ -20,9 +20,7 @@ from yaml import safe_load
 from pathlib import Path
 
 # octavian pipeline stages
-from octavian.data_management import DataManager, save_group_properties
-from octavian.fof6d import run_fof6d
-from octavian.aggregate_properties import calculate_group_properties, get_particle_lists
+from octavian.galaxy_finding import run_fof6d
 
 def _get_mpi_communicator() -> MPI.Comm | None:
     """
@@ -34,12 +32,13 @@ def _get_mpi_communicator() -> MPI.Comm | None:
     except ImportError:
         pass
     return None
-
+"""
 STAGES = [
     # stage name, executor function, dependencies
     ("fof6d", run_fof6d, []),
     ("group_properties", calculate_group_properties, []),
 ]
+"""
 
 def resolve_stages(config: dict[str, Any]) -> set:
     """

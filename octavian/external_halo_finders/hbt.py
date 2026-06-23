@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import h5py
 
-from octavian.external_halo_readers.halo_utils import HaloMembership, HaloReader, HaloTree, PTYPE_ENCODE
+from octavian.external_halo_finders.halo_utils import HaloMembership, HaloReader, HaloTree, PTYPE_ENCODE
 
 def gather_subsnap_file(subhalo_path, snap_index) -> Path:
     """

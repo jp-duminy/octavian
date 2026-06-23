@@ -7,12 +7,15 @@ Also contains backend dataclasses.
 
 # default packages
 from dataclasses import dataclass
+
+# units/arrays
 from astropy.constants import codata2014 as codata # unyt uses codata2014, need to migrate to codata2022
 from astropy.constants import iau2015 as iau 
 import astropy.units as u
 from astropy.cosmology import FLRW
 import numpy as np
 
+# TODO: put these in the config
 FRAD = 0.1  # radiative efficiency of accretion
 MU = 0.6    # mean molecular weight (assuming X=0.7, Y=0.28, Z=0.02)
 

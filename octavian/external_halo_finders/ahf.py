@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from octavian.external_halo_readers.halo_utils import HaloMembership, HaloReader, HaloTree
+from octavian.external_halo_finders.halo_utils import HaloMembership, HaloReader, HaloTree
 
 # AHF assigns ptype codes, we change these to ptype names for Octavian compatibility
 _PTYPE_MAP = {0: 0, # gas

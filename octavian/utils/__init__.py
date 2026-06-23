@@ -1,1 +1,0 @@
-from octavian.utils.merge_catalogues import merge_catalogues

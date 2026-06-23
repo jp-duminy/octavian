@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 
 setup(
   name="octavian",
-  version="0.2.1",
+  version="0.3.0",
   url="https://github.com/jp-duminy/octavian",
   author="JP Duminy, Jakub Szpila",
   maintainer="JP Duminy",
@@ -17,7 +17,7 @@ setup(
   packages=find_packages(),
   python_requires='>=3.13',
   install_requires=[
-    "numpy", "pandas", "scipy", "astropy", "unyt", "h5py",
+    "numpy", "scipy", "astropy", "h5py",
     "joblib", "numba", 
   ],
   extras_require={"MPI": ["mpi4py",]},

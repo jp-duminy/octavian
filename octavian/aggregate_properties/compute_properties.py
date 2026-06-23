@@ -7,6 +7,8 @@ The engine room for this file is in group_computations.py & group_helpers.py
 
 # defaults
 from dataclasses import dataclass
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
 
 # others
 import numpy as np

@@ -11,7 +11,6 @@ Original FoF: Davis et al. 1985, doi: 10.1086/163168
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import DataManager
   from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes
 
 from octavian.data_management import CONSTANTS, DTYPES

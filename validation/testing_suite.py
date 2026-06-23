@@ -35,10 +35,9 @@ import pandas as pd # REVIEW: temporary
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
-from octavian.data_management import DataManager, save_group_properties, filter_snapshot, write_analysis_to_output_file, convert_data_manager, build_group_stores, GizmoReader, ParticleStore, GroupStore, SimulationData
-from octavian.utils import merge_catalogues
-from octavian.fof6d import run_fof6d, run_fof6d_new
-from octavian.aggregate_properties import calculate_group_properties, get_particle_lists, construct_particle_csr_lists, compute_aggregate_properties
+from octavian.data_management import filter_snapshot, write_analysis_to_output_file, build_group_stores, GizmoReader, ParticleStore, GroupStore, SimulationData, construct_particle_csr_lists, merge_catalogues
+from octavian.galaxy_finding import run_fof6d_new
+from octavian.aggregate_properties import compute_aggregate_properties
 from octavian.run_octavian import _get_mpi_communicator
 
 @dataclass
