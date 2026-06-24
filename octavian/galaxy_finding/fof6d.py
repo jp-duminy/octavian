@@ -114,8 +114,8 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
         else:
             mask = in_range & eligible_set[masked_hids]
         
-        pos_list.append(particles[ptype].get_columns(["x", "y", "z"])[mask])
-        vel_list.append(particles[ptype].get_columns(["vx", "vy", "vz"])[mask])
+        pos_list.append(particles[ptype]["pos"][mask])
+        vel_list.append(particles[ptype]["vel"][mask])
         ptype_list.append(particles[ptype]["ptype"][mask])
         index_list.append(np.arange(particles[ptype].n_particles)[mask])
         hid_list.append(halo_ids[mask])
@@ -140,7 +140,7 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
     )
 
     # NOTE: this copies the same pattern as CGP does on read-in
-    all_pos, all_vel = np.vstack(pos_list), np.vstack(vel_list) # vstack (vectors)
+    all_pos, all_vel = np.concatenate(pos_list, dtype=DTYPES["pos"]), np.concatenate(vel_list, dtype=DTYPES["vel"]) 
     all_ptype, all_halo_ids = np.concatenate(ptype_list), np.concatenate(hid_list)
     all_write_key = np.concatenate(index_list)
 

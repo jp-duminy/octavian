@@ -85,12 +85,13 @@ def extract_particles(particles: dict[str, ParticleStore], ptypes: list[str], gr
         halo_ids_list.append(data["HaloID"])
         masses_list.append(data["mass"])
         potentials_list.append(data["potential"])
-        positions_list.append(data.get_columns(["x", "y", "z"]))
-        velocities_list.append(data.get_columns(["vx", "vy", "vz"]))
+        positions_list.append(data["pos"])
+        velocities_list.append(data["vel"])
 
+    # NOTE: concatenate works like vstack for 3D arrays
     halo_ids, group_ids = np.concatenate(halo_ids_list, dtype=DTYPES["HaloID"]), np.concatenate(group_ids_list, dtype=DTYPES["GalID"])
     masses, potentials = np.concatenate(masses_list, dtype=DTYPES["mass"]), np.concatenate(potentials_list, dtype=DTYPES["potential"])
-    positions, velocities = np.vstack(positions_list).astype(DTYPES["pos"], copy=False), np.vstack(velocities_list).astype(DTYPES["vel"], copy=False)
+    positions, velocities = np.concatenate(positions_list, dtype=DTYPES["pos"]), np.concatenate(velocities_list, dtype=DTYPES["vel"])
 
     if group_key == "GalID":
         keep = group_ids != -1
@@ -453,7 +454,7 @@ def compute_galaxy_aperture_masses(particles: dict[str, ParticleStore], galaxies
     for ptype in ptypes:
 
         data = particles[ptype]
-        pos_list.append(data.get_columns(["x", "y", "z"]))
+        pos_list.append(data["pos"])
         mass_list.append(data["mass"])
         ptype_list.append(np.full(shape=len(data), fill_value=ptype_to_int[ptype], dtype=DTYPES["ptype"]))
         hids_list.append(data["HaloID"])

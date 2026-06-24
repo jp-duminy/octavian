@@ -185,18 +185,9 @@ def _end_to_end_pipeline(snapshot_file: str, output_file: str, comm: MPI.Comm | 
             store = ParticleStore(ptype=ptype, n_particles=len(halo_ids))
             store["HaloID"] = halo_ids
 
-            # HACK: reader reads in 3D dataset, split into components for now to avoid refactor
-            pos = reader.read_dataset(ptype=ptype, dataset="pos")
-            store["x"] = pos[:, 0] # TODO: migrate to vectors
-            store["y"] = pos[:, 1]
-            store["z"] = pos[:, 2]
+            for dataset in ["mass", "pos", "vel"]:
+                store[dataset] = reader.read_dataset(ptype, dataset)
 
-            vel = reader.read_dataset(ptype=ptype, dataset="vel")
-            store["vx"] = vel[:, 0]
-            store["vy"] = vel[:, 1]
-            store["vz"] = vel[:, 2]
-            for prop in ["mass"]:
-                store[prop] = reader.read_dataset(ptype, prop)
             store["ptype"] = np.full(len(store), ptype)
             particles[ptype] = store
 

@@ -7,7 +7,7 @@ Numba requires quite basic syntax meaning these functions are inherently quite r
 """
 
 import numpy as np
-from numba import njit, prange, boolean
+from numba import njit, prange
 
 # REVIEW: needs some tidying up and expansion into a kernel for calculate_group_properties.py
 

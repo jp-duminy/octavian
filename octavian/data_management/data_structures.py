@@ -151,14 +151,6 @@ class ParticleStore:
         """
         return self.columns[key]
     
-    def get_columns(self, keys: str | list[str]) -> np.ndarray:
-        """
-        For 3D quantities (position, velocity, etc.): use ParticleStore.get_columns(["key1", "key2"])
-        """
-        if isinstance(keys, list):
-            return np.column_stack([self.columns[k] for k in keys])
-        return self.columns[keys]
-    
     def __setitem__(self, key: str, array: np.ndarray) -> None:
         """
         Use ParticleStore["key"] = array to add/modify an entry.
