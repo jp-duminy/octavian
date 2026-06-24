@@ -9,7 +9,6 @@ The idea being to improve readability and reduce clutter in compute_properties.p
 import numpy as np
 from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
-
 def sum_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array where each element is a sum of the quantity of interest (values) per group (bincount wrapper).
@@ -71,6 +70,7 @@ def max_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) 
     result_idx = np.full(shape=n_groups, fill_value=-1, dtype=np.int64) # -1 sentinel value
 
     for i in range(len(values)):
+
         g = group_idx[i] # corresponding group for each value
 
         if values[i] > result_val[g]: # any real value > -np.inf
@@ -89,6 +89,7 @@ def min_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) 
     result_idx = np.full(shape=n_groups, fill_value=-1, dtype=np.int64) # -1 sentinel value
 
     for i in range(len(values)):
+
         g = group_idx[i] # corresponding group for each value
 
         if values[i] < result_val[g]: # any real value < np.inf
@@ -106,6 +107,7 @@ def first_idx_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     result = np.full(shape=n_groups, fill_value=-1, dtype=np.int64)
 
     for i in range(len(group_idx)):
+
         g = group_idx[i]
 
         if result[g] == -1:

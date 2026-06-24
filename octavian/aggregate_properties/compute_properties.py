@@ -20,8 +20,8 @@ from octavian.data_management.data_structures import ParticleStore, GroupStore, 
 from octavian.data_management.conventions import CONSTANTS, DTYPES
 
 from octavian.aggregate_properties.group_computations import (
-    compute_angular_momentum,
-    compute_rotation_quantities,
+    compute_L_and_KE,
+    compute_rotational_quantities,
     compute_radial_quantiles,
     compute_virial_quantities,
 )
@@ -195,15 +195,15 @@ def _compute_kinematics(ctx: GroupContext, group_store: GroupStore) -> None:
     dispersion_sums = sum_per_group(values=np.sum(ctx.velocities_rel_com**2, axis=1), group_idx=ctx.group_idx, n_groups=ctx.n_groups)
     velocity_dispersions = np.where(ctx.counts > 0, np.sqrt(dispersion_sums / np.maximum(ctx.counts, 1)), np.nan)
 
-    L, ktot = compute_angular_momentum(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
-                                       mass=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups)
+    L, ktot = compute_L_and_KE(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
+                                       masses=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups)
     ctx.L_mag = np.linalg.norm(L, axis=1)
     alpha = np.arctan2(L[:, 1], L[:, 2])
     beta = np.arcsin(L[:, 0] / ctx.L_mag)
 
-    counter_mass, krot, ktot = compute_rotation_quantities(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
-                                                           mass=ctx.masses, group_idx=ctx.group_idx, L_group=L, n_groups=ctx.n_groups)
-    BoverT = 2 * counter_mass / ctx.group_mass
+    counter_rotating_mass, krot = compute_rotational_quantities(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
+                                                           masses=ctx.masses, group_idx=ctx.group_idx, L_group=L, n_groups=ctx.n_groups)
+    BoverT = (2 * counter_rotating_mass) / ctx.group_mass
     kappa_rot = krot / ktot
 
     small = (ctx.counts > 0) & (ctx.counts < 3) # groups with fewer than 3 counts have ill-defined rotational quantities (mask away)

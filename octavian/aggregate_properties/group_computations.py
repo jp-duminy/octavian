@@ -7,72 +7,79 @@ Numba requires quite basic syntax meaning these functions are inherently quite r
 """
 
 import numpy as np
-from numba import njit, prange
+from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
-# REVIEW: needs some tidying up and expansion into a kernel for calculate_group_properties.py
+@njit
+def compute_L_and_KE(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarray, group_idx: np.ndarray, 
+                               n_groups: int) -> np.ndarray:
+    """
+    Returns a tuple of two arrays. In order:
 
+    - (n_groups, 3) array of angular momenta.
+    - (n_groups) array of total KEs.
+    """
+    L = np.zeros(shape=(n_groups, 3)) # the nature of the cross product means we'd have to do 3 bincount calls, so do cross product explicitly
+    k_tot = np.zeros(shape=n_groups) # there's no reason for these two to go together, but you get KE for free in the loop
 
-"""
+    for i in range(len(masses)):
 
-Physical Quantities
+        g = group_idx[i] # corresponding group for each value
 
-"""
-
-@njit(parallel=True)
-def compute_angular_momentum(pos_rel, vel_rel, mass, group_idx, n_groups):
-    L = np.zeros((n_groups, 3))
-    ktot_sum = np.zeros(n_groups)
-
-    for i in prange(len(mass)):
-        g = group_idx[i]
-        rx, ry, rz = pos_rel[i, 0], pos_rel[i, 1], pos_rel[i, 2]
+        mass = masses[i]
+        rx, ry, rz = pos_rel[i,0], pos_rel[i,1], pos_rel[i,2]
         vx, vy, vz = vel_rel[i, 0], vel_rel[i, 1], vel_rel[i, 2]
-        m = mass[i]
 
-        px, py, pz = m * vx, m * vy, m * vz
-        L[g, 0] += ry * pz - rz * py
-        L[g, 1] += rz * px - rx * pz
-        L[g, 2] += rx * py - ry * px
+        k_tot[g] += 0.5 * mass * (vx**2 + vy**2 + vz**2)
 
-        ktot_sum[g] += 0.5 * m * (vx**2 + vy**2 + vz**2)
+        px, py, pz = mass * vx, mass * vy, mass * vz
 
-    return L, ktot_sum
-
-@njit(parallel=True)
-def compute_rotation_quantities(pos_rel, vel_rel, mass, group_idx, L_group, n_groups):
-    counter_rotating_mass = np.zeros(n_groups)
-    krot_sum = np.zeros(n_groups)
-    ktot_sum = np.zeros(n_groups)
+        L[g,0] += (ry * pz) - (rz * py)
+        L[g,1] += (rz * px) - (rx * pz)
+        L[g,2] += (rx * py) - (ry * px)
     
-    for i in prange(len(mass)):
-        g = group_idx[i]
-        rx, ry, rz = pos_rel[i, 0], pos_rel[i, 1], pos_rel[i, 2]
-        vx, vy, vz = vel_rel[i, 0], vel_rel[i, 1], vel_rel[i, 2]
-        m = mass[i]
-        
-        px, py, pz = m * vx, m * vy, m * vz
+    return L, k_tot
+
+@njit
+def compute_rotational_quantities(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarray, group_idx: np.ndarray,
+                                  L_group: np.ndarray, n_groups: np.ndarray) -> tuple[np.ndarray, ...]:
+    """
+    Returns a tuple of two arrays. In order:
+
+    - (n_groups) array of counter rotating masses.
+    - (n_groups) array of total angular KEs.
+    """
+    counter_rotating_mass = np.zeros(shape=n_groups) 
+    k_rot = np.zeros(shape=n_groups) # like L and KE, you get rotational KE for free in this one
+
+    for i in range(len(masses)):
+
+        g = group_idx[i] # corresponding group for each value
+
+        mass = masses[i]
+        rx, ry, rz = pos_rel[i,0], pos_rel[i,1], pos_rel[i,2]
+        px, py, pz = mass * vel_rel[i, 0], mass * vel_rel[i, 1], mass * vel_rel[i, 2]
+
         Lx = ry * pz - rz * py
         Ly = rz * px - rx * pz
         Lz = rx * py - ry * px
-        
-        Lgx, Lgy, Lgz = L_group[g, 0], L_group[g, 1], L_group[g, 2]
-        L_dot = Lx * Lgx + Ly * Lgy + Lz * Lgz
-        
-        if L_dot < 0:
-            counter_rotating_mass[g] += m
-        
-        cx = ry * Lgz - rz * Lgy
-        cy = rz * Lgx - rx * Lgz
-        cz = rx * Lgy - ry * Lgx
-        rz_cyl = np.sqrt(cx**2 + cy**2 + cz**2)
-        
-        ktot = 0.5 * m * (vx**2 + vy**2 + vz**2)
-        ktot_sum[g] += ktot
-        
-        if rz_cyl > 0.0:
-            krot_sum[g] += 0.5 * (L_dot / rz_cyl)**2 / m
-    
-    return counter_rotating_mass, krot_sum, ktot_sum
+
+        group_Lx, group_Ly, group_Lz = L_group[g, 0], L_group[g, 1], L_group[g, 2]
+        L_dot = Lx * group_Lx + Ly * group_Ly + group_Lz * Lz
+
+        if L_dot < 0: # if particle moves opposite to ordered rotation
+            counter_rotating_mass[g] += mass
+
+        # transform to cylindrical coords
+        cx = ry * group_Lz - rz * group_Ly
+        cy = rz * group_Lx - rx * group_Lz
+        cz = rx * group_Ly - ry * group_Lx
+        rotation_axis_distance = np.sqrt(cx**2 + cy**2 + cz**2)
+
+        if rotation_axis_distance > 0.0:
+            circular_velocity = L_dot / (rotation_axis_distance * mass)
+            k_rot[g] += 0.5 * mass * circular_velocity**2 
+
+    return counter_rotating_mass, k_rot
 
 @njit
 def compute_radial_quantiles(radius, mass, group_idx, n_groups, quantiles):
