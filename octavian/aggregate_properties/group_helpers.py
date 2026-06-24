@@ -147,3 +147,15 @@ def sort_by_group(group_ids: np.ndarray) -> tuple[np.ndarray, ...]:
     
     return order, unique_ids, start, end
 
+def build_group_csr(group_idx: np.ndarray, n_groups: int) -> tuple[np.ndarray, ...]:
+    """
+    Returns a tuple of 2 csr-friendly arrays (offsets and indices to sort).
+    """
+    counts = np.bincount(group_idx, minlength=n_groups)
+    offsets = np.empty(n_groups + 1, dtype=np.int64)
+    offsets[0] = 0
+    offsets[1:] = np.cumsum(counts)
+    
+    idx_order = np.argsort(group_idx, kind="stable")
+
+    return offsets, idx_order

@@ -82,44 +82,34 @@ def compute_rotational_quantities(pos_rel: np.ndarray, vel_rel: np.ndarray, mass
     return counter_rotating_mass, k_rot
 
 @njit
-def compute_radial_quantiles(radius, mass, group_idx, n_groups, quantiles):
+def compute_enclosed_mass_radii(radii: np.ndarray, masses: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, 
+                                n_groups: int, quantiles: list[float]) -> np.ndarray:
+    """
+    Returns an (n_groups, n_quantiles) array of the radii where for array[:,i] the values correspond to the radii at which the quantile[i] percentage of mass is enclosed.
+    """
+    result = np.full(shape=(n_groups, len(quantiles)), fill_value=np.nan)
 
-    counts = np.zeros(n_groups, dtype=np.int64)
-    for i in range(len(mass)):
-        counts[group_idx[i]] += 1
-
-    start = np.zeros(n_groups, dtype=np.int64)
-    for g in range(1, n_groups):
-        start[g] = start[g-1] + counts[g-1]
-
-    idx_sorted = np.empty(len(mass), dtype=np.int64)
-    pos = np.zeros(n_groups, dtype=np.int64)
-    for i in range(len(mass)):
-        g = group_idx[i]
-        idx_sorted[start[g] + pos[g]] = i
-        pos[g] += 1
-
-    result = np.full((n_groups, len(quantiles)), np.nan)
     for g in range(n_groups):
-        s = start[g]
-        e = s + counts[g]
-        if s == e:
-            continue
-        indices = idx_sorted[s:e]
-        r = radius[indices]
-        m = mass[indices]
-        order = np.argsort(r)
-        r = r[order]
-        m = m[order]
-        cum = np.cumsum(m)
-        frac = cum / cum[-1]
-        for q in range(len(quantiles)):
-            idx = np.searchsorted(frac, quantiles[q])
-            if idx < len(r):
-                result[g, q] = r[idx]
+
+        indices = idx_sorted[offsets[g]:offsets[g+1]]
+        
+        radius = radii[indices]
+        mass = masses[indices]
+
+        order = np.argsort(radius) # NOTE: numba freaks out if you try to do stable sort here
+        radius = radius[order]
+        mass = mass[order]
+        cumulative_mass = np.cumsum(mass)
+        fraction = cumulative_mass / cumulative_mass[-1]
+
+        for q in range(len(quantiles)): # slightly odd syntax, but this is the best way to do it for array shape
+
+            idx = np.searchsorted(fraction, quantiles[q]) # returns left
+
+            if idx < len(radius): # idx from searchsorted flips to right when exceeding the enclosed quantile
+                result[g, q] = radius[idx]
 
     return result
-
 
 @njit
 def compute_virial_quantities(radius, mass, group_idx, n_groups, rhocrit, factors):

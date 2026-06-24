@@ -22,7 +22,7 @@ from octavian.data_management.conventions import CONSTANTS, DTYPES
 from octavian.aggregate_properties.group_computations import (
     compute_L_and_KE,
     compute_rotational_quantities,
-    compute_radial_quantiles,
+    compute_enclosed_mass_radii,
     compute_virial_quantities,
 )
 
@@ -34,6 +34,7 @@ from octavian.aggregate_properties.group_helpers import (
     min_idx_per_group,
     first_idx_per_group,
     sort_by_group,
+    build_group_csr
 )
 
 BARYONIC_PTYPES = ["star", "gas", "bh"]
@@ -235,8 +236,10 @@ def _compute_radial_quantities(ctx: GroupContext, group_store: GroupStore) -> No
     quantiles = np.array([0.2, 0.5, 0.8])
     quantile_names = ["r20", "half_mass", "r80"]
 
-    radial_results = compute_radial_quantiles(radius=ctx.radii, mass=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups, 
-                                              quantiles=quantiles)
+    offsets, sorted_idx = build_group_csr(group_idx=ctx.group_idx, n_groups=ctx.n_groups)
+
+    radial_results = compute_enclosed_mass_radii(radii=ctx.radii, masses=ctx.masses, offsets=offsets, idx_sorted=sorted_idx,
+                                                 n_groups=ctx.n_groups, quantiles=quantiles)
 
     for q, col_name in enumerate(quantile_names):
         group_store[f"radius_{ctx.particle_type}_{col_name}"] = radial_results[:, q]
