@@ -112,47 +112,38 @@ def compute_enclosed_mass_radii(radii: np.ndarray, masses: np.ndarray, offsets: 
     return result
 
 @njit
-def compute_virial_quantities(radius, mass, group_idx, n_groups, rhocrit, factors):
+def compute_virial_quantities(radii: np.ndarray, masses: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, 
+                              n_groups: int, rhocrit: float, factors: list[float]) -> tuple[np.ndarray, ...]:
+    """
+    Returns a tuple of (n_groups, n_factors) arrays for virial radius and virial mass at those factors respectively.
+    """
+    volume_prefactor = (4. * np.pi) / 3. # I'm splitting hairs with this optimisation
 
-    volume_factor = 4.0 / 3.0 * np.pi
-
-    counts = np.zeros(n_groups, dtype=np.int64)
-    for i in range(len(mass)):
-        counts[group_idx[i]] += 1
-
-    start = np.zeros(n_groups, dtype=np.int64)
-    for g in range(1, n_groups):
-        start[g] = start[g-1] + counts[g-1]
-
-    idx_sorted = np.empty(len(mass), dtype=np.int64)
-    pos = np.zeros(n_groups, dtype=np.int64)
-    for i in range(len(mass)):
-        g = group_idx[i]
-        idx_sorted[start[g] + pos[g]] = i
-        pos[g] += 1
-
-    result_r = np.full((n_groups, len(factors)), np.nan)
-    result_m = np.full((n_groups, len(factors)), np.nan)
+    result_r, result_m = np.full((n_groups, len(factors)), np.nan), np.full((n_groups, len(factors)), np.nan)
 
     for g in range(n_groups):
-        s = start[g]
-        e = s + counts[g]
-        if s == e:
-            continue
-        indices = idx_sorted[s:e]
-        r = radius[indices]
-        m = mass[indices]
-        order = np.argsort(r)
-        r = r[order]
-        m = m[order]
-        cumulative = np.cumsum(m)
 
-        for i in range(len(r)):
-            if r[i] > 0:
-                overdensity = cumulative[i] / (volume_factor * r[i]**3) / rhocrit
-                for f in range(len(factors)):
-                    if overdensity >= factors[f]:
-                        result_r[g, f] = r[i]
-                        result_m[g, f] = cumulative[i]
+       indices = idx_sorted[offsets[g]:offsets[g+1]]
+
+       radius = radii[indices]
+       mass = masses[indices]
+
+       order = np.argsort(radius) # NOTE: numba freaks out if you try to do stable sort here
+       radius = radius[order]
+       mass = mass[order]
+       cumulative_mass = np.cumsum(mass)
+
+       for i in range(len(radius)): # revert to go outwards (multiple factors, so inward breaks)
+           
+           if radius[i] > 0: # guard
+               
+               overdensity = cumulative_mass[i] / (volume_prefactor * radius[i]**3) / rhocrit # rhocrit should be comoving
+
+               for f in range(len(factors)):
+                   
+                   if overdensity >= factors[f]:
+                       
+                       result_r[g,f] = radius[i]
+                       result_m[g,f] = cumulative_mass[i]
 
     return result_r, result_m

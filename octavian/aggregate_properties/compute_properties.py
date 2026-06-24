@@ -254,8 +254,10 @@ def _compute_halo_quantities(ctx: GroupContext, group_store: GroupStore, r200_fa
     spin_param = ctx.L_mag / (np.sqrt(2) * ctx.group_mass * v_circ * r200)
 
     factors = np.array([200., 500., 2500.])
-    virial_radius, virial_mass = compute_virial_quantities(radius=ctx.radii, mass=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups,
-                                                   rhocrit=rhocrit_comoving, factors=factors)
+    offsets, sorted_idx = build_group_csr(group_idx=ctx.group_idx, n_groups=ctx.n_groups)
+
+    virial_radius, virial_mass = compute_virial_quantities(radii=ctx.radii, masses=ctx.masses, offsets=offsets, idx_sorted=sorted_idx,
+                                                             n_groups=ctx.n_groups, rhocrit=rhocrit_comoving, factors=factors)
 
     for f, factor in enumerate(factors.astype(int)): # cast array to ints for f-string name
         group_store[f"radius_{factor}_c"] = virial_radius[:, f]
