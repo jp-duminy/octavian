@@ -1,120 +1,119 @@
 """
 
-This file contains sorting algorithms with numpy/numba.
+This file contains helpers which help sorting in CAP. Some of these are wrappers for readability (e.g. the bincounts at the top of the file), and some are numba loops to find things like minimum values etc.
 
-This is to improve readability and reduce clutter in calculate_group_properties.py
+The idea being to improve readability and reduce clutter in compute_properties.py
 
 """
 
 import numpy as np
-from numba import njit
+from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
-# NOTE: group_idx is a list of particles where the value of each particle is the index of its group.
 
-#
-# per-group properties
-#
-
-def sum_per_group(values, group_idx, n_groups):
+def sum_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Sum values per group.
-    
-    Takes advantage of np.bincount. For any group g:
-    - Bin all of its particles (which have group_idx[i] == g)
-    - weights=values means the value of the physical quantity is added instead of the index
-    - minlength handles a group with zero particles
+    Returns an array where each element is a sum of the quantity of interest (values) per group (bincount wrapper).
 
     The output is a an array of the total values of the quantity of interest for each group.
     """
-    return np.bincount(group_idx, weights=values, minlength=n_groups)
+    return np.bincount(group_idx, weights=values, minlength=n_groups) # minlength handles empty groups
 
-def count_per_group(group_idx, n_groups):
+def count_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Count occurences per group.
-
-    Same logic as sum_per_group() but without the weighting. This means we simply count the number of 
-    occurences, so for example the number of particles.
+    Returns an array where each element is the number of occurences per group (bincount wrapper).
     """
-    return np.bincount(group_idx, minlength=n_groups)
-
-#
-# per-group min/max and for indices too
-#
+    return np.bincount(group_idx, minlength=n_groups) # minlength handles empty groups
 
 @njit
-def max_value_per_group(values, group_idx, n_groups):
+def max_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Find the maximum value in each group of an array.
+    Returns an array of the maximum value (of quantity of interest 'values') for each group.
+
     np.max() only works on a total array.
     """
-    result = np.full(n_groups, -np.inf) # array of -infinities
-    for i in range(len(values)):
-        g = group_idx[i] # individual group
-        if values[i] > result[g]: # loop over and find highest value
+    result = np.full(shape=n_groups, fill_value=-np.inf) 
+
+    for i in range(len(values)): 
+
+        g = group_idx[i] # corresponding group for each value
+
+        if values[i] > result[g]: # any real value > -np.inf
+
             result[g] = values[i]
+
     return result
 
 @njit
-def min_value_per_group(values, group_idx, n_groups):
+def min_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Find the minimum value in each group of an array.
-    Same as above.
+    Returns an array of the minimum value (of quantity of interest 'values') for each group.
+
+    np.min() only works on a total array.
     """
-    result = np.full(n_groups, np.inf)
+    result = np.full(shape=n_groups, fill_value=np.inf)
+
     for i in range(len(values)):
-        g = group_idx[i]
-        if values[i] < result[g]:
+
+        g = group_idx[i] # corresponding group for each value
+
+        if values[i] < result[g]: # any real value < np.inf
+
             result[g] = values[i]
+
     return result
 
 @njit
-def max_idx_per_group(values, group_idx, n_groups):
+def max_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Find the index of the maximum value in each group.
-    
-    Same as above but with one extra layer.
+    Returns an array of the indices of the member with the maximum value (of quantity of interest 'values') in each group.
     """
-    result_val = np.full(n_groups, -np.inf)
-    result_idx = np.full(n_groups, -1, dtype=np.int64)
+    result_val = np.full(shape=n_groups, fill_value=-np.inf)
+    result_idx = np.full(shape=n_groups, fill_value=-1, dtype=np.int64) # -1 sentinel value
+
     for i in range(len(values)):
-        g = group_idx[i]
-        if values[i] > result_val[g]:
-            result_val[g] = values[i]
+        g = group_idx[i] # corresponding group for each value
+
+        if values[i] > result_val[g]: # any real value > -np.inf
+
+            result_val[g] = values[i] 
             result_idx[g] = i
+
     return result_idx
 
 @njit
-def min_idx_per_group(values, group_idx, n_groups):
+def min_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Find the index of the minimum value in each group.
+    Returns an array of the indices of the member with the minimum value (of quantity of interest 'values') in each group.
     """
-    result_val = np.full(n_groups, np.inf)
-    result_idx = np.full(n_groups, -1, dtype=np.int64)
+    result_val = np.full(shape=n_groups, fill_value=np.inf)
+    result_idx = np.full(shape=n_groups, fill_value=-1, dtype=np.int64) # -1 sentinel value
+
     for i in range(len(values)):
-        g = group_idx[i]
-        if values[i] < result_val[g]:
+        g = group_idx[i] # corresponding group for each value
+
+        if values[i] < result_val[g]: # any real value < np.inf
+
             result_val[g] = values[i]
             result_idx[g] = i
+
     return result_idx
 
 @njit
-def first_idx_per_group(group_idx, n_groups):
+def first_idx_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
-    Returns the index of the first member of a group.
-    Used for the (somewhat hacky) position unwrapping for galaxies.
+    Returns an array of the indices of the first member of each group.
     """
-    result = np.full(n_groups, -1, dtype=np.int64)
+    result = np.full(shape=n_groups, fill_value=-1, dtype=np.int64)
+
     for i in range(len(group_idx)):
         g = group_idx[i]
+
         if result[g] == -1:
             result[g] = i
+
     return result
 
-#
-# I/O: broadcasting and sorting
-#
-
-def sort_by_group(group_ids):
+def sort_by_group(group_ids: np.ndarray) -> tuple[np.ndarray, ...]:
     """
     Constructs slices of the bulk for efficient data processing.
 
@@ -124,15 +123,12 @@ def sort_by_group(group_ids):
     Meaning we now have a flat array for quick vectorised operations.
     Similar to the CSR format that forms the basis of Octavian's I/O.
     """
-    # guard which in practice should never happen (see common_group_properties)
+    # guard (in practice, should not happen)
     if len(group_ids) == 0:
         return np.array([], dtype=np.int64), np.array([]), np.array([], dtype=np.int64), np.array([], dtype=np.int64)
     
-    # https://en.wikipedia.org/wiki/Merge_sort
-    # it's safer to use a 'stable' sorting algorithm for the best science in exchange for a slight runtime cost
-    order = np.argsort(group_ids, kind='mergesort') 
+    order = np.argsort(group_ids, kind="stable") # stable sort avoids non-deterministic sorting 
     sorted_ids = group_ids[order]
-
     changes = np.flatnonzero(np.diff(sorted_ids)) # find where the difference is nonzero (where a new group starts)
 
     # find where each group starts
