@@ -9,7 +9,7 @@ Numba requires quite basic syntax meaning these functions are inherently quite r
 import numpy as np
 from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
-@njit
+@njit(cache=True)
 def compute_L_and_KE(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarray, group_idx: np.ndarray, 
                                n_groups: int) -> np.ndarray:
     """
@@ -39,7 +39,7 @@ def compute_L_and_KE(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarra
     
     return L, k_tot
 
-@njit
+@njit(cache=True)
 def compute_rotational_quantities(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarray, group_idx: np.ndarray,
                                   L_group: np.ndarray, n_groups: np.ndarray) -> tuple[np.ndarray, ...]:
     """
@@ -81,7 +81,7 @@ def compute_rotational_quantities(pos_rel: np.ndarray, vel_rel: np.ndarray, mass
 
     return counter_rotating_mass, k_rot
 
-@njit
+@njit(cache=True)
 def compute_enclosed_mass_radii(radii: np.ndarray, masses: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, 
                                 n_groups: int, quantiles: list[float]) -> np.ndarray:
     """
@@ -111,7 +111,7 @@ def compute_enclosed_mass_radii(radii: np.ndarray, masses: np.ndarray, offsets: 
 
     return result
 
-@njit
+@njit(cache=True)
 def compute_virial_quantities(radii: np.ndarray, masses: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, 
                               n_groups: int, rhocrit: float, factors: list[float]) -> tuple[np.ndarray, ...]:
     """

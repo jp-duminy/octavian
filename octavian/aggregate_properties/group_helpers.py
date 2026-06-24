@@ -23,7 +23,7 @@ def count_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     return np.bincount(group_idx, minlength=n_groups) # minlength handles empty groups
 
-@njit
+@njit(cache=True)
 def max_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array of the maximum value (of quantity of interest 'values') for each group.
@@ -42,7 +42,7 @@ def max_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int
 
     return result
 
-@njit
+@njit(cache=True)
 def min_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array of the minimum value (of quantity of interest 'values') for each group.
@@ -61,7 +61,7 @@ def min_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int
 
     return result
 
-@njit
+@njit(cache=True)
 def max_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array of the indices of the member with the maximum value (of quantity of interest 'values') in each group.
@@ -80,7 +80,7 @@ def max_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) 
 
     return result_idx
 
-@njit
+@njit(cache=True)
 def min_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array of the indices of the member with the minimum value (of quantity of interest 'values') in each group.
@@ -99,7 +99,7 @@ def min_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) 
 
     return result_idx
 
-@njit
+@njit(cache=True)
 def first_idx_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array of the indices of the first member of each group.
