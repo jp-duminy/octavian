@@ -24,6 +24,9 @@ from octavian.aggregate_properties.group_computations import (
     compute_rotational_quantities,
     compute_enclosed_mass_radii,
     compute_virial_quantities,
+    compute_centre_of_mass,
+    compute_relative_quantities,
+    compute_radii
 )
 
 from octavian.aggregate_properties.group_helpers import (
@@ -65,6 +68,7 @@ class GroupContext: # I'm sure this could have a better name but I feel context 
     positions_rel: np.ndarray | None = None     
     velocities_rel_com: np.ndarray | None = None
     velocities_rel_ref: np.ndarray | None = None
+    dispersion_sum: np.ndarray | None = None
     radii: np.ndarray | None = None             
     L_mag: np.ndarray | None = None 
 
@@ -158,15 +162,10 @@ def _compute_centre_of_mass(ctx: GroupContext, group_store: GroupStore, boxsize:
     valid_anchors = anchor_idx >= 0
     anchor_positions[valid_anchors] = ctx.positions[anchor_idx[valid_anchors]]
 
-    pos_shifted = ctx.positions - anchor_positions[ctx.group_idx]
-    pos_shifted -= boxsize * np.round(pos_shifted / boxsize)
+    com_positions, com_velocities = compute_centre_of_mass(
+        positions=ctx.positions, velocities=ctx.velocities, masses=ctx.masses, group_idx=ctx.group_idx, 
+        anchor_pos=anchor_positions, group_mass=ctx.group_mass, n_groups=ctx.n_groups, boxsize=boxsize)
 
-    for d in range(3):
-        com_positions[:, d] = sum_per_group(values=(pos_shifted[:,d]*ctx.masses), group_idx=ctx.group_idx, n_groups=ctx.n_groups) / ctx.group_mass
-        com_velocities[:, d] = sum_per_group(values=(ctx.velocities[:,d]*ctx.masses), group_idx=ctx.group_idx, n_groups=ctx.n_groups) / ctx.group_mass
-
-    com_positions += anchor_positions # return to box frame
-    com_positions %= boxsize # modulo in python handles negatives automatically so this is safe
     ctx.com_velocities = com_velocities
 
     if ctx.group_name == "galaxies":
@@ -181,20 +180,21 @@ def _compute_centre_of_mass(ctx: GroupContext, group_store: GroupStore, boxsize:
 def _compute_relative_quantities(ctx: GroupContext, boxsize: float) -> None:    
     """
     Relative positions and velocities, with PBCs: middle man, does not write to output.
-    """
-    ctx.positions_rel = ctx.positions - ctx.ref_positions[ctx.group_idx]
-    ctx.positions_rel -= boxsize * np.round(ctx.positions_rel / boxsize)
-    ctx.velocities_rel_com = ctx.velocities - ctx.com_velocities[ctx.group_idx]
-    ctx.velocities_rel_ref = ctx.velocities - ctx.ref_velocities[ctx.group_idx]
 
-    ctx.radii = np.linalg.norm(ctx.positions_rel, axis=1)
+    The function wraps the JIT-compiled version.
+    """
+    ctx.positions_rel, ctx.velocities_rel_com, ctx.velocities_rel_ref, ctx.radii, ctx.dispersion_sum = \
+        compute_relative_quantities(
+            positions=ctx.positions, velocities=ctx.velocities,
+            ref_pos=ctx.ref_positions, ref_vel=ctx.ref_velocities, com_vel=ctx.com_velocities,
+            group_idx=ctx.group_idx, n_groups=ctx.n_groups, n_particles=len(ctx.masses),
+            boxsize=boxsize)
 
 def _compute_kinematics(ctx: GroupContext, group_store: GroupStore) -> None:
     """
     Kinematics: velocity dispersions & angular momentum.
     """
-    dispersion_sums = sum_per_group(values=np.sum(ctx.velocities_rel_com**2, axis=1), group_idx=ctx.group_idx, n_groups=ctx.n_groups)
-    velocity_dispersions = np.where(ctx.counts > 0, np.sqrt(dispersion_sums / np.maximum(ctx.counts, 1)), np.nan)
+    velocity_dispersions = np.where(ctx.counts > 0, np.sqrt(ctx.dispersion_sum / np.maximum(ctx.counts, 1)), np.nan)
 
     L, ktot = compute_L_and_KE(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
                                        masses=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups)

@@ -1,8 +1,10 @@
 """
 
-This file contains numba functions used to compute physical quantities in bulk.
+The Octavian CAP engine room.
 
-Numba requires quite basic syntax meaning these functions are inherently quite readable.
+Vectorised CAP means intermediate array allocations are made by numpy. JIT-compiled numba functions avoid creating these intermediates; a good example is the centre-of-mass computations, which need intermediate position and velocity Nx3 arrays. Sometimes numba also makes inherently more sense.
+
+Sometimes we get one physical quantity along the way of finding another, in which case these functions return those for free. This means at first glance you may wonder why, for example, L and KE are returned together, but otherwise we're doing wasted computations.
 
 """
 
@@ -147,3 +149,106 @@ def compute_virial_quantities(radii: np.ndarray, masses: np.ndarray, offsets: np
                        result_m[g,f] = cumulative_mass[i]
 
     return result_r, result_m
+
+@njit(cache=True)
+def compute_centre_of_mass(positions: np.ndarray, velocities: np.ndarray, masses: np.ndarray, group_idx: np.ndarray,
+                           anchor_pos: np.ndarray, group_mass: np.ndarray,  n_groups: int, boxsize: float) -> tuple[np.ndarray, ...]:
+    """
+    Returns a tuple of (n-groups, 3) arrays. In order:
+
+    - com positions
+    - com velocities
+    """
+    com_pos, com_vel = np.zeros((n_groups, 3)), np.zeros((n_groups, 3))
+
+    # numerator
+    for i in range(len(masses)):
+
+        g = group_idx[i]
+        mass = masses[i]
+
+        for d in range(3):
+
+            pos_shifted = positions[i,d] - anchor_pos[g,d]
+            pos_shifted -= boxsize * np.round(pos_shifted / boxsize) # handles PBCs
+            com_pos[g,d] += pos_shifted * mass # NOTE: com_pos and com_vel are unphysical when this loop finishes
+            com_vel[g,d] += velocities[i,d] * mass
+
+    # denominator + return to box frame
+    for group in range(n_groups): # g is used above
+
+        if group_mass[group] > 0.0:
+
+            for d in range(3):
+
+                com_pos[group, d] = (com_pos[group, d] / group_mass[group] + anchor_pos[group, d]) % boxsize
+                com_vel[group, d] /= group_mass[group]
+
+    return com_pos, com_vel
+
+@njit(cache=True)
+def compute_relative_quantities(positions: np.ndarray, velocities: np.ndarray, ref_pos: np.ndarray, ref_vel: np.ndarray,
+                                com_vel: np.ndarray, group_idx: np.ndarray, n_groups: int, n_particles: int,
+                                boxsize: float) -> tuple[np.ndarray, ...]:
+    """
+    Returns a tuple of 3x (n_particles, 3) arrays, 1x (n_particles), and 1x (n_groups). In order:
+
+    - relative positions
+    - velocities relative to com
+    - velocities relative to reference point
+    - radii
+    - dispersion_sum
+    """
+    pos_rel = np.empty(shape=(n_particles, 3))
+    vel_rel_com = np.empty(shape=(n_particles, 3))
+    vel_rel_ref = np.empty(shape=(n_particles, 3))
+    radii = np.empty(shape=n_particles)
+    v_squared_sum = np.zeros(shape=n_groups)
+
+    for i in range(n_particles):
+
+        g = group_idx[i]
+        r_squared = 0.0
+        v_squared = 0.0
+
+        for d in range(3):
+
+            dx = positions[i,d] - ref_pos[g,d]
+            dx -= boxsize * np.round(dx / boxsize)
+            pos_rel[i,d] = dx
+
+            dv_com = velocities[i,d] - com_vel[g,d]
+            vel_rel_com[i,d] = dv_com
+            vel_rel_ref[i,d] = velocities[i,d] - ref_vel[g,d]
+
+            r_squared += dx**2
+            v_squared += dv_com**2
+
+        radii[i] = np.sqrt(r_squared)
+        v_squared_sum[g] += v_squared
+
+    return pos_rel, vel_rel_com, vel_rel_ref, radii, v_squared_sum
+
+@njit(cache=True)
+def compute_radii(positions: np.ndarray, ref_pos: np.ndarray, group_idx: np.ndarray, n_particles: int,
+                  boxsize: float) -> np.ndarray:
+    """
+    Returns an (n_particles) array of radii relative to whatever reference position is passed in (different for groups, hence why a different function is necessary)
+    """
+    radii = np.empty(shape=n_particles)
+
+    for i in range(n_particles):
+
+        g = group_idx[i]
+        r_squared = 0.0
+
+        for d in range(3):
+
+            dx = positions[i,d] - ref_pos[g,d]
+            dx -= boxsize * np.round(dx / boxsize)
+            r_squared += dx**2
+
+        radii[i] = np.sqrt(r_squared)
+
+    return radii
+
