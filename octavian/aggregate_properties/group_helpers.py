@@ -9,6 +9,8 @@ The idea being to improve readability and reduce clutter in compute_properties.p
 import numpy as np
 from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
+# NOTE: as of 25/06/26, do not njit the bincount wrappers, numba does not support minlength parameter
+
 def sum_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns an array where each element is a sum of the quantity of interest (values) per group (bincount wrapper).

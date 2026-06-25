@@ -8,42 +8,72 @@ Sometimes we get one physical quantity along the way of finding another, in whic
 
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from octavian.aggregate_properties.compute_properties import GroupParticles, GroupRefs
+
 import numpy as np
 from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
 @njit(cache=True)
-def compute_L_and_KE(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarray, group_idx: np.ndarray, 
-                               n_groups: int) -> np.ndarray:
+def compute_kinematics(particles: GroupParticles, refs: GroupRefs, n_groups: int, n_particles: int,
+                             boxsize: float) -> tuple[np.ndarray, ...]:
     """
-    Returns a tuple of two arrays. In order:
+    Returns a tuple of four arrays. In order:
 
     - (n_groups, 3) array of angular momenta.
     - (n_groups) array of total KEs.
+    - (n_groups) array of velocity dispersions.
+    - (n_particles) array of radii relative to reference positions.
     """
-    L = np.zeros(shape=(n_groups, 3)) # the nature of the cross product means we'd have to do 3 bincount calls, so do cross product explicitly
-    k_tot = np.zeros(shape=n_groups) # there's no reason for these two to go together, but you get KE for free in the loop
+    L = np.zeros(shape=(n_groups, 3)) # loop avoids 3 np.bincount calls
+    k_tot = np.zeros(shape=n_groups)
+    dispersion_sum = np.zeros(shape=n_groups)
+    radii = np.empty(shape=n_particles)
 
-    for i in range(len(masses)):
+    for i in range(n_particles):
 
-        g = group_idx[i] # corresponding group for each value
+        g = particles.group_idx[i] # corresponding group for each value
+        mass = particles.masses[i]
 
-        mass = masses[i]
-        rx, ry, rz = pos_rel[i,0], pos_rel[i,1], pos_rel[i,2]
-        vx, vy, vz = vel_rel[i, 0], vel_rel[i, 1], vel_rel[i, 2]
+        pos_rel = np.empty(3) # originally I had dx, dy, dz and dvx, etc. but the code becomes long
+        vel_rel = np.empty(3)
+        r_sq = 0.0
+        vel_sq_com = 0.0
+        ke = 0.0
 
-        k_tot[g] += 0.5 * mass * (vx**2 + vy**2 + vz**2)
+        for d in range(3):
 
-        px, py, pz = mass * vx, mass * vy, mass * vz
+            pos_shifted = particles.positions[i,d] - refs.ref_pos[g,d]
+            pos_shifted -= boxsize * np.round(pos_shifted / boxsize) # PBCs
+
+            pos_rel[d] = pos_shifted
+            r_sq += pos_shifted**2
+
+            vel_shifted = particles.velocities[i,d] - refs.ref_vel[g,d]
+            vel_rel[d] = vel_shifted
+            ke += vel_shifted**2 # NOTE: at this point ke is unphysical
+
+            vel_rel_com = particles.velocities[i,d] - refs.com_vel[g,d]
+            vel_sq_com += vel_rel_com**2
+        
+        radii[i] = np.sqrt(r_sq)
+        dispersion_sum[g] += vel_sq_com
+        k_tot[g] += 0.5 * mass * ke
+
+        rx, ry, rz = pos_rel[0], pos_rel[1], pos_rel[2]
+        px, py, pz = mass * vel_rel[0], mass * vel_rel[1], mass * vel_rel[2]
 
         L[g,0] += (ry * pz) - (rz * py)
         L[g,1] += (rz * px) - (rx * pz)
         L[g,2] += (rx * py) - (ry * px)
-    
-    return L, k_tot
+
+    return L, k_tot, dispersion_sum, radii
 
 @njit(cache=True)
-def compute_rotational_quantities(pos_rel: np.ndarray, vel_rel: np.ndarray, masses: np.ndarray, group_idx: np.ndarray,
-                                  L_group: np.ndarray, n_groups: np.ndarray) -> tuple[np.ndarray, ...]:
+def compute_rotational_quantities(particles: GroupParticles, ref_pos: np.ndarray, ref_vel: np.ndarray, L_group: np.ndarray,
+                                    n_groups: int, n_particles: int, boxsize: float) -> tuple[np.ndarray, ...]:
     """
     Returns a tuple of two arrays. In order:
 
@@ -51,21 +81,34 @@ def compute_rotational_quantities(pos_rel: np.ndarray, vel_rel: np.ndarray, mass
     - (n_groups) array of total angular KEs.
     """
     counter_rotating_mass = np.zeros(shape=n_groups) 
-    k_rot = np.zeros(shape=n_groups) # like L and KE, you get rotational KE for free in this one
+    k_rot = np.zeros(shape=n_groups) 
 
-    for i in range(len(masses)):
+    for i in range(n_particles):
 
-        g = group_idx[i] # corresponding group for each value
+        g = particles.group_idx[i]
+        mass = particles.masses[i]
 
-        mass = masses[i]
-        rx, ry, rz = pos_rel[i,0], pos_rel[i,1], pos_rel[i,2]
-        px, py, pz = mass * vel_rel[i, 0], mass * vel_rel[i, 1], mass * vel_rel[i, 2]
+        pos_rel = np.empty(3) # originally I had dx, dy, dz and dvx, etc. but the code becomes long
+        vel_rel = np.empty(3)
+
+        # the idea here is we don't want to make enormous intermediate arrays, meaning we need to recompute these for memory purposes
+        for d in range(3): # get coords into the correct reference frame
+
+            pos_shifted = particles.positions[i,d] - ref_pos[g,d]
+            pos_shifted -= boxsize * np.round(pos_shifted / boxsize) # PBCs
+            pos_rel[d] = pos_shifted
+
+            vel_shifted = particles.velocities[i,d] - ref_vel[g,d]
+            vel_rel[d] = vel_shifted
+
+        rx, ry, rz = pos_rel[0], pos_rel[1], pos_rel[2]
+        px, py, pz = mass * vel_rel[0], mass * vel_rel[1], mass * vel_rel[2]
 
         Lx = ry * pz - rz * py
         Ly = rz * px - rx * pz
         Lz = rx * py - ry * px
 
-        group_Lx, group_Ly, group_Lz = L_group[g, 0], L_group[g, 1], L_group[g, 2]
+        group_Lx, group_Ly, group_Lz = L_group[g,0], L_group[g,1], L_group[g,2]
         L_dot = Lx * group_Lx + Ly * group_Ly + group_Lz * Lz
 
         if L_dot < 0: # if particle moves opposite to ordered rotation
@@ -185,49 +228,6 @@ def compute_centre_of_mass(positions: np.ndarray, velocities: np.ndarray, masses
                 com_vel[group, d] /= group_mass[group]
 
     return com_pos, com_vel
-
-@njit(cache=True)
-def compute_relative_quantities(positions: np.ndarray, velocities: np.ndarray, ref_pos: np.ndarray, ref_vel: np.ndarray,
-                                com_vel: np.ndarray, group_idx: np.ndarray, n_groups: int, n_particles: int,
-                                boxsize: float) -> tuple[np.ndarray, ...]:
-    """
-    Returns a tuple of 3x (n_particles, 3) arrays, 1x (n_particles), and 1x (n_groups). In order:
-
-    - relative positions
-    - velocities relative to com
-    - velocities relative to reference point
-    - radii
-    - dispersion_sum
-    """
-    pos_rel = np.empty(shape=(n_particles, 3))
-    vel_rel_com = np.empty(shape=(n_particles, 3))
-    vel_rel_ref = np.empty(shape=(n_particles, 3))
-    radii = np.empty(shape=n_particles)
-    v_squared_sum = np.zeros(shape=n_groups)
-
-    for i in range(n_particles):
-
-        g = group_idx[i]
-        r_squared = 0.0
-        v_squared = 0.0
-
-        for d in range(3):
-
-            dx = positions[i,d] - ref_pos[g,d]
-            dx -= boxsize * np.round(dx / boxsize)
-            pos_rel[i,d] = dx
-
-            dv_com = velocities[i,d] - com_vel[g,d]
-            vel_rel_com[i,d] = dv_com
-            vel_rel_ref[i,d] = velocities[i,d] - ref_vel[g,d]
-
-            r_squared += dx**2
-            v_squared += dv_com**2
-
-        radii[i] = np.sqrt(r_squared)
-        v_squared_sum[g] += v_squared
-
-    return pos_rel, vel_rel_com, vel_rel_ref, radii, v_squared_sum
 
 @njit(cache=True)
 def compute_radii(positions: np.ndarray, ref_pos: np.ndarray, group_idx: np.ndarray, n_particles: int,

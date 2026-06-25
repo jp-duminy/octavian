@@ -7,6 +7,7 @@ The engine room for this file is in group_computations.py & group_helpers.py
 
 # defaults
 from dataclasses import dataclass
+from collections import namedtuple
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
 
@@ -20,12 +21,11 @@ from octavian.data_management.data_structures import ParticleStore, GroupStore, 
 from octavian.data_management.conventions import CONSTANTS, DTYPES
 
 from octavian.aggregate_properties.group_computations import (
-    compute_L_and_KE,
+    compute_kinematics,
     compute_rotational_quantities,
     compute_enclosed_mass_radii,
     compute_virial_quantities,
     compute_centre_of_mass,
-    compute_relative_quantities,
     compute_radii
 )
 
@@ -65,12 +65,12 @@ class GroupContext: # I'm sure this could have a better name but I feel context 
     ref_positions: np.ndarray | None = None     
     ref_velocities: np.ndarray | None = None
     com_velocities: np.ndarray | None = None    
-    positions_rel: np.ndarray | None = None     
-    velocities_rel_com: np.ndarray | None = None
-    velocities_rel_ref: np.ndarray | None = None
-    dispersion_sum: np.ndarray | None = None
     radii: np.ndarray | None = None             
     L_mag: np.ndarray | None = None 
+
+# for ease of readability with the numba engine room
+GroupParticles = namedtuple(f"GroupParicles", ["positions", "velocities", "masses", "group_idx"])
+GroupRefs = namedtuple(f"GroupRefs", ["ref_pos", "ref_vel", "com_vel"])
 
 def extract_particles(particles: dict[str, ParticleStore], ptypes: list[str], group_key: str) -> tuple[np.ndarray, ...]: 
     """
@@ -177,33 +177,34 @@ def _compute_centre_of_mass(ctx: GroupContext, group_store: GroupStore, boxsize:
     for i, d in enumerate(['x', 'y', 'z']):
         group_store[f"v{d}_{ctx.particle_type}"] = com_velocities[:, i]
 
-def _compute_relative_quantities(ctx: GroupContext, boxsize: float) -> None:    
-    """
-    Relative positions and velocities, with PBCs: middle man, does not write to output.
-
-    The function wraps the JIT-compiled version.
-    """
-    ctx.positions_rel, ctx.velocities_rel_com, ctx.velocities_rel_ref, ctx.radii, ctx.dispersion_sum = \
-        compute_relative_quantities(
-            positions=ctx.positions, velocities=ctx.velocities,
-            ref_pos=ctx.ref_positions, ref_vel=ctx.ref_velocities, com_vel=ctx.com_velocities,
-            group_idx=ctx.group_idx, n_groups=ctx.n_groups, n_particles=len(ctx.masses),
-            boxsize=boxsize)
-
-def _compute_kinematics(ctx: GroupContext, group_store: GroupStore) -> None:
+def _compute_kinematics(ctx: GroupContext, group_store: GroupStore, boxsize: float) -> None:
     """
     Kinematics: velocity dispersions & angular momentum.
     """
-    velocity_dispersions = np.where(ctx.counts > 0, np.sqrt(ctx.dispersion_sum / np.maximum(ctx.counts, 1)), np.nan)
+    particles = GroupParticles(
+        positions=ctx.positions, velocities=ctx.velocities,
+        masses=ctx.masses, group_idx=ctx.group_idx)
+    refs = GroupRefs(
+        ref_pos=ctx.ref_positions, ref_vel=ctx.ref_velocities,
+        com_vel=ctx.com_velocities)
 
-    L, ktot = compute_L_and_KE(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
-                                       masses=ctx.masses, group_idx=ctx.group_idx, n_groups=ctx.n_groups)
+    L, ktot, dispersion_sum, radii = compute_kinematics(
+        particles=particles, refs=refs,
+        n_groups=ctx.n_groups, n_particles=len(ctx.masses),
+        boxsize=boxsize)
+
+    ctx.radii = radii
     ctx.L_mag = np.linalg.norm(L, axis=1)
     alpha = np.arctan2(L[:, 1], L[:, 2])
     beta = np.arcsin(L[:, 0] / ctx.L_mag)
+    velocity_dispersions = np.where(ctx.counts > 0, np.sqrt(dispersion_sum / np.maximum(ctx.counts, 1)), np.nan)
 
-    counter_rotating_mass, krot = compute_rotational_quantities(pos_rel=ctx.positions_rel, vel_rel=ctx.velocities_rel_ref, 
-                                                           masses=ctx.masses, group_idx=ctx.group_idx, L_group=L, n_groups=ctx.n_groups)
+    counter_rotating_mass, krot = compute_rotational_quantities(
+        particles=particles, ref_pos=ctx.ref_positions,
+        ref_vel=ctx.ref_velocities, L_group=L,
+        n_groups=ctx.n_groups, n_particles=len(ctx.masses),
+        boxsize=boxsize)
+
     BoverT = (2 * counter_rotating_mass) / ctx.group_mass
     kappa_rot = krot / ktot
 
@@ -550,8 +551,7 @@ def compute_common_properties(particles: dict[str, ParticleStore], group_store: 
     if group_name == "halos": # halo and galaxy centres are defined differently
         _compute_minimal_potential(ctx=ctx, group_store=group_store, potentials=potentials)
 
-    _compute_relative_quantities(ctx=ctx, boxsize=sim.boxsize)
-    _compute_kinematics(ctx=ctx, group_store=group_store)
+    _compute_kinematics(ctx=ctx, group_store=group_store, boxsize=sim.boxsize)
     _compute_radial_quantities(ctx=ctx, group_store=group_store)
 
     if group_name == "halos" and ptype == "total":
