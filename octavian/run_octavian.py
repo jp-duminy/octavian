@@ -38,19 +38,17 @@ STAGES = [
     ("group_properties", calculate_group_properties, []),
 ]
 """
-
+"""
 def resolve_stages(config: dict[str, Any]) -> set:
-    """
-    Toggles on any dependencies which were set to false in the config file.
-    Returns a set of stages to run.
-    """
-    enabled = {name for name, _, _ in STAGES if config["stages"].get(name, False)}
+
+    #enabled = {name for name, _, _ in STAGES if config["stages"].get(name, False)}
     dependencies = {name: d for name, _, d in STAGES}
 
     for name in enabled:
         enabled.update(dependencies[name])
 
     return enabled
+"""
 
 def _execute_pipeline(snapshot_file: str, config_file: str, output_file: str, comm: MPI.Comm | None) -> None:
     """
