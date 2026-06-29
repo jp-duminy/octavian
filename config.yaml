@@ -1,185 +1,30 @@
 # STAGES TO EXECUTE
 stages:
   fof6d: true
-  group_properties: true
+  properties_core: true
+  properties_ptype_specific: true
+  properties_local_environment: true
 
-# INTERNAL NAMES
-ptype_names:
-  gas: PartType0
-  dm: PartType1
-  star: PartType4
-  bh: PartType5
-
-ptype_lists:
-  gas: glist
-  dm: dmlist
-  star: slist
-  bh: bhlist
-
-# FIXME: internalenergy is used instead of temperature
-prop_aliases:
-  particle_index: particle_index
-  pos: Coordinates
-  vel: Velocities
-  mass: Masses
-  temperature: InternalEnergy
-  rho: Density
-  nh: NeutralHydrogenAbundance
-  sfr: StarFormationRate
-  metallicity: Metallicity
-  age: StellarFormationTime
-  potential: Potential
-  fH2: FractionH2
-  bhmass: BH_Mass
-  bhmdot: BH_Mdot
-
-# NOTE: need to separate into galaxy / halo
-dataset_columns:
-  parent_halo_index: 'parent_halo_index'
-  ngas: 'ngas'
-  nstar: 'nstar'
-  ndm: 'ndm'
-  nbh: 'nbh'
-  pos: ['x_total', 'y_total', 'z_total']
-  vel: ['vx_total', 'vy_total', 'vz_total']
-  minpotpos: ['minpot_x', 'minpot_y', 'minpot_z']
-  minpotvel: ['minpot_vx', 'minpot_vy', 'minpot_vz']
-  dicts/masses.gas: mass_gas
-  dicts/masses.stellar: mass_star
-  dicts/masses.dm: mass_dm
-  dicts/masses.bh: mass_bh
-  dicts/masses.HI: mass_HI
-  dicts/masses.H2: mass_H2
-  dicts/masses.total: mass_total
-  dicts/masses.gas_30kpc: mass_gas_30kpc
-  dicts/masses.stellar_30kpc: mass_star_30kpc
-  dicts/masses.dm_30kpc: mass_dm_30kpc
-  dicts/masses.bh_30kpc: mass_bh_30kpc
-  dicts/masses.HI_30kpc: mass_HI_30kpc
-  dicts/masses.H2_30kpc: mass_H2_30kpc
-  dicts/masses.total_30kpc: mass_total_30kpc
-  dicts/radii.gas_r20: radius_gas_r20
-  dicts/radii.gas_half_mass: radius_gas_half_mass
-  dicts/radii.gas_r80: radius_gas_r80
-  dicts/radii.stellar_r20: radius_star_r20
-  dicts/radii.stellar_half_mass: radius_star_half_mass
-  dicts/radii.stellar_r80: radius_star_r80
-  dicts/radii.dm_r20: radius_dm_r20
-  dicts/radii.dm_half_mass: radius_dm_half_mass
-  dicts/radii.dm_r80: radius_dm_r80
-  dicts/radii.bh_r20: radius_bh_r20
-  dicts/radii.bh_half_mass: radius_bh_half_mass
-  dicts/radii.bh_r80: radius_bh_r80
-  dicts/radii.baryon_r20: radius_baryon_r20
-  dicts/radii.baryon_half_mass: radius_baryon_half_mass
-  dicts/radii.baryon_r80: radius_baryon_r80
-  dicts/radii.total_r20: radius_total_r20
-  dicts/radii.total_half_mass: radius_total_half_mass
-  dicts/radii.total_r80: radius_total_r80
-  dicts/velocity_dispersions.gas: velocity_dispersion_gas
-  dicts/velocity_dispersions.stellar: velocity_dispersion_star
-  dicts/velocity_dispersions.dm: velocity_dispersion_dm
-  dicts/velocity_dispersions.bh: velocity_dispersion_bh
-  dicts/velocity_dispersions.baryon: velocity_dispersion_baryon
-  dicts/velocity_dispersions.total: velocity_dispersion_total
-  dicts/rotation.gas_L: ['Lx_gas', 'Ly_gas', 'Lz_gas']
-  dicts/rotation.stellar_L: ['Lx_star', 'Ly_star', 'Lz_star']
-  dicts/rotation.dm_L: ['Lx_dm', 'Ly_dm', 'Lz_dm']
-  dicts/rotation.bh_L: ['Lx_bh', 'Ly_bh', 'Lz_bh']
-  dicts/rotation.baryon_L: ['Lx_baryon', 'Ly_baryon', 'Lz_baryon']
-  dicts/rotation.total_L: ['Lx_total', 'Ly_total', 'Lz_total']
-  dicts/rotation.gas_ALPHA: ALPHA_gas
-  dicts/rotation.gas_BETA: BETA_gas
-  dicts/rotation.gas_BoverT: BoverT_gas
-  dicts/rotation.gas_kappa_rot: kappa_rot_gas
-  dicts/rotation.stellar_ALPHA: ALPHA_star
-  dicts/rotation.stellar_BETA: BETA_star
-  dicts/rotation.stellar_BoverT: BoverT_star
-  dicts/rotation.stellar_kappa_rot: kappa_rot_star
-  dicts/rotation.dm_ALPHA: ALPHA_dm
-  dicts/rotation.dm_BETA: BETA_dm
-  dicts/rotation.dm_BoverT: BoverT_dm
-  dicts/rotation.dm_kappa_rot: kappa_rot_dm
-  dicts/rotation.bh_ALPHA: ALPHA_bh
-  dicts/rotation.bh_BETA: BETA_bh
-  dicts/rotation.bh_BoverT: BoverT_bh
-  dicts/rotation.bh_kappa_rot: kappa_rot_bh
-  dicts/rotation.baryon_ALPHA: ALPHA_baryon
-  dicts/rotation.baryon_BETA: BETA_baryon
-  dicts/rotation.baryon_BoverT: BoverT_baryon
-  dicts/rotation.baryon_kappa_rot: kappa_rot_baryon
-  dicts/rotation.total_ALPHA: ALPHA_total
-  dicts/rotation.total_BETA: BETA_total
-  dicts/rotation.total_BoverT: BoverT_total
-  dicts/rotation.total_kappa_rot: kappa_rot_total
-  dicts/virial_quantities.r200: r200
-  dicts/virial_quantities.circular_velocity: circular_velocity
-  dicts/virial_quantities.spin_param: spin_param
-  dicts/virial_quantities.temperature: temperature
-  dicts/virial_quantities.r200c: radius_200_c
-  dicts/virial_quantities.r500c: radius_500_c
-  dicts/virial_quantities.r2500c: radius_2500_c
-  dicts/virial_quantities.m200c: mass_200_c
-  dicts/virial_quantities.m500c: mass_500_c
-  dicts/virial_quantities.m2500c: mass_2500_c
-  dicts/metallicities.mass_weighted: metallicity_mass_weighted
-  dicts/metallicities.sfr_weighted: metallicity_sfr_weighted
-  dicts/metallicities.mass_weighted_cgm: metallicity_mass_weighted_cgm
-  dicts/metallicities.temp_weighted_cgm: metallicity_temp_weighted_cgm
-  dicts/metallicities.stellar: metallicity_stellar
-  dicts/ages.mass_weighted: age_mass_weighted
-  dicts/ages.metal_weighted: age_metal_weighted
-  dicts/temperatures.mass_weighted: temp_mass_weighted
-  dicts/temperatures.mass_weighted_cgm: temp_mass_weighted_cgm
-  dicts/temperatures.metal_weighted_cgm: temp_metal_weighted_cgm
-  dicts/local_mass_density.300: local_mass_density_300
-  dicts/local_mass_density.1000: local_mass_density_1000
-  dicts/local_mass_density.3000: local_mass_density_3000
-  dicts/local_number_density.300: local_number_density_300
-  dicts/local_number_density.1000: local_number_density_1000
-  dicts/local_number_density.3000: local_number_density_3000
-
-
-prop_columns:
-  pos: [x, y, z]
-  vel: [vx, vy, vz]
-
-groups: [halos, galaxies]
-groupIDs:
-  halos: HaloID
-  galaxies: GalID
-
-# REVIEW: some of these are hangovers from Caesar
 # CONSTANTS
 MINIMUM_STARS_PER_GALAXY: 16
 MINIMUM_DM_PER_HALO: 24
-MINIMUM_GAS_PER_CLOUD: 16
 nHlim: 0.13
 Tlim: 1.0e5
 XH: 0.76
 
+# FOF6D
+b: 0.02 
+vel_LL: 1 
 
-# UNITS
-prop_units:
-  pos: kpc*a/h
-  vel: km/s*a**(1/2)
-  mass: 1.e10 * Msun/h
-  temperature: K
-  rho: 1.e10 * Msun/h / (kpc*a/h)**3
-  sfr: Msun/yr
-  bhmass: 1.e10 * Msun/h
-  bhmdot: 10.2249488753 * Msun/h/yr
-
-code_units:
-  pos: kpc*a
-  vel: km/s
-  mass: Msun
-  temperature: K
-  rho: g/cm**3
-  rhocrit: Msun/kpc**3
-  sfr: Msun/yr
-  bhmass: Msun
-  bhmdot: Msun/yr
+# AGGREGATE PROPERTIES
+radial_quantiles:
+  r20: 0.2
+  half_mass: 0.5
+  r80: 0.8
+# NOTE: these need to be lists even if single-valued for the unpacker
+aperture_size: [30] 
+virial_factors: [200, 500, 2500]
+density_radii: [300, 1000, 3000]
 
 # PARALLELISM
 nproc: 4 # cores per node for joblib
