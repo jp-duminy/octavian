@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected
 import numpy as np
 from octavian.data_management.conventions import CONSTANTS, DTYPES
 
-from octavian.aggregate_properties.group_computations import (
+from octavian.aggregate_properties.aggregate_computations import (
     compute_kinematics,
     compute_rotational_quantities,
     compute_enclosed_mass_radii,
@@ -26,7 +26,7 @@ from octavian.aggregate_properties.group_computations import (
     compute_radii,
 )
 
-from octavian.aggregate_properties.group_helpers import (
+from octavian.aggregate_properties.aggregate_helpers import (
     sum_per_group,
     count_per_group,
     min_idx_per_group,

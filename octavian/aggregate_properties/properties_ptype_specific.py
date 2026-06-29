@@ -20,7 +20,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected
 import numpy as np
 from octavian.data_management.conventions import CONSTANTS, DTYPES
 
-from octavian.aggregate_properties.group_helpers import (
+from octavian.aggregate_properties.aggregate_helpers import (
     sum_per_group,
     max_value_per_group,
     max_idx_per_group,

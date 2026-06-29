@@ -4,16 +4,20 @@ Properties related to a structure's local environment (number densities, apertur
 
 """
 
+# semantic
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 # others
 import numpy as np
 from scipy.spatial import KDTree # remember, always pass boxsize
 from scipy.sparse import csr_array
 
 # other Octavian data structures
-from octavian.data_management.data_structures import ParticleStore, GroupStore, SimulationAttributes, SimulationData
-from octavian.data_management.conventions import CONSTANTS, DTYPES
-
-from octavian.aggregate_properties.group_helpers import (
+if TYPE_CHECKING:
+  from octavian.data_management import ParticleStore, GroupStore, SimulationData
+from octavian.data_management.conventions import DTYPES
+from octavian.aggregate_properties.aggregate_helpers import (
     sort_by_group,
 )
 

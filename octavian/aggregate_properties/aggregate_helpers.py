@@ -2,7 +2,7 @@
 
 This file contains helpers which help sorting in CAP. Some of these are wrappers for readability (e.g. the bincounts at the top of the file), and some are numba loops to find things like minimum values etc.
 
-The idea being to improve readability and reduce clutter in compute_properties.py
+The idea being to improve readability and reduce clutter when working with group-level operations.
 
 """
 
