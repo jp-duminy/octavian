@@ -245,27 +245,18 @@ class GroupStore:
 
         return id_to_idx
     
-def build_group_stores(particles: dict[str, ParticleStore], config: dict) -> dict[str, GroupStore]:
+def build_group_store(particles: dict[str, ParticleStore], group_type: str) -> GroupStore:
     """
     Constructs GroupStore classes (for halos and galaxies) from the ParticleStores.
     """
-    group_stores = {}
+    group_key = {"halos": "HaloID", "galaxies": "GalID"}[group_type]
+    ids = [particles[ptype][group_key] for ptype in particles]
+    unique_ids = np.unique(np.concatenate(ids))
 
-    for group_name in config["groups"]:
+    if group_type == "galaxies":
+        unique_ids = unique_ids[unique_ids != -1]
 
-        group_key = {"halos": "HaloID", "galaxies": "GalID"}[group_name]
-        ids = []
-
-        for ptype in ["star", "gas", "bh", "dm"]:
-            ids.append(particles[ptype][group_key])
-
-        unique_ids = np.unique(np.concatenate(ids))
-        if group_name == "galaxies":
-            unique_ids = unique_ids[unique_ids != -1]
-
-        group_stores[group_name] = GroupStore(group_ids=unique_ids)
-
-    return group_stores
+    return GroupStore(group_ids=unique_ids)
     
 @dataclass(slots=True) # no frozen=True as this is inherently supposed to be mutable
 class SimulationData:
