@@ -18,8 +18,6 @@ warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected
 
 # others
 import numpy as np
-
-from octavian.aggregate_properties.aggregate_internals import write_results
 from octavian.data_management.conventions import CONSTANTS, DTYPES
 
 from octavian.aggregate_properties.group_helpers import (
@@ -54,7 +52,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
             gas=gas, gas_mass=group_store["mass_gas"],
             group_idx=gas_group_idx, n_groups=n_groups
         )
-        write_results(group_store=group_store, results=gas_results)
+        group_store.write_batch(results=gas_results)
 
         # stars
         star = particles["star"]
@@ -63,7 +61,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
             star=star, star_mass=group_store["mass_star"],
             group_idx=star_group_idx, n_groups=n_groups
         )
-        write_results(group_store=group_store, results=star_results)
+        group_store.write_batch(results=star_results)
 
         # black holes
         bh = particles["bh"]
@@ -72,14 +70,14 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
             bh=bh, group_idx=bh_group_idx,
             n_groups=n_groups, edd_factor=config["edd_factor"]
         )
-        write_results(group_store=group_store, results=bh_results)
+        group_store.write_batch(results=bh_results)
 
         if group_type == "halos":
             cgm_results = compute_cgm_properties(
                 gas=gas, group_idx=gas_group_idx,
                 n_groups=n_groups, nHlim=config["nHlim"]
             )
-            write_results(group_store=group_store, results=cgm_results)
+            group_store.write_batch(results=cgm_results)
 
 def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
     """
@@ -174,7 +172,6 @@ def compute_cgm_properties(
     cgm_temp_metal = sum_per_group(values=(cgm_temperatures * cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
     cgm_metal_mass = sum_per_group(values=(cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
 
-    results["mass_cgm"] = cgm_mass
     results["temp_mass_weighted_cgm"] = cgm_temp_mass / cgm_mass
     results["temp_metal_weighted_cgm"] = cgm_temp_metal / cgm_temp_mass
     results["metallicity_mass_weighted_cgm"] = cgm_metal_mass / cgm_mass

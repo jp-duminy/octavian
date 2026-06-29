@@ -12,7 +12,6 @@ from scipy.sparse import csr_array
 # other Octavian data structures
 from octavian.data_management.data_structures import ParticleStore, GroupStore, SimulationAttributes, SimulationData
 from octavian.data_management.conventions import CONSTANTS, DTYPES
-from octavian.aggregate_properties.aggregate_internals import write_results
 
 from octavian.aggregate_properties.group_helpers import (
     sort_by_group,
@@ -32,7 +31,7 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
         boxsize=sim.boxsize,
         radii=config["density_radii"],
     )
-    write_results(group_store=galaxies, results=density_results)
+    galaxies.write_batch(results=density_results)
 
     aperture_results = compute_galaxy_aperture_masses(
         particles=simulation_data.particles,
@@ -40,7 +39,7 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
         boxsize=sim.boxsize,
         aperture_size=config["aperture_size"],
     )
-    write_results(group_store=galaxies, results=aperture_results)
+    galaxies.write_batch(results=aperture_results)
 
 def compute_local_densities(
     pos: np.ndarray, 

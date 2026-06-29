@@ -14,8 +14,6 @@ warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected
 
 # others
 import numpy as np
-
-from octavian.aggregate_properties.aggregate_internals import write_results
 from octavian.data_management.conventions import CONSTANTS, DTYPES
 
 from octavian.aggregate_properties.group_computations import (
@@ -55,7 +53,7 @@ def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
         
             global_minimum = _prepare_global_minimum_potential(particles=particles, group_store=group_store, 
                                                                ptypes=PTYPES, group_key=GROUP_KEYS[group_type])
-            write_results(group_store=group_store, results=global_minimum)
+            group_store.write_batch(results=global_minimum)
 
         run_core_ptype_pass(particles=particles, store=group_store, group_type=group_type, sim=sim, 
                             config=config)
@@ -87,12 +85,12 @@ def run_core_ptype_pass(
         group_idx = store.get_indexer(group_id=group_ids)
 
         counts_and_mass = _compute_counts_and_mass(masses=data["mass"], group_idx=group_idx, n_groups=n_groups, ptype=ptype)
-        write_results(group_store=store, results=counts_and_mass)
+        store.write_batch(results=counts_and_mass)
 
         centre_of_mass = _compute_centre_of_mass(positions=data["pos"], velocities=data["vel"], masses=data["mass"],
                                                  group_idx=group_idx, group_mass=store[f"mass_{ptype}"], n_groups=n_groups,
                                                  ptype=ptype, boxsize=sim.boxsize)
-        write_results(group_store=store, results=centre_of_mass, suffix=ptype)
+        store.write_batch(results=centre_of_mass, suffix=ptype)
 
         if group_type == "halos":
             ref_pos = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
@@ -107,7 +105,7 @@ def run_core_ptype_pass(
                                          group_idx=group_idx, ref_pos=ref_pos, ref_vel=ref_vel,
                                          com_vel=com_vel, n_groups=n_groups, n_particles=data.n_particles,
                                          boxsize=sim.boxsize)
-        write_results(group_store=store, results=kinematics, suffix=ptype)
+        store.write_batch(results=kinematics, suffix=ptype)
 
         L_matrix = np.column_stack([kinematics["Lx"], kinematics["Ly"], kinematics["Lz"]]) # as compute returns components but derive expects (n,3)
         derived = _derive_kinematics(
@@ -115,7 +113,7 @@ def run_core_ptype_pass(
             dispersion_sum=kinematics["_dispersion_sum"],
             counts=counts_and_mass[f"n{ptype}"],
         )
-        write_results(group_store=store, results=derived, suffix=ptype)
+        store.write_batch(results=derived, suffix=ptype)
 
         radial = _compute_radial_quantities(
             radii=radii, masses=data["mass"],
@@ -123,7 +121,7 @@ def run_core_ptype_pass(
             quantiles=config["quantiles"],
             quantile_names=config["quantile_names"],
         )
-        write_results(group_store=store, results=radial, suffix=ptype)
+        store.write_batch(results=radial, suffix=ptype)
 
 def run_combine(
     store: GroupStore,
@@ -137,7 +135,7 @@ def run_combine(
         group_store=store, collective_name="baryon",
         constituent_ptypes=BARYONIC_PTYPES, boxsize=boxsize,
     )
-    write_results(group_store=store, results=combined_baryon)
+    store.write_batch(results=combined_baryon)
 
     if group_type == "halos":   
 
@@ -145,7 +143,7 @@ def run_combine(
             group_store=store, collective_name="total",
             constituent_ptypes=PTYPES, boxsize=boxsize,
         )
-        write_results(group_store=store, results=combined_total)
+        store.write_batch(results=combined_total)
 
 def run_halo_stages(
     particles: dict[str, ParticleStore],
@@ -187,7 +185,7 @@ def run_halo_stages(
         factors=config["virial_factors"],
         rhocrit_comoving=sim.rhocrit_comoving,
     )
-    write_results(group_store=store, results=mass_profile)
+    store.write_batch(results=mass_profile)
 
     derived = _derive_halo_quantities(
         group_mass=store["mass_total"],
@@ -196,7 +194,7 @@ def run_halo_stages(
         r200_factor=sim.r200_factor,
         scale_factor=sim.a,
     )
-    write_results(group_store=store, results=derived)
+    store.write_batch(results=derived)
 
 def run_galaxy_stages(
     particles: dict[str, ParticleStore],
@@ -239,12 +237,12 @@ def run_galaxy_stages(
         group_mass=galaxies["mass_baryon"],
         counts=galaxies["nbaryon"],
     )
-    write_results(group_store=galaxies, results=derived)
+    galaxies.write_batch(results=derived)
 
     parent = _assign_parent_halo_indices(
         particles=particles, galaxies=galaxies, halos=halos,
     )
-    write_results(group_store=galaxies, results=parent)
+    galaxies.write_batch(results=parent)
 
 def _prepare_global_minimum_potential(
     particles: dict[str, ParticleStore], 

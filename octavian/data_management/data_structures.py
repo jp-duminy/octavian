@@ -216,6 +216,19 @@ class GroupStore:
         assert array.shape[0] == self.n_groups
         self.columns[key] = array
 
+    def write_batch(self, results: dict[str, np.ndarray], suffix: str = "") -> None:
+        """
+        Writes the data from a results dictionary into the GroupStore.
+        """
+        for column_name, column_data in results.items():
+
+            store_key = f"{column_name}_{suffix}" if suffix else column_name
+
+            if store_key in self.columns:
+                raise KeyError(f"Column '{store_key}' already exists in GroupStore.")
+            
+            self.columns[store_key] = column_data
+
     def __contains__(self, key: str) -> bool:
         """
         Controls {"key" in GroupStore} behaviour
