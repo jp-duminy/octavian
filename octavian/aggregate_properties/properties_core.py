@@ -34,30 +34,29 @@ from octavian.aggregate_properties.aggregate_helpers import (
     build_group_csr
 )
 
-PTYPES = ["star", "gas", "bh", "dm"]
-BARYONIC_PTYPES = ["star", "gas", "bh"]
-GROUP_KEYS = {"halos": "HaloID", "galaxies": "GalID"}
-GROUPS = ["halos", "galaxies"]
-
 def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
     """
     Top-level executor for the core aggregate properties.
     """
-    for group_type in ["halos", "galaxies"]: # halos must run first
+    for group_type in simulation_data.groups: # halos must run first (halo groupstore is built first)
 
         group_store = simulation_data.groups[group_type]
         particles = simulation_data.particles
         sim = simulation_data.simulation
 
+        available_ptypes = list(particles.keys())
+        available_baryonic = [pt for pt, s in particles.items() if s.is_baryonic]
+
         if group_type == "halos":
         
             global_minimum = _prepare_global_minimum_potential(particles=particles, group_store=group_store, 
-                                                               ptypes=PTYPES, group_key=GROUP_KEYS[group_type])
+                                                               ptypes=available_ptypes, group_key=group_store.group_key)
             group_store.write_batch(results=global_minimum)
 
         run_core_ptype_pass(particles=particles, store=group_store, group_type=group_type, sim=sim, 
                             config=config)
-        run_combine(store=group_store, group_type=group_type, boxsize=sim.boxsize)
+        run_combine(store=group_store, group_type=group_type, available_ptypes=available_ptypes, 
+                    available_baryonic_ptypes=available_baryonic, boxsize=sim.boxsize)
 
         if group_type == "halos":
         
@@ -65,7 +64,7 @@ def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
 
         elif group_type == "galaxies":
         
-            run_galaxy_stages(particles=particles, galaxies=group_store, halos=simulation_data.groups["halos"], sim=sim)
+            run_galaxy_stages(particles=particles, galaxies=group_store, halos=simulation_data.groups["halos"], available_baryonic_ptypes=available_baryonic, sim=sim)
 
 def run_core_ptype_pass(
     particles: dict[str, ParticleStore],
@@ -77,11 +76,11 @@ def run_core_ptype_pass(
     """
     Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore.
     """
-    for ptype in PTYPES:
+    for ptype in particles:
 
         data = particles[ptype]
         n_groups = store.n_groups
-        group_ids = data[GROUP_KEYS[group_type]]  
+        group_ids = data[store.group_key]  
         group_idx = store.get_indexer(group_id=group_ids)
 
         counts_and_mass = _compute_counts_and_mass(masses=data["mass"], group_idx=group_idx, n_groups=n_groups, ptype=ptype)
@@ -126,6 +125,8 @@ def run_core_ptype_pass(
 def run_combine(
     store: GroupStore,
     group_type: str,
+    available_ptypes: list[str],
+    available_baryonic_ptypes: list[str],
     boxsize: float,
 ) -> None:
     """
@@ -133,7 +134,7 @@ def run_combine(
     """
     combined_baryon = _combine_ptype_sums(
         group_store=store, collective_name="baryon",
-        constituent_ptypes=BARYONIC_PTYPES, boxsize=boxsize,
+        constituent_ptypes=available_baryonic_ptypes, boxsize=boxsize,
     )
     store.write_batch(results=combined_baryon)
 
@@ -141,7 +142,7 @@ def run_combine(
 
         combined_total = _combine_ptype_sums(
             group_store=store, collective_name="total",
-            constituent_ptypes=PTYPES, boxsize=boxsize,
+            constituent_ptypes=available_ptypes, boxsize=boxsize,
         )
         store.write_batch(results=combined_total)
 
@@ -154,13 +155,13 @@ def run_halo_stages(
     """
     Halo-specific virial/mass profile quantities.
     """
-    group_key = GROUP_KEYS["halos"]
+    group_key = store.group_key
     n_groups = store.n_groups
     ref_pos = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
 
     all_radii_list, all_masses_list, all_group_idx_list = [], [], [] # ghastly concatenation
 
-    for ptype in PTYPES:
+    for ptype in particles:
 
         data = particles[ptype]
         group_idx = store.get_indexer(group_id=data[group_key])
@@ -200,12 +201,13 @@ def run_galaxy_stages(
     particles: dict[str, ParticleStore],
     galaxies: GroupStore,
     halos: GroupStore,
+    available_baryonic_ptypes: list[str],
     sim: SimulationAttributes,
 ) -> None:
     """
     Galaxy-specific morphological quantities (requires another pass for alignment of particle L axes).
     """
-    group_key = GROUP_KEYS["galaxies"]
+    group_key = galaxies.group_key
     n_groups = galaxies.n_groups
     combined_L = galaxies.get_columns(["Lx_baryon", "Ly_baryon", "Lz_baryon"])
     ref_pos = galaxies.get_columns(["x_baryon", "y_baryon", "z_baryon"])
@@ -214,7 +216,7 @@ def run_galaxy_stages(
     combined_ke_rot = np.zeros(n_groups)
     combined_counter_rotating_mass = np.zeros(n_groups)
 
-    for ptype in BARYONIC_PTYPES:
+    for ptype in available_baryonic_ptypes:
 
         data = particles[ptype]
         group_idx = galaxies.get_indexer(group_id=data[group_key])
@@ -240,7 +242,7 @@ def run_galaxy_stages(
     galaxies.write_batch(results=derived)
 
     parent = _assign_parent_halo_indices(
-        particles=particles, galaxies=galaxies, halos=halos,
+        particles=particles, galaxies=galaxies, halos=halos, available_baryonic_ptypes=available_baryonic_ptypes
     )
     galaxies.write_batch(results=parent)
 
@@ -644,7 +646,8 @@ def _combine_ptype_sums(
 
     return results | counts_and_mass | centre_of_mass
 
-def _assign_parent_halo_indices(particles: dict[str, ParticleStore], galaxies: GroupStore, halos: GroupStore) -> dict[str, np.ndarray]:
+def _assign_parent_halo_indices(particles: dict[str, ParticleStore], galaxies: GroupStore, halos: GroupStore, 
+                                available_baryonic_ptypes: list[str]) -> dict[str, np.ndarray]:
     """
     Assigns galaxies their parent halo indices (slightly hacky, assigns based on membership of first).
 
@@ -656,7 +659,7 @@ def _assign_parent_halo_indices(particles: dict[str, ParticleStore], galaxies: G
 
     gids_list, hids_list = [], []
 
-    for ptype in BARYONIC_PTYPES:
+    for ptype in available_baryonic_ptypes:
 
         store = particles[ptype]
         gids_list.append(store["GalID"])

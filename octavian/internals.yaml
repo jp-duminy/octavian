@@ -14,9 +14,17 @@ ptype_lists:
   star: slist
   bh: bhlist
 
+group_ptype_lists:
+  halos: [glist, slist, dmlist, bhlist]
+  galaxies: [glist, slist, bhlist]
+
 # aggregate properties stage dependency graph
 
 stages:
+
+  find_galaxies:
+    applies_to: [halos]
+    needs_particle_columns: [pos, vel, mass, rho, temperature, sfr]
 
   properties_core:
     applies_to: [halos, galaxies]

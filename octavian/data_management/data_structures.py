@@ -5,6 +5,12 @@ This is a modularised version of the old DataManager, its functionality divided 
 
 """
 
+# semantic
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+  from octavian.data_management.pipeline_management import Internals
+
 # defaults
 from pathlib import Path
 from dataclasses import dataclass
@@ -137,12 +143,13 @@ class ParticleStore:
     """
     Stores dictionaries of properties for one particle type.
     """
-    __slots__ = ("columns", "n_particles", "ptype") # fixed slots
+    __slots__ = ("columns", "n_particles", "ptype", "is_baryonic") # fixed slots
 
-    def __init__(self, ptype: str, n_particles: int):
+    def __init__(self, ptype: str, n_particles: int, is_baryonic: bool):
 
         self.ptype = ptype
         self.n_particles = n_particles
+        self.is_baryonic = is_baryonic
         self.columns: dict[str, np.ndarray] = {} # O(1) lookup on a lightweight np array (preconverted units)
 
     def __getitem__(self, key: str) -> np.ndarray:
@@ -178,15 +185,39 @@ class ParticleStore:
         """
         for name in names: self.columns.pop(name, None) 
 
+def build_particle_stores(reader: SnapshotReader, internals: Internals, process_ptypes: dict[str, bool],) -> dict[str, ParticleStore]:
+    """
+    Constructs basic particle stores using information from what is available in the snapshot, and what the config specifies to process.
+    """
+    available = reader.available_ptypes()
+    requested = [pt for pt in available if process_ptypes.get(pt, True)]
+
+    particles: dict[str, ParticleStore] = {}
+
+    for ptype in requested:
+
+        halo_ids = reader.read_dataset(ptype, "HaloID")
+        store = ParticleStore(ptype=ptype, n_particles=len(halo_ids), is_baryonic = ptype in internals.baryonic_ptypes)
+        store["HaloID"] = halo_ids
+
+        for dataset in ["mass", "pos", "vel"]:
+            store[dataset] = reader.read_dataset(ptype, dataset)
+
+        store["ptype"] = np.full(len(store), ptype)
+        particles[ptype] = store
+
+    return particles
+
 class GroupStore:
     """
     Effectively the same idea as the ParticleStore class, but storing group-level information.
     """
-    def __init__(self, group_ids: np.ndarray, original_ids: np.ndarray | None = None): # original_ids is for external halo readers
+    def __init__(self, group_ids: np.ndarray, group_key: int, original_ids: np.ndarray | None = None): # original_ids is for external halo readers
 
         self.group_ids = group_ids
         self.n_groups = len(group_ids)
         self.columns: dict[str, np.ndarray] = {}
+        self.group_key = group_key
 
         max_id = group_ids.max() if self.n_groups > 0 else 0 # TODO: add this to logger since guard should not be hit in principle
         self.id_to_idx = np.full(shape=max_id+1, fill_value=-1, dtype=DTYPES["pid"])
@@ -256,7 +287,7 @@ def build_group_store(particles: dict[str, ParticleStore], group_type: str) -> G
     if group_type == "galaxies":
         unique_ids = unique_ids[unique_ids != -1]
 
-    return GroupStore(group_ids=unique_ids)
+    return GroupStore(group_ids=unique_ids, group_key=group_key)
     
 @dataclass(slots=True) # no frozen=True as this is inherently supposed to be mutable
 class SimulationData:
@@ -270,3 +301,17 @@ class SimulationData:
     simulation:  SimulationAttributes
     particles:   dict[str, ParticleStore]
     groups:      dict[str, GroupStore]
+
+    @property
+    def available_ptypes(self) -> list[str]:
+        """
+        Returns a list of available particle types (total), in Octavian-internal convention.
+        """
+        return list(self.particles.keys())
+
+    @property
+    def available_baryonic_ptypes(self) -> list[str]:
+        """
+        Returns a list of available particle types (baryonic), in Octavian-internal convention.
+        """
+        return [pt for pt, store in self.particles.items() if store.is_baryonic]

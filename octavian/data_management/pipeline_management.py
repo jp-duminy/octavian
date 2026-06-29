@@ -20,6 +20,17 @@ class PipelineStage:
     applies_to:              frozenset[str]
     needs_particle_columns:  frozenset[str]
 
+@dataclass(frozen=True, slots=True)
+class Internals:
+    """
+    Internal pipeline management and naming dictionaries for data writing.
+    """
+    stages: dict[str, PipelineStage]
+    baryonic_ptypes: frozenset[str]
+    group_keys: dict[str, str]  
+    plist_to_ptype: dict[str, str] # eventually deprecate    
+    group_ptype_lists: dict[str, list[str]]  
+
 def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, PipelineStage]:
     """
     Loads stage definitions from internals.yaml, validates output columns,
@@ -73,7 +84,14 @@ def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, Pip
     unclaimed = set(output_columns.keys()) - all_stage_outputs
     assert not unclaimed, f"output_columns not claimed by any stage: {unclaimed}"
 
-    return stages
+    return Internals(
+        stages=stages,
+        baryonic_ptypes=frozenset(internals["baryonic_ptypes"]),
+        group_keys=internals["groupIDs"],
+        plist_to_ptype={v: k for k, v in internals["ptype_lists"].items()},
+        group_ptype_lists=internals["group_ptype_lists"],
+    )
+
 
 def resolve_over(over: dict[str, list | str], user_config: dict) -> dict[str, list[str]]:
     """

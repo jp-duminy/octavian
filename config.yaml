@@ -1,9 +1,17 @@
 # STAGES TO EXECUTE
 stages:
-  fof6d: true
+  find_galaxies: true
   properties_core: true
   properties_ptype_specific: true
   properties_local_environment: true
+
+# PTYPES TO PROCESS
+# WARNING: this removes the ptype entirely, for example, star: false will stop FOF6D from running
+process_ptypes:
+  gas: true
+  star: true
+  dm: true
+  bh: true
 
 # CONSTANTS
 MINIMUM_STARS_PER_GALAXY: 16
