@@ -8,17 +8,22 @@ Sometimes we get one physical quantity along the way of finding another, in whic
 
 """
 
-from __future__ import annotations
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from octavian.aggregate_properties.compute_properties import GroupParticles, GroupRefs
-
 import numpy as np
 from numba import njit # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
 @njit(cache=True)
-def compute_kinematics(particles: GroupParticles, refs: GroupRefs, n_groups: int, n_particles: int,
-                             boxsize: float) -> tuple[np.ndarray, ...]:
+def compute_kinematics(
+    positions: np.ndarray, 
+    velocities: np.ndarray, 
+    masses: np.ndarray, 
+    group_idx: np.ndarray,
+    ref_pos: np.ndarray, 
+    ref_vel: np.ndarray, 
+    com_vel: np.ndarray, 
+    n_groups: int, 
+    n_particles: int,
+    boxsize: float
+) -> tuple[np.ndarray, ...]:
     """
     Returns a tuple of four arrays. In order:
 
@@ -28,14 +33,14 @@ def compute_kinematics(particles: GroupParticles, refs: GroupRefs, n_groups: int
     - (n_particles) array of radii relative to reference positions.
     """
     L = np.zeros(shape=(n_groups, 3)) # loop avoids 3 np.bincount calls
-    k_tot = np.zeros(shape=n_groups)
+    ke_tot = np.zeros(shape=n_groups)
     dispersion_sum = np.zeros(shape=n_groups)
     radii = np.empty(shape=n_particles)
 
     for i in range(n_particles):
 
-        g = particles.group_idx[i] # corresponding group for each value
-        mass = particles.masses[i]
+        g = group_idx[i] # corresponding group for each value
+        mass = masses[i]
 
         pos_rel = np.empty(3) # originally I had dx, dy, dz and dvx, etc. but the code becomes long
         vel_rel = np.empty(3)
@@ -45,22 +50,22 @@ def compute_kinematics(particles: GroupParticles, refs: GroupRefs, n_groups: int
 
         for d in range(3):
 
-            pos_shifted = particles.positions[i,d] - refs.ref_pos[g,d]
+            pos_shifted = positions[i,d] - ref_pos[g,d]
             pos_shifted -= boxsize * np.round(pos_shifted / boxsize) # PBCs
 
             pos_rel[d] = pos_shifted
             r_sq += pos_shifted**2
 
-            vel_shifted = particles.velocities[i,d] - refs.ref_vel[g,d]
+            vel_shifted = velocities[i,d] - ref_vel[g,d]
             vel_rel[d] = vel_shifted
             ke += vel_shifted**2 # NOTE: at this point ke is unphysical
 
-            vel_rel_com = particles.velocities[i,d] - refs.com_vel[g,d]
+            vel_rel_com = velocities[i,d] - com_vel[g,d]
             vel_sq_com += vel_rel_com**2
         
         radii[i] = np.sqrt(r_sq)
         dispersion_sum[g] += vel_sq_com
-        k_tot[g] += 0.5 * mass * ke
+        ke_tot[g] += 0.5 * mass * ke
 
         rx, ry, rz = pos_rel[0], pos_rel[1], pos_rel[2]
         px, py, pz = mass * vel_rel[0], mass * vel_rel[1], mass * vel_rel[2]
@@ -69,11 +74,21 @@ def compute_kinematics(particles: GroupParticles, refs: GroupRefs, n_groups: int
         L[g,1] += (rz * px) - (rx * pz)
         L[g,2] += (rx * py) - (ry * px)
 
-    return L, k_tot, dispersion_sum, radii
+    return L, ke_tot, dispersion_sum, radii
 
 @njit(cache=True)
-def compute_rotational_quantities(particles: GroupParticles, ref_pos: np.ndarray, ref_vel: np.ndarray, L_group: np.ndarray,
-                                    n_groups: int, n_particles: int, boxsize: float) -> tuple[np.ndarray, ...]:
+def compute_rotational_quantities(
+    positions: np.ndarray, 
+    velocities: np.ndarray, 
+    masses: np.ndarray, 
+    group_idx: np.ndarray,
+    ref_pos: np.ndarray, 
+    ref_vel: np.ndarray, 
+    L_group: np.ndarray,
+    n_groups: int, 
+    n_particles: int, 
+    boxsize: float
+) -> tuple[np.ndarray, ...]:
     """
     Returns a tuple of two arrays. In order:
 
@@ -85,8 +100,8 @@ def compute_rotational_quantities(particles: GroupParticles, ref_pos: np.ndarray
 
     for i in range(n_particles):
 
-        g = particles.group_idx[i]
-        mass = particles.masses[i]
+        g = group_idx[i]
+        mass = masses[i]
 
         pos_rel = np.empty(3) # originally I had dx, dy, dz and dvx, etc. but the code becomes long
         vel_rel = np.empty(3)
@@ -94,11 +109,11 @@ def compute_rotational_quantities(particles: GroupParticles, ref_pos: np.ndarray
         # the idea here is we don't want to make enormous intermediate arrays, meaning we need to recompute these for memory purposes
         for d in range(3): # get coords into the correct reference frame
 
-            pos_shifted = particles.positions[i,d] - ref_pos[g,d]
+            pos_shifted = positions[i,d] - ref_pos[g,d]
             pos_shifted -= boxsize * np.round(pos_shifted / boxsize) # PBCs
             pos_rel[d] = pos_shifted
 
-            vel_shifted = particles.velocities[i,d] - ref_vel[g,d]
+            vel_shifted = velocities[i,d] - ref_vel[g,d]
             vel_rel[d] = vel_shifted
 
         rx, ry, rz = pos_rel[0], pos_rel[1], pos_rel[2]
@@ -127,8 +142,14 @@ def compute_rotational_quantities(particles: GroupParticles, ref_pos: np.ndarray
     return counter_rotating_mass, k_rot
 
 @njit(cache=True)
-def compute_enclosed_mass_radii(radii: np.ndarray, masses: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, 
-                                n_groups: int, quantiles: list[float]) -> np.ndarray:
+def compute_enclosed_mass_radii(
+    radii: np.ndarray, 
+    masses: np.ndarray, 
+    offsets: np.ndarray, 
+    idx_sorted: np.ndarray, 
+    n_groups: int, 
+    quantiles: list[float]
+) -> np.ndarray:
     """
     Returns an (n_groups, n_quantiles) array of the radii where for array[:,i] the values correspond to the radii at which the quantile[i] percentage of mass is enclosed.
     """
@@ -157,10 +178,17 @@ def compute_enclosed_mass_radii(radii: np.ndarray, masses: np.ndarray, offsets: 
     return result
 
 @njit(cache=True)
-def compute_virial_quantities(radii: np.ndarray, masses: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, 
-                              n_groups: int, rhocrit: float, factors: list[float]) -> tuple[np.ndarray, ...]:
+def compute_virial_quantities(
+    radii: np.ndarray, 
+    masses: np.ndarray,
+    offsets: np.ndarray, 
+    idx_sorted: np.ndarray, 
+    n_groups: int, 
+    rhocrit: float, 
+    factors: list[float]
+) -> tuple[np.ndarray, ...]:
     """
-    Returns a tuple of (n_groups, n_factors) arrays for virial radius and virial mass at those factors respectively.
+    Returns a tuple of (n_groups, n_factors) arrays for virial radius/mass at those factors respectively.
     """
     volume_prefactor = (4. * np.pi) / 3. # I'm splitting hairs with this optimisation
 
@@ -169,7 +197,6 @@ def compute_virial_quantities(radii: np.ndarray, masses: np.ndarray, offsets: np
     for g in range(n_groups):
 
        indices = idx_sorted[offsets[g]:offsets[g+1]]
-
        radius = radii[indices]
        mass = masses[indices]
 
@@ -194,8 +221,61 @@ def compute_virial_quantities(radii: np.ndarray, masses: np.ndarray, offsets: np
     return result_r, result_m
 
 @njit(cache=True)
-def compute_centre_of_mass(positions: np.ndarray, velocities: np.ndarray, masses: np.ndarray, group_idx: np.ndarray,
-                           anchor_pos: np.ndarray, group_mass: np.ndarray,  n_groups: int, boxsize: float) -> tuple[np.ndarray, ...]:
+def compute_vmax_and_rmax(
+    radii: np.ndarray, 
+    masses: np.ndarray,
+    offsets: np.ndarray, 
+    idx_sorted: np.ndarray, 
+    G: float,
+    n_groups: int, 
+) -> tuple[np.ndarray, ...]:
+    """
+    Returns a tuple of vmax, rmax (n_groups) arrays from the enclosed mass profile; this does do redundant recomputation from virial quantities but separation of concerns is more important.
+    """
+    result_v, result_r = np.full(shape=n_groups, fill_value=np.nan), np.full(shape=n_groups, fill_value=np.nan)
+
+    for g in range(n_groups):
+
+        indices = idx_sorted[offsets[g]:offsets[g+1]]
+        radius = radii[indices]
+        mass = masses[indices]
+
+        order = np.argsort(radius) # NOTE: numba freaks out if you try to do stable sort here
+        radius = radius[order]
+        mass = mass[order]
+        cumulative_mass = np.cumsum(mass)
+        vmax = -np.inf
+        rmax = np.nan
+
+        for i in range(len(radius)):
+
+            if radius[i] > 0: # guard
+
+                v_circ = np.sqrt(G * cumulative_mass[i] / radius[i])
+
+                if v_circ > vmax:
+
+                    vmax = v_circ
+                    rmax = radius[i]
+
+        if vmax > 0:
+            
+            result_v[g] = vmax
+            result_r[g] = rmax
+
+    return result_v, result_r
+
+@njit(cache=True)
+def compute_centre_of_mass(
+    positions: np.ndarray, 
+    velocities: np.ndarray, 
+    masses: np.ndarray, 
+    group_idx: np.ndarray,
+    anchor_pos: np.ndarray, 
+    group_mass: np.ndarray,  
+    n_groups: int, 
+    boxsize: float
+) -> tuple[np.ndarray, ...]:
     """
     Returns a tuple of (n-groups, 3) arrays. In order:
 
@@ -230,8 +310,13 @@ def compute_centre_of_mass(positions: np.ndarray, velocities: np.ndarray, masses
     return com_pos, com_vel
 
 @njit(cache=True)
-def compute_radii(positions: np.ndarray, ref_pos: np.ndarray, group_idx: np.ndarray, n_particles: int,
-                  boxsize: float) -> np.ndarray:
+def compute_radii(
+    positions: np.ndarray, 
+    ref_pos: np.ndarray, 
+    group_idx: np.ndarray, 
+    n_particles: int,
+    boxsize: float
+) -> np.ndarray:
     """
     Returns an (n_particles) array of radii relative to whatever reference position is passed in (different for groups, hence why a different function is necessary)
     """
