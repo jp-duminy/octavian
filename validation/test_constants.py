@@ -4,116 +4,131 @@ Boilerplate dictionaries which the testing suite must use to verify NaNs are not
 
 """
 
-# NaN here means something is broken
-NEVER_NAN = [
-        "pos", "vel", "minpotpos", "minpotvel",
-        "dicts/masses.total", "dicts/masses.total_30kpc",
-        "dicts/velocity_dispersions.total",
-        "dicts/radii.total_r20", "dicts/radii.total_half_mass", "dicts/radii.total_r80",
-        "dicts/rotation.total_L",
-        "dicts/rotation.total_ALPHA", "dicts/rotation.total_BETA",
-        "dicts/rotation.total_BoverT", "dicts/rotation.total_kappa_rot",
-        "dicts/local_mass_density.300", "dicts/local_mass_density.1000", "dicts/local_mass_density.3000",
-        "dicts/local_number_density.300", "dicts/local_number_density.1000", "dicts/local_number_density.3000",
-    ]
+# nan here means something is broken
+NEVER_NAN = {
+    "halo_data": [
+        "properties/core/mass_total",
+        "properties/core/velocity_dispersion_total",
+        "properties/core/L_total",
+        "properties/core/ALPHA_total",
+        "properties/core/BETA_total",
+        "properties/core/radius_r20_total",
+        "properties/core/radius_half_mass_total",
+        "properties/core/radius_r80_total",
+        "properties/core/x_total", "properties/core/y_total", "properties/core/z_total",
+        "properties/core/vx_total", "properties/core/vy_total", "properties/core/vz_total",
+        "properties/core/minpot_x", "properties/core/minpot_y", "properties/core/minpot_z",
+        "properties/core/minpot_vx", "properties/core/minpot_vy", "properties/core/minpot_vz",
+    ],
+    "galaxy_data": [
+        "properties/core/mass_total",
+        "properties/core/velocity_dispersion_total",
+        "properties/core/L_total",
+        "properties/core/ALPHA_total",
+        "properties/core/BETA_total",
+        "properties/core/radius_r20_total",
+        "properties/core/radius_half_mass_total",
+        "properties/core/radius_r80_total",
+        "properties/core/x_total", "properties/core/y_total", "properties/core/z_total",
+        "properties/core/vx_total", "properties/core/vy_total", "properties/core/vz_total",
+        "properties/core/BoverT_baryon", "properties/core/kappa_rot_baryon",
+        "properties/environment/local_mass_density_300kpc",
+        "properties/environment/local_mass_density_1000kpc",
+        "properties/environment/local_mass_density_3000kpc",
+        "properties/environment/local_number_density_300kpc",
+        "properties/environment/local_number_density_1000kpc",
+        "properties/environment/local_number_density_3000kpc",
+        "properties/environment/mass_total_30kpc",
+    ],
+}
 
-# NaN here should only occur if the corresponding list length is 0
+# nan here should only occur if the group is empty
 CONDITIONAL_NAN = {
     "halo_data": [
         ("glist_lengths", [
-            "dicts/radii.gas_r20", "dicts/radii.gas_half_mass", "dicts/radii.gas_r80",
-            "dicts/velocity_dispersions.gas",
-            "dicts/rotation.gas_L",
-            "dicts/rotation.gas_ALPHA", "dicts/rotation.gas_BETA",
-            "dicts/rotation.gas_BoverT", "dicts/rotation.gas_kappa_rot",
-            "dicts/metallicities.mass_weighted",
-            "dicts/temperatures.mass_weighted",
+            "properties/core/radius_r20_gas", "properties/core/radius_half_mass_gas", "properties/core/radius_r80_gas",
+            "properties/core/velocity_dispersion_gas",
+            "properties/core/L_gas", "properties/core/ALPHA_gas", "properties/core/BETA_gas",
+            "properties/particle_specific/metallicity_mass_weighted",
+            "properties/particle_specific/temp_mass_weighted",
         ]),
         ("slist_lengths", [
-            "dicts/radii.stellar_r20", "dicts/radii.stellar_half_mass", "dicts/radii.stellar_r80",
-            "dicts/velocity_dispersions.stellar",
-            "dicts/rotation.stellar_L",
-            "dicts/rotation.stellar_ALPHA", "dicts/rotation.stellar_BETA",
-            "dicts/rotation.stellar_BoverT", "dicts/rotation.stellar_kappa_rot",
-            "dicts/metallicities.stellar",
-            "dicts/ages.mass_weighted",
+            "properties/core/radius_r20_star", "properties/core/radius_half_mass_star", "properties/core/radius_r80_star",
+            "properties/core/velocity_dispersion_star",
+            "properties/core/L_star", "properties/core/ALPHA_star", "properties/core/BETA_star",
+            "properties/particle_specific/metallicity_stellar",
+            "properties/particle_specific/age_mass_weighted",
         ]),
         ("dmlist_lengths", [
-            "dicts/radii.dm_r20", "dicts/radii.dm_half_mass", "dicts/radii.dm_r80",
-            "dicts/velocity_dispersions.dm",
-            "dicts/rotation.dm_L",
-            "dicts/rotation.dm_ALPHA", "dicts/rotation.dm_BETA",
-            "dicts/rotation.dm_BoverT", "dicts/rotation.dm_kappa_rot",
+            "properties/core/radius_r20_dm", "properties/core/radius_half_mass_dm", "properties/core/radius_r80_dm",
+            "properties/core/velocity_dispersion_dm",
+            "properties/core/L_dm", "properties/core/ALPHA_dm", "properties/core/BETA_dm",
         ]),
         ("bhlist_lengths", [
-            "dicts/radii.bh_r20", "dicts/radii.bh_half_mass", "dicts/radii.bh_r80",
-            "dicts/velocity_dispersions.bh",
-            "dicts/rotation.bh_L",
-            "dicts/rotation.bh_ALPHA", "dicts/rotation.bh_BETA",
-            "dicts/rotation.bh_BoverT", "dicts/rotation.bh_kappa_rot",
+            "properties/core/radius_r20_bh", "properties/core/radius_half_mass_bh", "properties/core/radius_r80_bh",
+            "properties/core/velocity_dispersion_bh",
+            "properties/core/L_bh", "properties/core/ALPHA_bh", "properties/core/BETA_bh",
         ]),
     ],
     "galaxy_data": [
         ("glist_lengths", [
-            "dicts/radii.gas_r20", "dicts/radii.gas_half_mass", "dicts/radii.gas_r80",
-            "dicts/velocity_dispersions.gas",
-            "dicts/rotation.gas_L",
-            "dicts/rotation.gas_ALPHA", "dicts/rotation.gas_BETA",
-            "dicts/rotation.gas_BoverT", "dicts/rotation.gas_kappa_rot",
-            "dicts/metallicities.mass_weighted",
-            "dicts/temperatures.mass_weighted",
+            "properties/core/radius_r20_gas", "properties/core/radius_half_mass_gas", "properties/core/radius_r80_gas",
+            "properties/core/velocity_dispersion_gas",
+            "properties/core/L_gas", "properties/core/ALPHA_gas", "properties/core/BETA_gas",
+            "properties/core/BoverT_gas", "properties/core/kappa_rot_gas",
+            "properties/particle_specific/metallicity_mass_weighted",
+            "properties/particle_specific/temp_mass_weighted",
         ]),
         ("slist_lengths", [
-            "dicts/radii.stellar_r20", "dicts/radii.stellar_half_mass", "dicts/radii.stellar_r80",
-            "dicts/velocity_dispersions.stellar",
-            "dicts/rotation.stellar_L",
-            "dicts/rotation.stellar_ALPHA", "dicts/rotation.stellar_BETA",
-            "dicts/rotation.stellar_BoverT", "dicts/rotation.stellar_kappa_rot",
-            "dicts/metallicities.stellar",
-            "dicts/ages.mass_weighted",
+            "properties/core/radius_r20_star", "properties/core/radius_half_mass_star", "properties/core/radius_r80_star",
+            "properties/core/velocity_dispersion_star",
+            "properties/core/L_star", "properties/core/ALPHA_star", "properties/core/BETA_star",
+            "properties/core/BoverT_star", "properties/core/kappa_rot_star",
+            "properties/particle_specific/metallicity_stellar",
+            "properties/particle_specific/age_mass_weighted",
         ]),
         ("bhlist_lengths", [
-            "dicts/radii.bh_r20", "dicts/radii.bh_half_mass", "dicts/radii.bh_r80",
-            "dicts/velocity_dispersions.bh",
-            "dicts/rotation.bh_L",
-            "dicts/rotation.bh_ALPHA", "dicts/rotation.bh_BETA",
-            "dicts/rotation.bh_BoverT", "dicts/rotation.bh_kappa_rot",
+            "properties/core/radius_r20_bh", "properties/core/radius_half_mass_bh", "properties/core/radius_r80_bh",
+            "properties/core/velocity_dispersion_bh",
+            "properties/core/L_bh", "properties/core/ALPHA_bh", "properties/core/BETA_bh",
+            "properties/core/BoverT_bh", "properties/core/kappa_rot_bh",
         ]),
     ],
 }
 
-# if empty, should be 0 rather than NaN (e.g. total mass)
+# these can be zero, but if they are zero the corresponding group should be empty
 ZERO_WHEN_EMPTY = {
     "halo_data": [
-        ("glist_lengths", ["dicts/masses.gas", "dicts/masses.HI", "dicts/masses.H2"]),
-        ("slist_lengths", ["dicts/masses.stellar"]),
-        ("dmlist_lengths", ["dicts/masses.dm"]),
-        ("bhlist_lengths", ["dicts/masses.bh"]),
+        ("glist_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
+        ("slist_lengths", ["properties/core/mass_star"]),
+        ("dmlist_lengths", ["properties/core/mass_dm"]),
+        ("bhlist_lengths", ["properties/core/mass_bh"]),
     ],
     "galaxy_data": [
-        ("glist_lengths", ["dicts/masses.gas", "dicts/masses.HI", "dicts/masses.H2"]),
-        ("slist_lengths", ["dicts/masses.stellar"]),
-        ("bhlist_lengths", ["dicts/masses.bh"]),
+        ("glist_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
+        ("slist_lengths", ["properties/core/mass_star"]),
+        ("bhlist_lengths", ["properties/core/mass_bh"]),
     ],
 }
 
-# same as above but for baryons
+# nan here should only occur if the group is empty
 BARYON_CONDITIONAL_NAN = [
-    "dicts/radii.baryon_r20", "dicts/radii.baryon_half_mass", "dicts/radii.baryon_r80",
-    "dicts/velocity_dispersions.baryon",
-    "dicts/rotation.baryon_L",
-    "dicts/rotation.baryon_ALPHA", "dicts/rotation.baryon_BETA",
-    "dicts/rotation.baryon_BoverT", "dicts/rotation.baryon_kappa_rot",
+    "properties/core/radius_r20_baryon", "properties/core/radius_half_mass_baryon", "properties/core/radius_r80_baryon",
+    "properties/core/velocity_dispersion_baryon",
+    "properties/core/L_baryon",
+    "properties/core/ALPHA_baryon", "properties/core/BETA_baryon",
 ]
 
-# NaN can occur for zero division, make a note
+# these can be nan (zero metallicity/sfr), but if a large percentage is, this is problematic
 SOFT_NAN = [
-    "dicts/metallicities.sfr_weighted",
-    "dicts/metallicities.mass_weighted_cgm", "dicts/metallicities.temp_weighted_cgm",
-    "dicts/temperatures.mass_weighted_cgm", "dicts/temperatures.metal_weighted_cgm",
-    "dicts/ages.metal_weighted",
-    "dicts/virial_quantities.r200", "dicts/virial_quantities.circular_velocity",
-    "dicts/virial_quantities.spin_param", "dicts/virial_quantities.temperature",
-    "dicts/virial_quantities.r200c", "dicts/virial_quantities.r500c", "dicts/virial_quantities.r2500c",
-    "dicts/virial_quantities.m200c", "dicts/virial_quantities.m500c", "dicts/virial_quantities.m2500c",
+    "properties/particle_specific/metallicity_sfr_weighted",
+    "properties/particle_specific/metallicity_mass_weighted_cgm",
+    "properties/particle_specific/metallicity_temp_weighted_cgm",
+    "properties/particle_specific/temp_mass_weighted_cgm",
+    "properties/particle_specific/temp_metal_weighted_cgm",
+    "properties/particle_specific/age_metal_weighted",
+    "properties/core/r200", "properties/core/circular_velocity",
+    "properties/core/spin_param", "properties/core/virial_temperature",
+    "properties/core/r200c", "properties/core/r500c", "properties/core/r2500c",
+    "properties/core/m200c", "properties/core/m500c", "properties/core/m2500c",
 ]

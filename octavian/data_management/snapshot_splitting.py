@@ -19,7 +19,7 @@ import h5py
 import numpy as np
 
 # octavian
-from octavian.data_management import DTYPES
+from octavian.data_management.conventions import DTYPES
 
 HDF5_GROUP_NAMES = {
     "halos": "halo_data",
