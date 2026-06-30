@@ -16,6 +16,7 @@ class PipelineStage:
     Object containing metadata about an Octavian analysis stage.
     """
     name:                    str
+    label:                   str
     requires:                frozenset[str]
     applies_to:              frozenset[str]
     needs_particle_columns:  frozenset[str]
@@ -40,11 +41,11 @@ class OutputColumnMetadata:
     dtype: str
     unit: str
     description: str
+    label: str
 
-def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, PipelineStage]:
+def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     """
-    Loads stage definitions from internals.yaml, validates output columns,
-    and returns the stage registry.
+    Loads stage definitions from internals.yaml, validates output columns, and returns the Internals dataclass which contains resolved metadata/ordering from internals.yaml
     """
     with open(internals_filepath, "r") as f:
         internals = safe_load(f)
@@ -53,18 +54,24 @@ def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, Pip
     stages: dict[str, PipelineStage] = {}
 
     for stage_name, stage_config in internals["stages"].items():
+
         stages[stage_name] = PipelineStage(
             name=stage_name,
+            label=stage_config["label"],
             requires=frozenset(stage_config.get("requires", [])),
             applies_to=frozenset(stage_config["applies_to"]),
             needs_particle_columns=frozenset(stage_config.get("needs_particle_columns", [])),
         )
 
     all_stage_outputs: set[str] = set()
+    expanded_output_columns: dict[str, OutputColumnMetadata] = {}
 
     for stage_name, stage_config in internals["stages"].items():
 
+        stage_label = stages[stage_name].label
+
         for sub_block in stage_config.get("outputs", []):
+
             templates = sub_block["columns"]
 
             if "over" in sub_block:
@@ -72,47 +79,38 @@ def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, Pip
 
                 for key, values in resolved_over.items():
                     assert len(values) > 0, (
-                        f"Stage {stage_name!r}: 'over' key {key!r} resolved to empty list. "
+                        f"Stage {stage_name!r}: 'over' key {key!r} cannot find anything to iterate over!"
                         f"Please check the from_config: reference."
                     )
 
                 expanded = expand_column_templates(templates, resolved_over)
+
             else:
                 expanded = list(templates)
 
             for col_name in expanded:
+
                 assert col_name in output_columns, (
                     f"Stage {stage_name!r} says it outputs {col_name!r}."
-                    f"However, not found in output_columns."
+                    f"However, this is not found in output_columns."
                 )
                 assert col_name not in all_stage_outputs, (
                     f"Output {col_name!r} is being computed by multiple stages."
                 )
                 all_stage_outputs.add(col_name)
 
+                meta = output_columns[col_name]
+                expanded_output_columns[col_name] = OutputColumnMetadata(
+                    dtype=meta["dtype"],
+                    unit=meta["unit"],
+                    description=meta.get("description", ""),
+                    label=stage_label,
+                )
+
     # validate all output columns are claimed by a stage
     unclaimed = set(output_columns.keys()) - all_stage_outputs
     assert not unclaimed, f"output_columns not claimed by any stage: {unclaimed}"
 
-    # write metadata into internals
-    expanded_output_columns: dict[str, OutputColumnMetadata] = {}
-
-    for template_name, meta in output_columns.items():
-
-        if "over" in meta:
-            resolved = resolve_over(meta["over"], user_config)
-            concrete_names = expand_column_templates([template_name], resolved)
-
-        else:
-            concrete_names = [template_name]
-
-        for name in concrete_names:
-
-            expanded_output_columns[name] = OutputColumnMetadata(
-                dtype=meta["dtype"],
-                unit=meta["unit"],
-                description=meta.get("description", ""),
-            )
 
     return Internals(
         stages=stages,
@@ -231,6 +229,6 @@ def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str])
             if depth[m] == 0:
                 ready.append(m)
 
-    assert len(ordered_stages) == len(needed), f"Stage dependencies are muddled, order unresolvable."
+    assert len(ordered_stages) == len(needed), f"Stage dependencies are muddled; order unresolvable."
 
     return ordered_stages

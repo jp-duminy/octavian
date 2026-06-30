@@ -23,6 +23,7 @@ group_ptype_lists:
 stages:
 
   properties_core:
+    label: core
     applies_to: [halos, galaxies]
     requires: []
     needs_particle_columns: [pos, vel, mass, potential, HaloID, GalID]
@@ -59,6 +60,7 @@ stages:
         applies_to: [galaxies]
 
   properties_ptype_specific:
+    label: particle_specific
     applies_to: [halos, galaxies]
     requires: [properties_core]
     needs_particle_columns: [mass, temperature, metallicity, sfr, age, bhmass, bhmdot, rho]
@@ -70,6 +72,7 @@ stages:
       - columns: [bh_mass_max, bhmdot, bh_fedd]
 
   properties_local_environment:
+    label: environment
     applies_to: [galaxies]
     requires: [properties_ptype_specific]
     needs_particle_columns: [pos, mass, HaloID]

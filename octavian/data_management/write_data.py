@@ -108,18 +108,29 @@ def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, in
                 hdf5_group.create_dataset(f'{ptype}_offsets', data=pl['offsets'], compression=1)
                 hdf5_group.create_dataset(f'{ptype}_lengths', data=pl['lengths'], compression=1)
 
-            for column_name, column_data in group_store.columns.items():
+            # group columns by stage label (what was previously dicts)
+            columns_by_label: dict[str, list[str]] = {}
+
+            for column_name in group_store.columns:
 
                 if column_name.startswith("_"):
-                    continue
-
-                if column_name in hdf5_group:
                     continue
 
                 if column_name not in internals.output_columns:
                     continue
 
-                column_meta = internals.output_columns[column_name]
-                dataset = hdf5_group.create_dataset(column_name, data=column_data, compression=1)
-                dataset.attrs["unit"] = column_meta.unit
-                dataset.attrs["description"] = column_meta.description
+                label = internals.output_columns[column_name].label
+                columns_by_label.setdefault(label, []).append(column_name)
+
+            for label, column_names in columns_by_label.items():
+
+                label_group = hdf5_group.require_group(f"properties/{label}")
+                
+                for column_name in column_names:
+
+                    column_meta = internals.output_columns[column_name]
+                    dataset = label_group.create_dataset(
+                        column_name, data=group_store[column_name], compression=1,
+                    )
+                    dataset.attrs["unit"] = column_meta.unit
+                    dataset.attrs["description"] = column_meta.description
