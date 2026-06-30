@@ -22,10 +22,6 @@ group_ptype_lists:
 
 stages:
 
-  find_galaxies:
-    applies_to: [halos]
-    needs_particle_columns: [pos, vel, mass, rho, temperature, sfr]
-
   properties_core:
     applies_to: [halos, galaxies]
     requires: []
