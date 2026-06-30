@@ -39,7 +39,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
 
     _prepare_hydrogen_fractions(gas=particles["gas"], XH=config["XH"])
 
-    for group_type in ["halos", "galaxies"]:
+    for group_type in simulation_data.groups:
 
         group_store = simulation_data.groups[group_type]
         group_key = GROUP_KEYS[group_type]
@@ -68,7 +68,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
         bh_group_idx = bh[group_key]
         bh_results = compute_bh_properties(
             bh=bh, group_idx=bh_group_idx,
-            n_groups=n_groups, edd_factor=config["edd_factor"]
+            n_groups=n_groups, edd_factor=CONSTANTS.EDD_FACTOR
         )
         group_store.write_batch(results=bh_results)
 
