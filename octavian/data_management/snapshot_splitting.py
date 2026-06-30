@@ -160,7 +160,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
     """
     Merges per-rank HDF5 catalogues into a single output file, groups sorted by mass descending.
     """
-    sort_column = {"halos": "mass_total", "galaxies": "mass_star"}
+    sort_column = {"halos": "properties/core/mass_total", "galaxies": "properties/core/mass_baryon"}
 
     # first pass: collect lengths and sort keys per group type
     group_lengths: dict[str, list[int]] = {}
@@ -184,7 +184,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 sort_arrays.setdefault(group_type, []).append(grp[sort_column[group_type]][:])
 
                 if group_type == "galaxies" and n_groups > 0:
-                    parent_halo_chunks.append(grp["parent_halo_index"][:] + cumulative_halos)
+                    parent_halo_chunks.append(grp["properties/core/parent_halo_index"][:] + cumulative_halos)
 
             cumulative_halos += group_lengths["halos"][-1]
 
@@ -217,15 +217,15 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 if length == 0:
                     continue
                 with h5py.File(file, "r") as f:
-                    for key in f[hdf5_name].keys():
-                        if not any(key.endswith(s) for s in csr_suffixes):
-                            dataset_names.add(key)
+
+                    dataset_names = _discover_datasets(f[hdf5_name], csr_suffixes)
+
                 break
 
             # skip group IDs — we reassign sequentially
             group_id_name = internals.group_keys[group_type]
             dataset_names.discard(group_id_name)
-            dataset_names.discard("parent_halo_index")
+            dataset_names.discard("properties/core/parent_halo_index")
 
             # concatenate and reorder each dataset
             for dataset_name in sorted(dataset_names):
@@ -252,6 +252,12 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                             chunks.append(np.full(length, np.nan))
 
                 merged = np.concatenate(chunks)
+
+                parent = dataset_name.rsplit("/", 1)[0] if "/" in dataset_name else None # slightly weird but this will never break under standard conventions
+
+                if parent:
+                    out_grp.require_group(parent)
+
                 ds = out_grp.create_dataset(dataset_name, data=merged[order], compression=1)
 
                 for attr_name, attr_value in source_attrs.items():
@@ -264,7 +270,8 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
             if group_type == "galaxies" and parent_halo_chunks:
                 merged_parents = np.concatenate(parent_halo_chunks)
                 reindexed = inverse_halo_order[merged_parents]
-                out_grp.create_dataset("parent_halo_index", data=reindexed[order], compression=1)
+                out_grp.require_group("properties/core")
+                out_grp.create_dataset("properties/core/parent_halo_index", data=reindexed[order], compression=1)
 
             # CSR lists
             for ptype_list in internals.group_ptype_lists[group_type]:
@@ -288,6 +295,14 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 out_grp.create_dataset(f"{ptype_list}_indices", data=indices, compression=1)
                 out_grp.create_dataset(f"{ptype_list}_offsets", data=offsets, compression=1)
                 out_grp.create_dataset(f"{ptype_list}_lengths", data=lengths, compression=1)
+
+def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
+    """
+    Uses h5py's visititems to go into sub-groups (e.g. properties/core) etc. and populate column fields.
+    """
+    datasets: set[str] = set()
+    group.visititems(lambda name, obj: datasets.add(name) if isinstance(obj, h5py.Dataset) and not name.endswith(exclude_suffixes) else None)
+    return datasets
 
 def _reorder_csr_lists(all_indices: list[np.ndarray], all_lengths: list[np.ndarray], order: np.ndarray) -> tuple[np.ndarray, ...]:
     """

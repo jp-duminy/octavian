@@ -9,9 +9,6 @@ NEVER_NAN = {
     "halo_data": [
         "properties/core/mass_total",
         "properties/core/velocity_dispersion_total",
-        "properties/core/L_total",
-        "properties/core/ALPHA_total",
-        "properties/core/BETA_total",
         "properties/core/radius_r20_total",
         "properties/core/radius_half_mass_total",
         "properties/core/radius_r80_total",
@@ -21,16 +18,13 @@ NEVER_NAN = {
         "properties/core/minpot_vx", "properties/core/minpot_vy", "properties/core/minpot_vz",
     ],
     "galaxy_data": [
-        "properties/core/mass_total",
-        "properties/core/velocity_dispersion_total",
-        "properties/core/L_total",
-        "properties/core/ALPHA_total",
-        "properties/core/BETA_total",
-        "properties/core/radius_r20_total",
-        "properties/core/radius_half_mass_total",
-        "properties/core/radius_r80_total",
-        "properties/core/x_total", "properties/core/y_total", "properties/core/z_total",
-        "properties/core/vx_total", "properties/core/vy_total", "properties/core/vz_total",
+        "properties/core/mass_baryon",
+        "properties/core/velocity_dispersion_baryon",
+        "properties/core/radius_r20_baryon",
+        "properties/core/radius_half_mass_baryon",
+        "properties/core/radius_r80_baryon",
+        "properties/core/x_baryon", "properties/core/y_baryon", "properties/core/z_baryon",
+        "properties/core/vx_baryon", "properties/core/vy_baryon", "properties/core/vz_baryon",
         "properties/core/BoverT_baryon", "properties/core/kappa_rot_baryon",
         "properties/environment/local_mass_density_300kpc",
         "properties/environment/local_mass_density_1000kpc",
@@ -38,43 +32,66 @@ NEVER_NAN = {
         "properties/environment/local_number_density_300kpc",
         "properties/environment/local_number_density_1000kpc",
         "properties/environment/local_number_density_3000kpc",
-        "properties/environment/mass_total_30kpc",
+        "properties/environment/mass_baryon_30kpc",
     ],
 }
 
 # nan here should only occur if the group is empty
 CONDITIONAL_NAN = {
     "halo_data": [
+        ("ntotal", [
+            "properties/core/ALPHA_total",
+            "properties/core/BETA_total",
+            "properties/core/Lx_total", "properties/core/Ly_total", "properties/core/Lz_total",
+        ]),
+        ("nbaryon", [
+            "properties/core/radius_r20_baryon", "properties/core/radius_half_mass_baryon", "properties/core/radius_r80_baryon",
+            "properties/core/velocity_dispersion_baryon",
+            "properties/core/ALPHA_baryon", "properties/core/BETA_baryon",
+            "properties/core/Lx_baryon", "properties/core/Ly_baryon", "properties/core/Lz_baryon",
+        ]),
         ("glist_lengths", [
             "properties/core/radius_r20_gas", "properties/core/radius_half_mass_gas", "properties/core/radius_r80_gas",
             "properties/core/velocity_dispersion_gas",
-            "properties/core/L_gas", "properties/core/ALPHA_gas", "properties/core/BETA_gas",
+            "properties/core/Lx_gas", "properties/core/Ly_gas", "properties/core/Lz_gas", 
+            "properties/core/ALPHA_gas", "properties/core/BETA_gas",
             "properties/particle_specific/metallicity_mass_weighted",
             "properties/particle_specific/temp_mass_weighted",
         ]),
         ("slist_lengths", [
             "properties/core/radius_r20_star", "properties/core/radius_half_mass_star", "properties/core/radius_r80_star",
             "properties/core/velocity_dispersion_star",
-            "properties/core/L_star", "properties/core/ALPHA_star", "properties/core/BETA_star",
+            "properties/core/Lx_star", "properties/core/Ly_star", "properties/core/Lz_star", 
+            "properties/core/ALPHA_star", "properties/core/BETA_star",
             "properties/particle_specific/metallicity_stellar",
             "properties/particle_specific/age_mass_weighted",
         ]),
         ("dmlist_lengths", [
             "properties/core/radius_r20_dm", "properties/core/radius_half_mass_dm", "properties/core/radius_r80_dm",
             "properties/core/velocity_dispersion_dm",
-            "properties/core/L_dm", "properties/core/ALPHA_dm", "properties/core/BETA_dm",
+            "properties/core/Lx_dm", "properties/core/Ly_dm", "properties/core/Lz_dm", 
+            "properties/core/ALPHA_dm", "properties/core/BETA_dm",
         ]),
         ("bhlist_lengths", [
             "properties/core/radius_r20_bh", "properties/core/radius_half_mass_bh", "properties/core/radius_r80_bh",
             "properties/core/velocity_dispersion_bh",
-            "properties/core/L_bh", "properties/core/ALPHA_bh", "properties/core/BETA_bh",
+            "properties/core/Lx_bh", "properties/core/Ly_bh", "properties/core/Lz_bh", 
+            "properties/core/ALPHA_bh", "properties/core/BETA_bh",
         ]),
     ],
     "galaxy_data": [
+        ("nbaryon", [
+            "properties/core/ALPHA_baryon",
+            "properties/core/BETA_baryon",
+            "properties/core/Lx_baryon", "properties/core/Ly_baryon", "properties/core/Lz_baryon",
+            "properties/core/radius_r20_baryon", "properties/core/radius_half_mass_baryon", "properties/core/radius_r80_baryon",
+            "properties/core/velocity_dispersion_baryon",
+        ]),
         ("glist_lengths", [
             "properties/core/radius_r20_gas", "properties/core/radius_half_mass_gas", "properties/core/radius_r80_gas",
             "properties/core/velocity_dispersion_gas",
-            "properties/core/L_gas", "properties/core/ALPHA_gas", "properties/core/BETA_gas",
+            "properties/core/Lx_gas", "properties/core/Ly_gas", "properties/core/Lz_gas", 
+            "properties/core/ALPHA_gas", "properties/core/BETA_gas",
             "properties/core/BoverT_gas", "properties/core/kappa_rot_gas",
             "properties/particle_specific/metallicity_mass_weighted",
             "properties/particle_specific/temp_mass_weighted",
@@ -82,7 +99,8 @@ CONDITIONAL_NAN = {
         ("slist_lengths", [
             "properties/core/radius_r20_star", "properties/core/radius_half_mass_star", "properties/core/radius_r80_star",
             "properties/core/velocity_dispersion_star",
-            "properties/core/L_star", "properties/core/ALPHA_star", "properties/core/BETA_star",
+            "properties/core/Lx_star", "properties/core/Ly_star", "properties/core/Lz_star", 
+            "properties/core/ALPHA_star", "properties/core/BETA_star",
             "properties/core/BoverT_star", "properties/core/kappa_rot_star",
             "properties/particle_specific/metallicity_stellar",
             "properties/particle_specific/age_mass_weighted",
@@ -90,7 +108,8 @@ CONDITIONAL_NAN = {
         ("bhlist_lengths", [
             "properties/core/radius_r20_bh", "properties/core/radius_half_mass_bh", "properties/core/radius_r80_bh",
             "properties/core/velocity_dispersion_bh",
-            "properties/core/L_bh", "properties/core/ALPHA_bh", "properties/core/BETA_bh",
+            "properties/core/Lx_bh", "properties/core/Ly_bh", "properties/core/Lz_bh", 
+            "properties/core/ALPHA_bh", "properties/core/BETA_bh",
             "properties/core/BoverT_bh", "properties/core/kappa_rot_bh",
         ]),
     ],
@@ -110,14 +129,6 @@ ZERO_WHEN_EMPTY = {
         ("bhlist_lengths", ["properties/core/mass_bh"]),
     ],
 }
-
-# nan here should only occur if the group is empty
-BARYON_CONDITIONAL_NAN = [
-    "properties/core/radius_r20_baryon", "properties/core/radius_half_mass_baryon", "properties/core/radius_r80_baryon",
-    "properties/core/velocity_dispersion_baryon",
-    "properties/core/L_baryon",
-    "properties/core/ALPHA_baryon", "properties/core/BETA_baryon",
-]
 
 # these can be nan (zero metallicity/sfr), but if a large percentage is, this is problematic
 SOFT_NAN = [

@@ -42,7 +42,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
 
         # gas
         gas = particles["gas"]
-        gas_group_idx = gas[group_key]
+        gas_group_idx = group_store.get_indexer(group_id=gas[group_key])
         gas_results = compute_gas_properties(
             gas=gas, gas_mass=group_store["mass_gas"],
             group_idx=gas_group_idx, n_groups=n_groups
@@ -51,7 +51,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
 
         # stars
         star = particles["star"]
-        star_group_idx = star[group_key]
+        star_group_idx = group_store.get_indexer(group_id=star[group_key])
         star_results = compute_star_properties(
             star=star, star_mass=group_store["mass_star"],
             group_idx=star_group_idx, n_groups=n_groups
@@ -60,7 +60,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
 
         # black holes
         bh = particles["bh"]
-        bh_group_idx = bh[group_key]
+        bh_group_idx = group_store.get_indexer(group_id=bh[group_key])
         bh_results = compute_bh_properties(
             bh=bh, group_idx=bh_group_idx,
             n_groups=n_groups, edd_factor=CONSTANTS.EDD_FACTOR

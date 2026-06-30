@@ -50,7 +50,28 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     with open(internals_filepath, "r") as f:
         internals = safe_load(f)
 
-    output_columns = internals["output_columns"]
+    raw_output_columns = internals["output_columns"]
+    output_columns = {}
+
+    for template, meta in raw_output_columns.items():
+
+        if "over" in meta:
+            resolved = resolve_over(meta["over"], user_config)
+
+            for key, values in resolved.items():
+                assert values, (
+                    f"Output column template {template!r}: 'over' key {key!r} "
+                    "cannot find anything to iterate over."
+                )
+
+            expanded = expand_column_templates([template], resolved)
+
+            for col_name in expanded:
+                output_columns[col_name] = meta
+
+        else:
+            output_columns[template] = meta
+
     stages: dict[str, PipelineStage] = {}
 
     for stage_name, stage_config in internals["stages"].items():
@@ -91,7 +112,7 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
             for col_name in expanded:
 
                 assert col_name in output_columns, (
-                    f"Stage {stage_name!r} says it outputs {col_name!r}."
+                    f"Stage {stage_name!r} says it outputs {col_name!r}. "
                     f"However, this is not found in output_columns."
                 )
                 assert col_name not in all_stage_outputs, (

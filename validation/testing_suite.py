@@ -31,7 +31,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # data
-from test_constants import NEVER_NAN, CONDITIONAL_NAN, BARYON_CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
+from test_constants import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 
 # octavian pipeline stages
 from octavian.data_management import (
@@ -447,7 +447,7 @@ def validate_mass_budget(f: h5py.File) -> None:
 
     for group in ["halo_data", "galaxy_data"]:
 
-        mass_total = f[group]["properties/core/mass_total"][:]
+        mass_total = f[group]["properties/core/mass_total"][:] if group == "halo_data" else f[group]["properties/core/mass_baryon"][:]
         mass_star = f[group]["properties/core/mass_star"][:]
         mass_gas = f[group]["properties/core/mass_gas"][:]
         mass_bh = f[group]["properties/core/mass_bh"][:]
@@ -497,10 +497,15 @@ def check_for_nans(f: h5py.File) -> None:
 
             assert np.all(np.isfinite(f[group][dataset][:])), f"NaN values detected in {group}/{dataset}"
 
-        # datasets which can have NaN in them in the case where the group is missing a certain particle type
-        for lengths, field_keys in CONDITIONAL_NAN[group]: # index into group because halo contains dm
+        csr_keys = ["glist_lengths", "slist_lengths", "dmlist_lengths", "bhlist_lengths"]
+        lengths = {k: f[group][k][:] for k in csr_keys if k in f[group]}
+        lengths["ntotal"] = sum(lengths[k] for k in csr_keys if k in lengths)
+        lengths["nbaryon"] = sum(lengths[k] for k in ["glist_lengths", "slist_lengths", "bhlist_lengths"] if k in lengths)
 
-            particles_per_group = f[group][lengths][:] # uses the csr lengths array (n_particles per group)
+        # datasets which can have NaN in them in the case where the group is missing a certain particle type
+        for lengths_key, field_keys in CONDITIONAL_NAN[group]:
+
+            particles_per_group = lengths[lengths_key]
             has_particles = particles_per_group > 0
 
             for key in field_keys:
@@ -520,18 +525,6 @@ def check_for_nans(f: h5py.File) -> None:
                 dataset = f[group][key][:]
                 assert np.all(np.isfinite(dataset)), f"{group}/{key} should be 0 but contains NaN"
                 assert np.all(dataset[empty] == 0.0), f"{group}/{key} is nonzero for empty groups"
-
-        # same as above but for baryonic quantities
-        baryonic_particles_per_group = np.sum([f[group][f"{p}list_lengths"][:] for p in ["g", "s", "bh"]], axis=0)
-        has_baryonic_particles = baryonic_particles_per_group > 0
-
-        for key in BARYON_CONDITIONAL_NAN:
-            if key not in f[group]:
-                continue
-
-            dataset = f[group][key][:]
-            assert np.all(np.isfinite(dataset[has_baryonic_particles])), f"{group}/{key} contains unphysical values."
-            assert np.all(np.isnan(dataset[~has_baryonic_particles])), f"{group}/{key} contains a group with no membership but defined physical values."
 
         # datasets which can have NaN in them generally (but a high proportion is suspect)
         for key in SOFT_NAN:

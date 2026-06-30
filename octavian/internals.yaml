@@ -26,25 +26,25 @@ stages:
     label: core
     applies_to: [halos, galaxies]
     requires: []
-    needs_particle_columns: [pos, vel, mass, potential, HaloID, GalID]
+    needs_particle_columns: [pos, vel, mass, potential]
     outputs:
-      - columns: [n{ptype}, mass_{ptype}]
+      - columns: ["n{ptype}", "mass_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
       - columns: ["{d}_{ptype}", "v{d}_{ptype}", "L{d}_{ptype}"]
         over: {d: [x, y, z], ptype: [gas, star, dm, bh]}
-      - columns: [L_{ptype}, velocity_dispersion_{ptype}, ALPHA_{ptype}, BETA_{ptype}]
+      - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "ALPHA_{ptype}", "BETA_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
-      - columns: [BoverT_{ptype}, kappa_rot_{ptype}]
+      - columns: ["BoverT_{ptype}", "kappa_rot_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
         applies_to: [galaxies]
-      - columns: [mass_{combined}, L_{combined}, velocity_dispersion_{combined}, ALPHA_{combined}, BETA_{combined}]
+      - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "ALPHA_{combined}", "BETA_{combined}"]
         over: {combined: [total, baryon]}
       - columns: ["{d}_{combined}", "v{d}_{combined}", "L{d}_{combined}"]
         over: {d: [x, y, z], combined: [total, baryon]}
-      - columns: [BoverT_{combined}, kappa_rot_{combined}]
+      - columns: ["BoverT_{combined}", "kappa_rot_{combined}"]
         over: {combined: [baryon]}
         applies_to: [galaxies]
-      - columns: [minpot_{d}, minpot_v{d}]
+      - columns: ["minpot_{d}", "minpot_v{d}"]
         over: {d: [x, y, z]}
         applies_to: [halos]
       - columns: ["radius_{quantile}_{ptype}"]
@@ -54,9 +54,9 @@ stages:
       - columns: ["r{factor}c", "m{factor}c"]
         over: {factor: from_config:virial_factors}
         applies_to: [halos]
-      - columns: [r200, virial_temperature, circular_velocity, spin_param, vmax, rmax]
+      - columns: ["r200", "virial_temperature", "circular_velocity", "spin_param", "vmax", "rmax"]
         applies_to: [halos]
-      - columns: [parent_halo_index]
+      - columns: ["parent_halo_index"]
         applies_to: [galaxies]
 
   properties_ptype_specific:
@@ -65,23 +65,23 @@ stages:
     requires: [properties_core]
     needs_particle_columns: [mass, temperature, metallicity, sfr, age, bhmass, bhmdot, rho]
     outputs:
-      - columns: [mass_HI, mass_H2, sfr, metallicity_mass_weighted, metallicity_sfr_weighted, temp_mass_weighted]
-      - columns: [metallicity_mass_weighted_cgm, metallicity_temp_weighted_cgm, temp_mass_weighted_cgm, temp_metal_weighted_cgm]
+      - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_mass_weighted", "metallicity_sfr_weighted", "temp_mass_weighted"]
+      - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm"]
         applies_to: [halos]
-      - columns: [metallicity_stellar, age_mass_weighted, age_metal_weighted]
-      - columns: [bh_mass_max, bhmdot, bh_fedd]
+      - columns: ["metallicity_stellar", "age_mass_weighted", "age_metal_weighted"]
+      - columns: ["bh_mass_max", "bhmdot", "bh_fedd"]
 
   properties_local_environment:
     label: environment
     applies_to: [galaxies]
     requires: [properties_ptype_specific]
-    needs_particle_columns: [pos, mass, HaloID]
+    needs_particle_columns: [pos, mass]
     outputs:
       - columns: ["local_mass_density_{radius}kpc", "local_number_density_{radius}kpc"]
         over: {radius: from_config:density_radii}
       - columns: ["mass_{ptype}_{aperture}kpc"]
         over:
-          ptype: [gas, star, dm, bh, HI, H2, total]
+          ptype: [gas, star, dm, bh, HI, H2, baryon]
           aperture: from_config:aperture_size
 
 # output column conventions
@@ -183,7 +183,7 @@ output_columns:
     unit:        ""
     description: "Rotational support parameter ({ptype})"
 
-  "radius_{ptype}_{quantile}":
+  "radius_{quantile}_{ptype}":
     over:        {ptype: [gas, star, dm, bh, total, baryon], quantile: from_config:radial_quantiles}
     dtype:       float64
     unit:        "kpc"
@@ -328,7 +328,7 @@ output_columns:
     unit:        "Msun"
     description: "H2 mass within {aperture} kpc aperture"
 
-  mass_total_{aperture}kpc:
+  mass_baryon_{aperture}kpc:
     over: {aperture: from_config:aperture_size}
     dtype:       float64
     unit:        "Msun"

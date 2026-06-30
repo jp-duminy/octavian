@@ -17,7 +17,7 @@ process_ptypes:
 MINIMUM_STARS_PER_GALAXY: 16
 MINIMUM_DM_PER_HALO: 24
 nHlim: 0.13
-Tlim: 1.0e5
+Tlim: 1.0e+5
 XH: 0.76
 
 # FOF6D

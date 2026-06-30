@@ -29,21 +29,23 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
     sim = simulation_data.simulation
 
     density_results = compute_local_densities(
-        pos=galaxies.get_columns(keys=["x_total", "y_total", "z_total"]),
-        mass=galaxies["mass_total"],
+        pos=galaxies.get_columns(keys=["x_baryon", "y_baryon", "z_baryon"]),
+        mass=galaxies["mass_baryon"],
         n_groups=galaxies.n_groups,
         boxsize=sim.boxsize,
         radii=config["density_radii"],
     )
     galaxies.write_batch(results=density_results)
 
-    aperture_results = compute_galaxy_aperture_masses(
-        particles=simulation_data.particles,
-        galaxies=galaxies,
-        boxsize=sim.boxsize,
-        aperture_size=config["aperture_size"],
-    )
-    galaxies.write_batch(results=aperture_results)
+    for aperture in config["aperture_size"]:
+
+        aperture_results = compute_galaxy_aperture_masses(
+            particles=simulation_data.particles,
+            galaxies=galaxies,
+            boxsize=sim.boxsize,
+            aperture_size=aperture,
+        )
+        galaxies.write_batch(results=aperture_results)
 
 def compute_local_densities(
     pos: np.ndarray, 
@@ -127,7 +129,7 @@ def compute_galaxy_aperture_masses(
 
     # pre-sort galaxies by parent halo
     gal_order, halos_with_galaxies, gal_start, gal_end = sort_by_group(group_ids=galaxies["parent_halo_index"]) # sort galaxies by halo
-    gal_pos = galaxies.get_columns(["x_total", "y_total", "z_total"])
+    gal_pos = galaxies.get_columns(["x_baryon", "y_baryon", "z_baryon"])
 
     result = np.zeros(shape=(galaxies.n_groups,len(ptypes)))
     result_HI, result_H2 = np.zeros(shape=galaxies.n_groups), np.zeros(shape=galaxies.n_groups)
@@ -164,6 +166,6 @@ def compute_galaxy_aperture_masses(
 
     results[f"mass_HI_{int(aperture_size)}kpc"] = result_HI
     results[f"mass_H2_{int(aperture_size)}kpc"] = result_H2
-    results[f"mass_total_{int(aperture_size)}kpc"] = result[:, :len(ptypes)].sum(axis=1)
+    results[f"mass_baryon_{int(aperture_size)}kpc"] = result[:, :len(ptypes)].sum(axis=1)
 
     return results
