@@ -315,7 +315,4 @@ def find_galaxies(particles: dict[str, ParticleStore], simulation: SimulationAtt
     result = dispatch_fof6d(items=work_items, params=params)
     store_fof6d_results(particles=particles, result=result)
 
-    if result.n_galaxies == 0: # NOTE: move this outside FOF6D to the run function
-        config["groups"] = ["halos"]
-
     return result

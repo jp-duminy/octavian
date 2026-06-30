@@ -30,6 +30,16 @@ class Internals:
     group_keys: dict[str, str]  
     plist_to_ptype: dict[str, str] # eventually deprecate    
     group_ptype_lists: dict[str, list[str]]  
+    output_columns: dict[str, OutputColumnMetadata]
+
+@dataclass(frozen=True, slots=True)
+class OutputColumnMetadata:
+    """
+    For stamping attributes on HDF5 datasets: dtype/unit/brief description of each column as specified in internals.yaml.
+    """
+    dtype: str
+    unit: str
+    description: str
 
 def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, PipelineStage]:
     """
@@ -84,14 +94,34 @@ def load_internals(internals_filepath: Path, user_config: dict) -> dict[str, Pip
     unclaimed = set(output_columns.keys()) - all_stage_outputs
     assert not unclaimed, f"output_columns not claimed by any stage: {unclaimed}"
 
+    # write metadata into internals
+    expanded_output_columns: dict[str, OutputColumnMetadata] = {}
+
+    for template_name, meta in output_columns.items():
+
+        if "over" in meta:
+            resolved = resolve_over(meta["over"], user_config)
+            concrete_names = expand_column_templates([template_name], resolved)
+
+        else:
+            concrete_names = [template_name]
+
+        for name in concrete_names:
+
+            expanded_output_columns[name] = OutputColumnMetadata(
+                dtype=meta["dtype"],
+                unit=meta["unit"],
+                description=meta.get("description", ""),
+            )
+
     return Internals(
         stages=stages,
         baryonic_ptypes=frozenset(internals["baryonic_ptypes"]),
         group_keys=internals["groupIDs"],
         plist_to_ptype={v: k for k, v in internals["ptype_lists"].items()},
         group_ptype_lists=internals["group_ptype_lists"],
+        output_columns=expanded_output_columns,
     )
-
 
 def resolve_over(over: dict[str, list | str], user_config: dict) -> dict[str, list[str]]:
     """

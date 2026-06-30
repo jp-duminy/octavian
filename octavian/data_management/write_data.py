@@ -8,7 +8,7 @@ Functions which write data from analysis stages into CSR format lists for HDF5 c
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import SimulationData
+  from octavian.data_management import SimulationData, Internals
 
 # octavian modules
 from octavian.data_management.conventions import DTYPES # NOTE: import from within-file, not module level (to avoid circular import)
@@ -18,53 +18,27 @@ import h5py
 from pathlib import Path # NOTE: migrated fully to pathlib in v0.3
 import numpy as np
 
-GROUP_PTYPE_LISTS = {
-    "halos":    ["glist", "slist", "dmlist", "bhlist"],
-    "galaxies": ["glist", "slist", "bhlist"],
-}
-
-PLIST_TO_PTYPE = {
-    "slist": "star",
-    "glist": "gas",
-    "bhlist": "bh",
-    "dmlist": "dm",
-}
-
-
 HDF5_GROUP_NAMES = {
     "halos": "halo_data",
     "galaxies": "galaxy_data",
 }
 
-map_group_to_gid_name = {
-    "halos": "haloID",
-    "galaxies": "galaxyID",
-}
-
-def _resolve_columns(group_store, column: list[str]):
-    """
-    Small helper function for resolving vectors in columns (which are stored as separate entries).
-    """
-    if isinstance(column, list):
-        return np.column_stack([group_store[c] for c in column])
-    
-    return group_store[column]
-
-def construct_particle_csr_lists(data: SimulationData, config: dict) -> dict[str, dict[str, dict]]:
+def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> dict[str, dict[str, dict]]:
     """
     Extracts particle lists from SimulationData (matching GroupStore & ParticleStore) and converts them to the CSR format for hdf5.
     """
     result = {group: {} for group in data.groups}
 
-    for group_name in GROUP_PTYPE_LISTS: # NOTE: sorts both halos & galaxies as opposed to previous function which took group_name
+    for group_name in data.groups: # NOTE: sorts both halos & galaxies as opposed to previous function which took group_name
 
         sentinel = -1 if group_name == "galaxies" else 0 # REVIEW: fix this ideally?
-        group_ID = config['groupIDs'][group_name]
+        group_store = data.groups[group_name]
+        group_key = group_store.group_key
 
-        for ptype_list in GROUP_PTYPE_LISTS[group_name]: # let it be known this was a pain to write
+        for ptype_list in internals.group_ptype_lists[group_name]: # let it be known this was a pain to write
 
-            ptype = PLIST_TO_PTYPE[ptype_list]
-            particle_group_ids = data.particles[ptype][group_ID]
+            ptype = internals.plist_to_ptype[ptype_list]
+            particle_group_ids = data.particles[ptype][group_key]
             particle_indices = data.particles[ptype]["particle_index"] # positional index of particles in original snapshot
 
             # mask out non-group particles (technically redundant for halos) // sort
@@ -74,8 +48,6 @@ def construct_particle_csr_lists(data: SimulationData, config: dict) -> dict[str
             order = np.argsort(particle_group_ids)
             sorted_particle_group_ids = particle_group_ids[order] 
             sorted_indices = particle_indices[order]
-
-            group_store = data.groups[group_name]
 
             if len(sorted_particle_group_ids) == 0:
                 result[group_name][ptype_list] = {
@@ -107,8 +79,7 @@ def construct_particle_csr_lists(data: SimulationData, config: dict) -> dict[str
             
     return result
 
-
-def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, config: dict, output_file: Path) -> None:
+def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, internals: Internals, output_file: Path) -> None:
     """
     Takes in the SimulationData object and writes it to a .hdf5 file.
     """
@@ -125,9 +96,9 @@ def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, co
             group_store = data.groups[group_name] # quickhand
             hdf5_group = out.create_group(hdf5_name)
 
-            hdf5_group.create_dataset(name=f"{map_group_to_gid_name[group_name]}", data=group_store.group_ids, compression=1)
+            hdf5_group.create_dataset(name=f"{group_store.group_key}", data=group_store.group_ids, compression=1)
 
-            for ptype in GROUP_PTYPE_LISTS[group_name]: # in theory these could be split up into different functions
+            for ptype in internals.group_ptype_lists[group_name]: # in theory these could be split up into different functions
 
                 if ptype not in particle_lists[group_name]:
                     continue
@@ -137,16 +108,18 @@ def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, co
                 hdf5_group.create_dataset(f'{ptype}_offsets', data=pl['offsets'], compression=1)
                 hdf5_group.create_dataset(f'{ptype}_lengths', data=pl['lengths'], compression=1)
 
-            for dataset_name, column_key in config['dataset_columns'].items():
+            for column_name, column_data in group_store.columns.items():
 
-                if dataset_name in GROUP_PTYPE_LISTS[group_name]:
+                if column_name.startswith("_"):
                     continue
 
-                if column_key not in GROUP_PTYPE_LISTS[group_name]:
+                if column_name in hdf5_group:
+                    continue
 
-                    if isinstance(column_key, list): # for 3D attributes (pos, vel)
-                        if all(c in group_store.columns for c in column_key):
-                            hdf5_group.create_dataset(dataset_name, data=_resolve_columns(group_store, column_key), compression=1)
-                    else:
-                        if column_key in group_store.columns:
-                            hdf5_group.create_dataset(dataset_name, data=group_store[column_key], compression=1)
+                if column_name not in internals.output_columns:
+                    continue
+
+                column_meta = internals.output_columns[column_name]
+                dataset = hdf5_group.create_dataset(column_name, data=column_data, compression=1)
+                dataset.attrs["unit"] = column_meta.unit
+                dataset.attrs["description"] = column_meta.description

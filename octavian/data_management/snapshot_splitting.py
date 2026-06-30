@@ -6,240 +6,303 @@ NOTE: this will eventually be legacy code, as we intend to move away from interm
 
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+  from octavian.data_management import GizmoReader, Internals
+
+# defaults
+from pathlib import Path
+
+# others
 import h5py
 import numpy as np
-from pathlib import Path
-from yaml import safe_load
+
+# octavian
+from octavian.data_management import DTYPES
+
+HDF5_GROUP_NAMES = {
+    "halos": "halo_data",
+    "galaxies": "galaxy_data",
+}
 
 # NOTE: will likely be unnecessary after move to HDF5 MPI.
 
-def find_nearest(array, value):
-    idx = (np.abs(array - value)).argmin()
-    return array[idx]
+def filter_snapshot(snapshot_file: Path,
+    intermediate_directory: Path,
+    reader: GizmoReader,
+    n_split: int = 4,
+    alpha: float = 0.6,
+    beta: float = 0.4,
+) -> None:
+    """
+    Divides the snapshot into n_split (where n_split should be the number of MPI ranks) intermediate HDF5 files with all particles not in a halo filtered out. Employs a weighted binning algorithm to evenly distribute computational load amongst ranks. 
 
-def get_id_filter(f: h5py.File, ptypes: list[str], nsplit: int) -> list[list[int]]:
-  ids = []
-  for ptype in ptypes:
-    ids_ptype = f[ptype]['HaloID'][:]
-    ids.append(ids_ptype[ids_ptype != 0])
+    alpha: FOF6D weighting constant (default 0.6)
+    beta: aggregate properties weighting constant (default 0.4)
 
-  ids = np.sort(np.concatenate(ids))
-  unique_ids, counts = np.unique(ids, return_counts=True)
-  cumulative_counts = np.cumsum(counts)
-  total = len(ids)
+    Constant defaults are empirically chosen but work well, only change with good reason.
+    """
+    with h5py.File(snapshot_file, "r") as f:
 
-  split_ids = [0]
-  split_fractions = np.linspace(0., 1., nsplit + 1)
-  split_fractions = split_fractions[1:]
+        for i in range(n_split):
 
-  for fraction in split_fractions:
-    fraction_count = total * fraction
-    split_ids.append(unique_ids[(np.abs(cumulative_counts - fraction_count)).argmin()])
+            with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as intermediate:
+                f.copy(f['Header'], intermediate, "Header")
 
-  id_filter = list(zip(split_ids[:-1], split_ids[1:]))
+        # this operates on a raw snapshot which does not use Octavian internal names
+        raw_star = reader.inverse_ptype_map["star"]  
+        raw_gas = reader.inverse_ptype_map["gas"]  
+        raw_bh = reader.inverse_ptype_map["bh"]  
+        raw_dm = reader.inverse_ptype_map["dm"]
 
-  return id_filter
+        ptypes = [group for group in list(f.keys()) if 'HaloID' in list(f[group].keys())] 
+        ptype_counts = {}
 
-def filter_snapshot(snapfile: str, outfile: Path, nsplit: int=4):
-  """
-  Weighted snapshot filter.
+        for ptype_name in [raw_star, raw_gas, raw_bh, raw_dm]: 
 
-  This snapshot filter is designed to be weighted towards balancing FOF6D. It does so by applying a 
-  power law to star/gas counts when deciding how to divide the snapshot. FOF6D can take extremely long
-  and ranks can have wildly different runtimes if the snapshot is not weighted when filtered.
-  """
+            if ptype_name not in f:
+                continue
 
-  # these are weighting constants. cgp scales better than fof6d so ideally lean towards fof6d
-  ALPHA = 0.6 # arbitrary fof6d constant
-  BETA = 0.4 # arbitrary cgp constant
+            ids = f[ptype_name]['HaloID'][:]
+            ids = ids[ids != 0] # TODO: sentinel 0 vs -1
+            unique, counts = np.unique(ids, return_counts=True)
+            ptype_counts[ptype_name] = (unique, counts)
 
-  with h5py.File(snapfile, 'r') as f:
-    for i in range(nsplit):
-      with h5py.File(outfile / f"rank_{i}.hdf5", 'a') as f_out:
-        f.copy(f['Header'], f_out, 'Header')
+        # build a unified halo ID array
+        all_hids_list = []
+        for ptype_name in ptypes:  # ptypes from the existing detection logic
+            ids = f[ptype_name]['HaloID'][:]
+            all_hids_list.append(np.unique(ids[ids != 0]))
+        all_hids = np.unique(np.concatenate(all_hids_list))
 
-    #
-    # algorithm to weight split snapshot
-    #
+        # guard (necessary for high-redshift snapshots with no HaloIDs)
+        if len(all_hids) == 0:
+            return
+        
+        n_halos = all_hids.max() + 1  # use hid as direct index
 
-    ptypes = [group for group in list(f.keys()) if 'HaloID' in list(f[group].keys())] # from Jakub's code
-    # initialise weight dictionaries
-    ptype_counts = {}
-    for ptype_name in ['PartType0', 'PartType1', 'PartType4', 'PartType5']: # no datamanager mapping so use default ptype names
-        if ptype_name not in f:
-            continue
-        ids = f[ptype_name]['HaloID'][:]
-        ids = ids[ids != 0]
-        unique, counts = np.unique(ids, return_counts=True)
-        ptype_counts[ptype_name] = (unique, counts)
+        star_counts = np.zeros(shape=n_halos)
+        gas_counts = np.zeros(shape=n_halos)
+        dm_counts = np.zeros(shape=n_halos)
 
-    # build a unified halo ID array
-    all_hids_list = []
-    for ptype_name in ptypes:  # ptypes from the existing detection logic
-        ids = f[ptype_name]['HaloID'][:]
-        all_hids_list.append(np.unique(ids[ids != 0]))
-    all_hids = np.unique(np.concatenate(all_hids_list))
+        weight_ptypes = {raw_star: star_counts, raw_gas: gas_counts, raw_dm: dm_counts}
 
-    # guard (necessary for high-redshift snapshots with no HaloIDs)
-    if len(all_hids) == 0:
-      return
-    
-    n_halos = all_hids.max() + 1  # use hid as direct index
+        for raw_ptype_name, count_array in weight_ptypes.items():
 
-    star_counts = np.zeros(n_halos)
-    gas_counts = np.zeros(n_halos)
-    dm_counts = np.zeros(n_halos)
+            if raw_ptype_name in ptype_counts:
+                halo_ids, counts = ptype_counts[raw_ptype_name]
+                count_array[halo_ids] = counts
 
-    for ptype_name, arr in [('PartType4', star_counts), ('PartType0', gas_counts), ('PartType1', dm_counts)]:
-        if ptype_name in ptype_counts:
-            hids, cnts = ptype_counts[ptype_name]
-            arr[hids] = cnts
+        fof6d_cost = star_counts[all_hids] ** 1.2 + gas_counts[all_hids]
+        aggregates_cost = star_counts[all_hids] + gas_counts[all_hids] + dm_counts[all_hids]
+        halo_weights = alpha * fof6d_cost + beta * aggregates_cost
 
-    fof6d_cost = star_counts[all_hids] ** 1.2 + gas_counts[all_hids]
-    cgp_cost = star_counts[all_hids] + gas_counts[all_hids] + dm_counts[all_hids]
-    halo_weights = ALPHA * fof6d_cost + BETA * cgp_cost
+        # greedy binning according to halo weight
+        weight_order = np.argsort(halo_weights)[::-1]
+        rank_assignments = [set() for _ in range(n_split)]
+        rank_loads = np.zeros(n_split)
 
-    # greedy binning — sort heaviest first
-    weight_order = np.argsort(halo_weights)[::-1]
-    rank_assignments = [set() for _ in range(nsplit)]
-    rank_loads = np.zeros(nsplit)
-    for idx in weight_order:
-        lightest = np.argmin(rank_loads)
-        rank_assignments[lightest].add(all_hids[idx])
-        rank_loads[lightest] += halo_weights[idx]
+        for idx in weight_order:
 
-    # and now the actual filter
-    # toss particles not in a halo
-    for ptype in ptypes:
-      datasets = list(f[ptype].keys())
-      ids = f[ptype]['HaloID'][:]
-      particle_index = np.arange(len(ids), dtype='int')
-      in_halo = ids != 0 # find ids not in a halo
-      ids_filtered = ids[in_halo]
-      order = np.argsort(ids_filtered)
-      ids_sorted = ids_filtered[order]
-      datasets = datasets + ['particle_index']
+            lightest = np.argmin(rank_loads)
+            rank_assignments[lightest].add(all_hids[idx])
+            rank_loads[lightest] += halo_weights[idx]
 
-      # Jakub's code masks once per dataset but we could mask once per ptype
-      rank_masks = []
-      for i in range(nsplit):
-          halo_set = np.array(list(rank_assignments[i]))
-          rank_masks.append(np.isin(ids_sorted, halo_set))
+        # filter, tosses particles not in halos
+        rank_particle_counts: dict[int, dict[str, int]] = {i: {} for i in range(n_split)}
 
-      for dataset in datasets:
-        if dataset == 'particle_index':        
-            data = particle_index[in_halo][order]
-        else:
-          data = f[ptype][dataset][:][in_halo][order]
-        for i in range(nsplit):
-            with h5py.File(outfile / f"rank_{i}.hdf5", 'a') as f_out:
-                f_out.require_group(ptype)
-                f_out[ptype][dataset] = data[rank_masks[i]]
+        for ptype in ptypes:
 
-    for i in range(nsplit):
-      with h5py.File(outfile / f"rank_{i}.hdf5", 'a') as f_out:
-          diag = f_out.require_group('Diagnostics')
-          for pt in ptypes:  
-              if pt in f_out:
-                  diag.attrs[f'n_{pt}'] = len(f_out[pt]['HaloID'])
-          diag.attrs['n_halos'] = len(rank_assignments[i])
-          diag.attrs['total_weight'] = rank_loads[i]
+            datasets = list(f[ptype].keys())
+            ids = f[ptype]["HaloID"][:]
+            particle_index = np.arange(len(ids), dtype=np.int64)
+            in_halo = ids != 0 # TODO: sentinel value
+            ids_filtered = ids[in_halo]
+            order = np.argsort(ids_filtered)
+            ids_sorted = ids_filtered[order]
 
-# FIXME: needs a refactoring pass, very messy and try/excepts can cause unnoticeable bugs
-def merge_catalogues(files: list[str], outfile: str, configfile: str) -> None:
-  with open(configfile, 'r') as f:
-    config = safe_load(f)
+            datasets = datasets + ["particle_index"]
 
-  galaxy_parent_halo = []
-  halo_masses = []
-  galaxy_masses = []
-  file_lengths = {'halos': {}, 'galaxies': {}}
+            for i in range(n_split):
 
-  cumulative_halos = 0
-  for file in files:
-    with h5py.File(file, 'r') as f:
-      file_lengths['halos'][file] = len(f['halo_data']['dicts/masses.total'])
-      try:
-        file_lengths['galaxies'][file] = len(f['galaxy_data']['dicts/masses.total'])
-      except:
-        file_lengths['galaxies'][file] = 0
+                with h5py.File(intermediate_directory / f"rank_{i}.hdf5", 'a') as f_out:
 
-      halo_masses.append(f['halo_data']['dicts/masses.total'][:])
-      try:
-        file_galaxy_masses = f['galaxy_data']['dicts/masses.stellar'][:]
-        if len(file_galaxy_masses) != 0:
-          galaxy_parent_halo.append(f['galaxy_data']['parent_halo_index'][:] + cumulative_halos)
-          galaxy_masses.append(file_galaxy_masses)
-      except: pass
-      
-      cumulative_halos += file_lengths['halos'][file]
-  halo_masses = np.concatenate(halo_masses)
-  galaxy_masses = np.concatenate(galaxy_masses)
-  galaxy_parent_halo = np.concatenate(galaxy_parent_halo)
+                    f_out.require_group(ptype)
 
-  # NOTE: stable sort preserves deterministic results (otherwise galaxies have different numbers when sorted between runs).
-  halo_order = np.argsort(halo_masses, kind="stable")
-  inverse_order = np.argsort(halo_order, kind="stable")  # maps old index -> new index
-  galaxy_parent_halo = inverse_order[galaxy_parent_halo]
-  galaxy_order = np.argsort(galaxy_masses, kind="stable")
+                    halo_set = np.array(list(rank_assignments[i]))
+                    rank_mask = np.isin(ids_sorted, halo_set)
+                    rank_particle_counts[i][ptype] = int(rank_mask.sum())
 
-  with h5py.File(outfile, 'w') as f_out:
-    halo_group = f_out.create_group('halo_data')
-    galaxy_group = f_out.create_group('galaxy_data')
+                    for dataset in datasets:
 
-    for dataset in config['dataset_columns'].keys():
-      if dataset in ['haloID', 'galaxyID', 'parent_halo_index']: continue
-      if dataset in ['glist', 'slist', 'dmlist', 'bhlist']: continue # old code guard
-      halo_data = []
-      galaxy_data = []
-      for file in files:
-        with h5py.File(file, 'r') as f:
+                        if dataset == "particle_index":        
+                            data = particle_index[in_halo][order]
 
-          try: halo_data.append(f['halo_data'][dataset][:])
-          except:
-            if '_L' in dataset: halo_data.append(np.full((file_lengths['halos'][file], 3), np.nan))
-            else: halo_data.append(np.full(file_lengths['halos'][file], np.nan))
+                        else:
+                            data = f[ptype][dataset][:][in_halo][order]
 
-          if file_lengths['galaxies'][file] == 0: continue
-          try: galaxy_data.append(f['galaxy_data'][dataset][:])
-          except:
-            if '_L' in dataset: galaxy_data.append(np.full((file_lengths['galaxies'][file], 3), np.nan))
-            else: galaxy_data.append(np.full(file_lengths['galaxies'][file], np.nan))
+                        f_out[ptype][dataset] = data[rank_mask]
 
-      halo_group[dataset] = np.concatenate(halo_data)[halo_order]
-      galaxy_group[dataset] = np.concatenate(galaxy_data)[galaxy_order]
+        for i in range(n_split):
 
-    halo_group['HaloID'] = np.arange(np.sum(list(file_lengths['halos'].values())))
-    galaxy_group['GalID'] = np.arange(np.sum(list(file_lengths['galaxies'].values())))
-    galaxy_group['parent_halo_index'] = galaxy_parent_halo[galaxy_order]
-    
-    ptype_lists = ['glist', 'slist', 'dmlist', 'bhlist']
-    for ptype_list in ptype_lists:
-      for group_key, out_group in [('halo_data', halo_group), ('galaxy_data', galaxy_group)]:
-        all_indices = []
-        all_lengths = []
-        for file in files:
-          with h5py.File(file, 'r') as f_in:
-            try:
-              all_indices.append(f_in[group_key][f'{ptype_list}_indices'][:])
-              all_lengths.append(f_in[group_key][f'{ptype_list}_lengths'][:])
-            except KeyError:
-              continue
+            with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as f_out:
 
-        if not all_indices:
-          continue
+                diag = f_out.require_group("Diagnostics")
 
-        # reorder by the sort order computed earlier
-        order = halo_order if group_key == 'halo_data' else galaxy_order
-        merged_lengths = np.concatenate(all_lengths)[order]
-        merged_offsets = np.concatenate([[0], np.cumsum(merged_lengths[:-1])]).astype('int64')
+                for ptype, count in rank_particle_counts[i].items():
+                    diag.attrs[f"n_{ptype}"] = count
 
-        # reorder indices to match
-        old_lengths = np.concatenate(all_lengths)
-        old_offsets = np.concatenate([[0], np.cumsum(old_lengths[:-1])]).astype('int64')
-        all_flat = np.concatenate(all_indices)
-        reordered = np.concatenate([all_flat[old_offsets[i]:old_offsets[i]+old_lengths[i]] for i in order])
+                diag.attrs["n_halos"] = len(rank_assignments[i])
+                diag.attrs["total_weight"] = rank_loads[i]
 
-        out_group.create_dataset(f'{ptype_list}_indices', data=reordered, compression=1)
-        out_group.create_dataset(f'{ptype_list}_offsets', data=merged_offsets, compression=1)
-        out_group.create_dataset(f'{ptype_list}_lengths', data=merged_lengths, compression=1)
+def merge_intermediate_catalogues(files: list[Path], output_path: Path, internals: Internals) -> None:
+    """
+    Merges per-rank HDF5 catalogues into a single output file, groups sorted by mass descending.
+    """
+    sort_column = {"halos": "mass_total", "galaxies": "mass_star"}
+
+    # first pass: collect lengths and sort keys per group type
+    group_lengths: dict[str, list[int]] = {}
+    sort_arrays: dict[str, list[np.ndarray]] = {}
+    parent_halo_chunks: list[np.ndarray] = []
+
+    cumulative_halos = 0
+
+    for file in files:
+        with h5py.File(file, "r") as f:
+
+            for group_type, hdf5_name in HDF5_GROUP_NAMES.items():
+
+                if hdf5_name not in f:
+                    group_lengths.setdefault(group_type, []).append(0)
+                    continue
+
+                grp = f[hdf5_name]
+                n_groups = len(grp[internals.group_keys[group_type]])
+                group_lengths.setdefault(group_type, []).append(n_groups)
+                sort_arrays.setdefault(group_type, []).append(grp[sort_column[group_type]][:])
+
+                if group_type == "galaxies" and n_groups > 0:
+                    parent_halo_chunks.append(grp["parent_halo_index"][:] + cumulative_halos)
+
+            cumulative_halos += group_lengths["halos"][-1]
+
+    # compute sort orders and inverse map for parent reindexing
+    sort_orders: dict[str, np.ndarray] = {}
+
+    for group_type in sort_arrays:
+        merged = np.concatenate(sort_arrays[group_type])
+        sort_orders[group_type] = np.argsort(-merged, kind="stable") # largest -> smallest ascending
+
+    if "halos" in sort_orders:
+        inverse_halo_order = np.argsort(sort_orders["halos"], kind="stable")
+
+    # second pass: merge datasets
+    with h5py.File(output_path, "w") as f_out:
+
+        for group_type, hdf5_name in HDF5_GROUP_NAMES.items():
+            if group_type not in sort_orders:
+                continue
+
+            order = sort_orders[group_type]
+            out_grp = f_out.create_group(hdf5_name)
+            n_total = len(order)
+
+            # discover datasets from first non-empty rank file
+            dataset_names: set[str] = set()
+            csr_suffixes = ("_indices", "_offsets", "_lengths")
+
+            for file, length in zip(files, group_lengths[group_type]):
+                if length == 0:
+                    continue
+                with h5py.File(file, "r") as f:
+                    for key in f[hdf5_name].keys():
+                        if not any(key.endswith(s) for s in csr_suffixes):
+                            dataset_names.add(key)
+                break
+
+            # skip group IDs — we reassign sequentially
+            group_id_name = internals.group_keys[group_type]
+            dataset_names.discard(group_id_name)
+            dataset_names.discard("parent_halo_index")
+
+            # concatenate and reorder each dataset
+            for dataset_name in sorted(dataset_names):
+
+                chunks = []
+                source_attrs = {} # unit/description metadata
+
+                for file, length in zip(files, group_lengths[group_type]):
+
+                    if length == 0:
+                        continue
+
+                    with h5py.File(file, "r") as f:
+
+                        grp = f[hdf5_name]
+
+                        if dataset_name in grp:
+                            chunks.append(grp[dataset_name][:])
+
+                            if not source_attrs:
+                                source_attrs = dict(grp[dataset_name].attrs)
+
+                        else:
+                            chunks.append(np.full(length, np.nan))
+
+                merged = np.concatenate(chunks)
+                ds = out_grp.create_dataset(dataset_name, data=merged[order], compression=1)
+
+                for attr_name, attr_value in source_attrs.items():
+                    ds.attrs[attr_name] = attr_value
+
+            # sequential IDs
+            out_grp.create_dataset(group_id_name, data=np.arange(n_total), compression=1)
+
+            # parent halo reindexing
+            if group_type == "galaxies" and parent_halo_chunks:
+                merged_parents = np.concatenate(parent_halo_chunks)
+                reindexed = inverse_halo_order[merged_parents]
+                out_grp.create_dataset("parent_halo_index", data=reindexed[order], compression=1)
+
+            # CSR lists
+            for ptype_list in internals.group_ptype_lists[group_type]:
+                all_indices, all_lengths = [], []
+
+                for file, length in zip(files, group_lengths[group_type]):
+
+                    if length == 0:
+                        continue
+
+                    with h5py.File(file, "r") as f:
+                        grp = f[hdf5_name]
+                        if f"{ptype_list}_indices" in grp:
+                            all_indices.append(grp[f"{ptype_list}_indices"][:])
+                            all_lengths.append(grp[f"{ptype_list}_lengths"][:])
+
+                if not all_indices:
+                    continue
+
+                indices, offsets, lengths = _reorder_csr_lists(all_indices, all_lengths, order)
+                out_grp.create_dataset(f"{ptype_list}_indices", data=indices, compression=1)
+                out_grp.create_dataset(f"{ptype_list}_offsets", data=offsets, compression=1)
+                out_grp.create_dataset(f"{ptype_list}_lengths", data=lengths, compression=1)
+
+def _reorder_csr_lists(all_indices: list[np.ndarray], all_lengths: list[np.ndarray], order: np.ndarray) -> tuple[np.ndarray, ...]:
+    """
+    Helper to reorders CSR-format particle lists according to the group sort order (which should be largest mass descending).
+    """
+    flat_lengths = np.concatenate(all_lengths)
+    flat_offsets = np.concatenate([[0], np.cumsum(flat_lengths[:-1])]).astype(DTYPES["csr_offsets"])
+    flat_indices = np.concatenate(all_indices)
+
+    reordered_lengths = flat_lengths[order]
+    reordered_indices = np.concatenate(
+        [flat_indices[flat_offsets[i]:flat_offsets[i] + flat_lengths[i]] for i in order]
+    )
+    reordered_offsets = np.concatenate(
+        [[0], np.cumsum(reordered_lengths[:-1])]
+    ).astype(DTYPES["csr_offsets"])
+
+    return reordered_indices, reordered_offsets, reordered_lengths

@@ -26,11 +26,6 @@ from octavian.aggregate_properties.aggregate_helpers import (
     max_idx_per_group,
 )
 
-PTYPES = ["star", "gas", "bh", "dm"]
-BARYONIC_PTYPES = ["star", "gas", "bh"]
-GROUP_KEYS = {"halos": "HaloID", "galaxies": "GalID"}
-GROUPS = ["halos", "galaxies"]
-
 def run_ptype_specific_properties(simulation_data: SimulationData, config: dict) -> None:
     """
     Top-level executor for the ptype-specific aggregate properties.
@@ -42,7 +37,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
     for group_type in simulation_data.groups:
 
         group_store = simulation_data.groups[group_type]
-        group_key = GROUP_KEYS[group_type]
+        group_key = group_store.group_key
         n_groups = group_store.n_groups
 
         # gas
