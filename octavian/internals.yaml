@@ -4,19 +4,14 @@
 ptypes: [gas, star, dm, bh]
 baryonic_ptypes: [gas, star, bh]
 groups: [halos, galaxies]
-groupIDs:
-  halos: HaloID
-  galaxies: GalID
 
-ptype_lists:
-  gas: glist
-  dm: dmlist
-  star: slist
-  bh: bhlist
-
-group_ptype_lists:
-  halos: [glist, slist, dmlist, bhlist]
-  galaxies: [glist, slist, bhlist]
+group_types:
+  halos:
+    key: HaloID
+    ptypes: [gas, star, dm, bh]
+  galaxies:
+    key: GalID
+    ptypes: [gas, star, bh]
 
 # aggregate properties stage dependency graph
 

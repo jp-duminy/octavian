@@ -54,10 +54,9 @@ class TestConfig:
     n_ranks: int = 4 # arbitrary default: 4 mpi ranks each with 6 cores
     n_proc: int = 6 
 
-PTYPES = ['PartType0', 'PartType1', 'PartType4', 'PartType5'] # all particle types should be present
-ALL_PARTICLE_LISTS = ["glist", "slist", "dmlist", "bhlist"]
-PTYPE_TO_PLIST = {"star": "slist", "gas": "glist", "dm": "dmlist", "bh": "bhlist"}
-BARYONIC_PARTICLE_LISTS = ["glist", "slist", "bhlist"]
+RAW_PTYPES = ['PartType0', 'PartType1', 'PartType4', 'PartType5'] # all particle types should be present
+PTYPES = ["gas", "star", "bh", "dm"]
+BARYON_PTYPES = ["gas", "star", "bh"]
 SUFFIXES = ["lengths", "offsets", "indices"] # for csr indexing
 
 test_config = TestConfig(test_snapshot=Path(f"/home/jpduminy/Octavian/test_snapshot_large.hdf5"),
@@ -158,7 +157,7 @@ def test_filter_snapshot(sentinel_value: int = 0) -> list[Path]:
 
     with h5py.File(test_config.test_snapshot, 'r') as f:
 
-        n_original = sum(np.sum(f[pt]['HaloID'][:] != sentinel_value) for pt in PTYPES) # particles in unfiltered snapshot
+        n_original = sum(np.sum(f[pt]['HaloID'][:] != sentinel_value) for pt in RAW_PTYPES) # particles in unfiltered snapshot
 
     split_files = [test_config.working_directory / f"rank_{i}.hdf5" for i in range(test_config.n_ranks)]
     n_filtered = 0
@@ -167,7 +166,7 @@ def test_filter_snapshot(sentinel_value: int = 0) -> list[Path]:
 
         with h5py.File(path, 'r') as f:
 
-            n_filtered += sum(len(f[pt]['HaloID']) for pt in PTYPES) # number of particles with an assigned HaloID
+            n_filtered += sum(len(f[pt]['HaloID']) for pt in RAW_PTYPES) # number of particles with an assigned HaloID
 
     logger.info(f"In-halo particles pre-filter: {n_original}")
     logger.info(f"In-halo particles post-filter: {n_filtered}")
@@ -298,9 +297,9 @@ def _validate_csr_integrity(f: h5py.File, group_data: str, particle_list: str) -
     """
     Validates CSR format of particle lists (sanity checks); handles empty groups too.
     """
-    lengths = f[group_data][f"{particle_list}_lengths"][:]
-    offsets = f[group_data][f"{particle_list}_offsets"][:]
-    indices = f[group_data][f"{particle_list}_indices"][:]
+    lengths = f[group_data][f"membership/{particle_list}_lengths"][:]
+    offsets = f[group_data][f"membership/{particle_list}_offsets"][:]
+    indices = f[group_data][f"membership/{particle_list}_indices"][:]
 
     # check offset slicing matches
     expected = np.concatenate([[0], np.cumsum(lengths[:-1])]) # mainly want to verify the prepended 0 is there
@@ -344,18 +343,17 @@ def validate_halo_membership(f: h5py.File) -> None:
     """
     Tests output catalogue halo membership.
     """
-
     # check keys exist
-    all_keys = [f"{p}_{s}" for p in ALL_PARTICLE_LISTS for s in SUFFIXES] # perhaps a cleaner way to do this
+    all_keys = [f"membership/{p}_{s}" for p in PTYPES for s in SUFFIXES] # perhaps a cleaner way to do this
     _check_keys_exist(f=f["halo_data"], keys=all_keys)
     logger.info(f"All keys exist for halos.")
 
-    for plist in ALL_PARTICLE_LISTS:
+    for ptype in PTYPES:
 
-        _validate_csr_integrity(f=f, group_data="halo_data", particle_list=plist)
+        _validate_csr_integrity(f=f, group_data="halo_data", particle_list=ptype)
 
     # ensure there are no empty halos
-    particles_per_halo = np.sum([f["halo_data"][f"{p}_lengths"][:] for p in ALL_PARTICLE_LISTS], axis=0) 
+    particles_per_halo = np.sum([f["halo_data"][f"membership/{p}_lengths"][:] for p in PTYPES], axis=0) 
     assert particles_per_halo.min() > 0, f"Empty halos detected."
 
     logger.info(f"Halo membership is self-consistent.")
@@ -365,17 +363,17 @@ def validate_galaxy_membership(f: h5py.File) -> None:
     Tests output catalogue galaxy membership.
     """
     # check keys exist, same code block as halo function (slightly dubious I know)
-    all_keys = [f"{p}_{s}" for p in BARYONIC_PARTICLE_LISTS for s in SUFFIXES] 
+    all_keys = [f"membership/{p}_{s}" for p in BARYON_PTYPES for s in SUFFIXES] 
     _check_keys_exist(f=f["galaxy_data"], keys=all_keys)
     logger.info(f"All keys exist for galaxies.")
 
-    for plist in BARYONIC_PARTICLE_LISTS:
+    for ptype in BARYON_PTYPES:
 
-        _validate_csr_integrity(f=f, group_data="galaxy_data", particle_list=plist)
+        _validate_csr_integrity(f=f, group_data="galaxy_data", particle_list=ptype)
 
     # ensure there are no empty galaxies and that particles in galaxies <= particles in halos
-    particles_per_halo = np.sum([f["halo_data"][f"{p}_lengths"][:] for p in BARYONIC_PARTICLE_LISTS], axis=0) 
-    particles_per_galaxy = np.sum([f["galaxy_data"][f"{p}_lengths"][:] for p in BARYONIC_PARTICLE_LISTS], axis=0) 
+    particles_per_halo = np.sum([f["halo_data"][f"membership/{p}_lengths"][:] for p in BARYON_PTYPES], axis=0) 
+    particles_per_galaxy = np.sum([f["galaxy_data"][f"membership/{p}_lengths"][:] for p in BARYON_PTYPES], axis=0) 
 
     assert particles_per_galaxy.min() > 0, f"Empty galaxies detected."
     assert particles_per_galaxy.sum() <= particles_per_halo.sum(), f"More particles in galaxies than in halos."
@@ -394,21 +392,21 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
     logger.info(f"Parent halo indices are self-consistent.")
 
     # check the particles have the same halo_id as their host galaxy
-    for plist in BARYONIC_PARTICLE_LISTS:
+    for ptype in BARYON_PTYPES:
 
-        halo_lengths = f["halo_data"][f"{plist}_lengths"][:]
-        halo_indices = f["halo_data"][f"{plist}_indices"][:]
-        galaxy_lengths = f["galaxy_data"][f"{plist}_lengths"][:]
-        galaxy_indices = f["galaxy_data"][f"{plist}_indices"][:]
+        halo_lengths = f["halo_data"][f"membership/{ptype}_lengths"][:]
+        halo_indices = f["halo_data"][f"membership/{ptype}_indices"][:]
+        galaxy_lengths = f["galaxy_data"][f"membership/{ptype}_lengths"][:]
+        galaxy_indices = f["galaxy_data"][f"membership/{ptype}_indices"][:]
         
         # edge case verification for halos that may perhaps genuinely lack a particle list
         if halo_lengths.sum() == 0:
-            assert galaxy_lengths.sum() == 0, f"Galaxy {plist} particles exist but no halo {plist} particles."
+            assert galaxy_lengths.sum() == 0, f"Galaxy {ptype} particles exist but no halo {ptype} particles."
             continue
 
         # quick check: the number of particles in galaxies is fewer than the total particles in each halo
         total_galaxy_particles_per_halo = np.bincount(parent_halo_indices,weights=galaxy_lengths, minlength=len(halo_lengths))
-        assert np.all(total_galaxy_particles_per_halo <= halo_lengths), f"{plist} particles span multiple galaxies."
+        assert np.all(total_galaxy_particles_per_halo <= halo_lengths), f"{ptype} particles span multiple galaxies."
 
         halo_ids = np.repeat(np.arange(len(halo_lengths)), halo_lengths) # unwrapped 
         halo_membership_lookup_array = np.full(fill_value=-1, shape=halo_indices.max()+1, dtype=int) # note: filled with unassigned
@@ -417,7 +415,7 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
         expected_halo_ids = np.repeat(parent_halo_indices, galaxy_lengths)
         actual_halos = halo_membership_lookup_array[galaxy_indices]
 
-        assert np.array_equal(expected_halo_ids, actual_halos), f"{plist} particle halo IDs do not match their galaxy host ID."
+        assert np.array_equal(expected_halo_ids, actual_halos), f"{ptype} particle halo IDs do not match their galaxy host ID."
 
     logger.info(f"Particle group membership is self-consistent.")
 
@@ -427,14 +425,14 @@ def validate_group_counts(f: h5py.File, group_data: str) -> None:
     """
 
     if group_data == "halo_data":
-        ptypes = PTYPE_TO_PLIST
+        ptypes = PTYPES
     elif group_data == "galaxy_data":
-        ptypes = {k: v for k, v in PTYPE_TO_PLIST.items() if k != "dm"} # slightly hacky (need to tidy up dm in galaxies)
+        ptypes = BARYON_PTYPES
 
     for ptype in ptypes:
 
         n_particles = f[group_data][f"properties/core/n_{ptype}"][:]
-        n_particles_csr = f[group_data][f"{PTYPE_TO_PLIST[ptype]}_lengths"][:]
+        n_particles_csr = f[group_data][f"membership/{ptype}_lengths"][:]
         
         assert np.array_equal(n_particles, n_particles_csr), f"{ptype} total particles disagree between CSR and {group_data}."
         logger.info(f"{ptype} group counts via CSR/total agree.")
@@ -497,10 +495,11 @@ def check_for_nans(f: h5py.File) -> None:
 
             assert np.all(np.isfinite(f[group][dataset][:])), f"NaN values detected in {group}/{dataset}"
 
-        csr_keys = ["glist_lengths", "slist_lengths", "dmlist_lengths", "bhlist_lengths"]
-        lengths = {k: f[group][k][:] for k in csr_keys if k in f[group]}
-        lengths["n_total"] = sum(lengths[k] for k in csr_keys if k in lengths)
-        lengths["n_baryon"] = sum(lengths[k] for k in ["glist_lengths", "slist_lengths", "bhlist_lengths"] if k in lengths)
+        csr_keys_total = ["membership/gas_lengths", "membership/star_lengths", "membership/dm_lengths", "membership/bh_lengths"]
+        csr_keys_baryon = ["membership/gas_lengths", "membership/star_lengths", "membership/bh_lengths"]
+        lengths = {k: f[group][k][:] for k in csr_keys_total if k in f[group]}
+        lengths["n_total"] = sum(lengths[k] for k in csr_keys_total if k in lengths)
+        lengths["n_baryon"] = sum(lengths[k] for k in csr_keys_baryon if k in lengths)
 
         # datasets which can have NaN in them in the case where the group is missing a certain particle type
         for lengths_key, field_keys in CONDITIONAL_NAN[group]:

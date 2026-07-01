@@ -50,7 +50,7 @@ CONDITIONAL_NAN = {
             "properties/core/ALPHA_baryon", "properties/core/BETA_baryon",
             "properties/core/L_baryon",
         ]),
-        ("glist_lengths", [
+        ("membership/gas_lengths", [
             "properties/core/radius_r20_gas", "properties/core/radius_half_mass_gas", "properties/core/radius_r80_gas",
             "properties/core/velocity_dispersion_gas",
             "properties/core/L_gas", 
@@ -58,7 +58,7 @@ CONDITIONAL_NAN = {
             "properties/particle_specific/metallicity_mass_weighted",
             "properties/particle_specific/temp_mass_weighted",
         ]),
-        ("slist_lengths", [
+        ("membership/star_lengths", [
             "properties/core/radius_r20_star", "properties/core/radius_half_mass_star", "properties/core/radius_r80_star",
             "properties/core/velocity_dispersion_star",
             "properties/core/L_star", 
@@ -66,13 +66,13 @@ CONDITIONAL_NAN = {
             "properties/particle_specific/metallicity_stellar",
             "properties/particle_specific/age_mass_weighted",
         ]),
-        ("dmlist_lengths", [
+        ("membership/dm_lengths", [
             "properties/core/radius_r20_dm", "properties/core/radius_half_mass_dm", "properties/core/radius_r80_dm",
             "properties/core/velocity_dispersion_dm",
             "properties/core/L_dm", 
             "properties/core/ALPHA_dm", "properties/core/BETA_dm",
         ]),
-        ("bhlist_lengths", [
+        ("membership/bh_lengths", [
             "properties/core/radius_r20_bh", "properties/core/radius_half_mass_bh", "properties/core/radius_r80_bh",
             "properties/core/velocity_dispersion_bh",
             "properties/core/L_bh", 
@@ -87,7 +87,7 @@ CONDITIONAL_NAN = {
             "properties/core/radius_r20_baryon", "properties/core/radius_half_mass_baryon", "properties/core/radius_r80_baryon",
             "properties/core/velocity_dispersion_baryon",
         ]),
-        ("glist_lengths", [
+        ("membership/gas_lengths", [
             "properties/core/radius_r20_gas", "properties/core/radius_half_mass_gas", "properties/core/radius_r80_gas",
             "properties/core/velocity_dispersion_gas",
             "properties/core/L_gas" ,
@@ -96,7 +96,7 @@ CONDITIONAL_NAN = {
             "properties/particle_specific/metallicity_mass_weighted",
             "properties/particle_specific/temp_mass_weighted",
         ]),
-        ("slist_lengths", [
+        ("membership/star_lengths", [
             "properties/core/radius_r20_star", "properties/core/radius_half_mass_star", "properties/core/radius_r80_star",
             "properties/core/velocity_dispersion_star",
             "properties/core/L_star",
@@ -105,7 +105,7 @@ CONDITIONAL_NAN = {
             "properties/particle_specific/metallicity_stellar",
             "properties/particle_specific/age_mass_weighted",
         ]),
-        ("bhlist_lengths", [
+        ("membership/bh_lengths", [
             "properties/core/radius_r20_bh", "properties/core/radius_half_mass_bh", "properties/core/radius_r80_bh",
             "properties/core/velocity_dispersion_bh",
             "properties/core/L_bh",
@@ -118,15 +118,15 @@ CONDITIONAL_NAN = {
 # these can be zero, but if they are zero the corresponding group should be empty
 ZERO_WHEN_EMPTY = {
     "halo_data": [
-        ("glist_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
-        ("slist_lengths", ["properties/core/mass_star"]),
-        ("dmlist_lengths", ["properties/core/mass_dm"]),
-        ("bhlist_lengths", ["properties/core/mass_bh"]),
+        ("membership/gas_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
+        ("membership/star_lengths", ["properties/core/mass_star"]),
+        ("membership/dm_lengths", ["properties/core/mass_dm"]),
+        ("membership/bh_lengths", ["properties/core/mass_bh"]),
     ],
     "galaxy_data": [
-        ("glist_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
-        ("slist_lengths", ["properties/core/mass_star"]),
-        ("bhlist_lengths", ["properties/core/mass_bh"]),
+        ("membership/gas_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
+        ("membership/star_lengths", ["properties/core/mass_star"]),
+        ("membership/bh_lengths", ["properties/core/mass_bh"]),
     ],
 }
 

@@ -179,7 +179,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                     continue
 
                 grp = f[hdf5_name]
-                n_groups = len(grp[internals.group_keys[group_type]])
+                n_groups = len(grp[internals.group_types[group_type]["key"]])
                 group_lengths.setdefault(group_type, []).append(n_groups)
                 sort_arrays.setdefault(group_type, []).append(grp[sort_column[group_type]][:])
 
@@ -205,6 +205,8 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
             if group_type not in sort_orders:
                 continue
 
+            group_config = internals.group_types[group_type]
+
             order = sort_orders[group_type]
             out_grp = f_out.create_group(hdf5_name)
             n_total = len(order)
@@ -223,7 +225,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 break
 
             # skip group IDs — we reassign sequentially
-            group_id_name = internals.group_keys[group_type]
+            group_id_name = internals.group_types[group_type]["key"]
             dataset_names.discard(group_id_name)
             dataset_names.discard("properties/core/parent_halo_index")
 
@@ -274,7 +276,9 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 out_grp.create_dataset("properties/core/parent_halo_index", data=reindexed[order], compression=1)
 
             # CSR lists
-            for ptype_list in internals.group_ptype_lists[group_type]:
+
+            for ptype in group_config["ptypes"]:
+
                 all_indices, all_lengths = [], []
 
                 for file, length in zip(files, group_lengths[group_type]):
@@ -283,18 +287,21 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                         continue
 
                     with h5py.File(file, "r") as f:
+                        
                         grp = f[hdf5_name]
-                        if f"{ptype_list}_indices" in grp:
-                            all_indices.append(grp[f"{ptype_list}_indices"][:])
-                            all_lengths.append(grp[f"{ptype_list}_lengths"][:])
+
+                        if f"membership/{ptype}_indices" in grp:
+                            all_indices.append(grp[f"membership/{ptype}_indices"][:])
+                            all_lengths.append(grp[f"membership/{ptype}_lengths"][:])
 
                 if not all_indices:
                     continue
 
+                membership_grp = out_grp.require_group("membership")
                 indices, offsets, lengths = _reorder_csr_lists(all_indices, all_lengths, order)
-                out_grp.create_dataset(f"{ptype_list}_indices", data=indices, compression=1)
-                out_grp.create_dataset(f"{ptype_list}_offsets", data=offsets, compression=1)
-                out_grp.create_dataset(f"{ptype_list}_lengths", data=lengths, compression=1)
+                membership_grp.create_dataset(f"{ptype}_indices", data=indices, compression=1)
+                membership_grp.create_dataset(f"{ptype}_offsets", data=offsets, compression=1)
+                membership_grp.create_dataset(f"{ptype}_lengths", data=lengths, compression=1)
 
 def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
     """

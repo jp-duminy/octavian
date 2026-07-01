@@ -28,9 +28,7 @@ class Internals:
     """
     stages: dict[str, PipelineStage]
     baryonic_ptypes: frozenset[str]
-    group_keys: dict[str, str]  
-    plist_to_ptype: dict[str, str] # eventually deprecate    
-    group_ptype_lists: dict[str, list[str]]  
+    group_types: dict[str, dict]  
     output_columns: dict[str, OutputColumnMetadata]
 
 @dataclass(frozen=True, slots=True)
@@ -132,13 +130,10 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     unclaimed = set(output_columns.keys()) - all_stage_outputs
     assert not unclaimed, f"output_columns not claimed by any stage: {unclaimed}"
 
-
     return Internals(
         stages=stages,
         baryonic_ptypes=frozenset(internals["baryonic_ptypes"]),
-        group_keys=internals["groupIDs"],
-        plist_to_ptype={v: k for k, v in internals["ptype_lists"].items()},
-        group_ptype_lists=internals["group_ptype_lists"],
+        group_types=internals["group_types"],
         output_columns=expanded_output_columns,
     )
 

@@ -34,12 +34,15 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
         sentinel = -1 if group_name == "galaxies" else 0 # REVIEW: fix this ideally?
         group_store = data.groups[group_name]
         group_key = group_store.group_key
+        particles = data.particles
 
-        for ptype_list in internals.group_ptype_lists[group_name]: # let it be known this was a pain to write
+        for ptype in internals.group_types[group_name]["ptypes"]: # let it be known this was a pain to write
 
-            ptype = internals.plist_to_ptype[ptype_list]
-            particle_group_ids = data.particles[ptype][group_key]
-            particle_indices = data.particles[ptype]["particle_index"] # positional index of particles in original snapshot
+            if ptype not in particles: 
+                continue
+
+            particle_group_ids = particles[ptype][group_key]
+            particle_indices = particles[ptype]["particle_index"] # positional index of particles in original snapshot
 
             # mask out non-group particles (technically redundant for halos) // sort
             mask = particle_group_ids != sentinel
@@ -50,7 +53,7 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
             sorted_indices = particle_indices[order]
 
             if len(sorted_particle_group_ids) == 0:
-                result[group_name][ptype_list] = {
+                result[group_name][ptype] = {
                     "indices": np.array([], dtype=DTYPES["csr_indices"]),
                     "offsets": np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_offsets"]),
                     "lengths": np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_lengths"]),
@@ -71,7 +74,7 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
             reorder = np.argsort(group_slots) # in case GroupStore order is not sorted
             indices = sorted_indices[reorder].astype(DTYPES["csr_indices"])
 
-            result[group_name][ptype_list] = {
+            result[group_name][ptype] = {
                 "indices": indices,
                 "offsets": offsets,
                 "lengths": lengths,
@@ -95,18 +98,19 @@ def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, in
 
             group_store = data.groups[group_name] # quickhand
             hdf5_group = out.create_group(hdf5_name)
+            membership_group = hdf5_group.create_group("membership")
 
-            hdf5_group.create_dataset(name=f"{group_store.group_key}", data=group_store.group_ids, compression=1)
+            group_config = internals.group_types[group_name]
+            hdf5_group.create_dataset(name=group_config["key"], data=group_store.group_ids, compression=1)
 
-            for ptype in internals.group_ptype_lists[group_name]: # in theory these could be split up into different functions
-
+            for ptype in group_config["ptypes"]:
                 if ptype not in particle_lists[group_name]:
                     continue
 
                 pl = particle_lists[group_name][ptype]
-                hdf5_group.create_dataset(f'{ptype}_indices', data=pl['indices'], compression=1)
-                hdf5_group.create_dataset(f'{ptype}_offsets', data=pl['offsets'], compression=1)
-                hdf5_group.create_dataset(f'{ptype}_lengths', data=pl['lengths'], compression=1)
+                membership_group.create_dataset(f"{ptype}_indices", data=pl["indices"], compression=1)
+                membership_group.create_dataset(f"{ptype}_offsets", data=pl["offsets"], compression=1)
+                membership_group.create_dataset(f"{ptype}_lengths", data=pl["lengths"], compression=1)
 
             # group columns by stage label (what was previously dicts)
             columns_by_label: dict[str, list[str]] = {}
