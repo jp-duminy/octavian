@@ -433,7 +433,7 @@ def validate_group_counts(f: h5py.File, group_data: str) -> None:
 
     for ptype in ptypes:
 
-        n_particles = f[group_data][f"properties/core/n{ptype}"][:]
+        n_particles = f[group_data][f"properties/core/n_{ptype}"][:]
         n_particles_csr = f[group_data][f"{PTYPE_TO_PLIST[ptype]}_lengths"][:]
         
         assert np.array_equal(n_particles, n_particles_csr), f"{ptype} total particles disagree between CSR and {group_data}."

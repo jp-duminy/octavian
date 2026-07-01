@@ -28,7 +28,7 @@ stages:
     requires: []
     needs_particle_columns: [pos, vel, mass, potential]
     outputs:
-      - columns: ["n{ptype}", "mass_{ptype}"]
+      - columns: ["n_{ptype}", "mass_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
       - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "ALPHA_{ptype}", "BETA_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
@@ -92,7 +92,7 @@ output_columns:
     unit:        ""
     description: "Corresponding index for parent halo."
 
-  n{ptype}:
+  n_{ptype}:
     over:        {ptype: [gas, star, dm, bh]}
     dtype:       int32
     unit:        ""

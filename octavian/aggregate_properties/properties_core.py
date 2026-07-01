@@ -138,7 +138,7 @@ def run_core_ptype_pass(
         derived = _derive_kinematics(
             L=store[f"L_{ptype}"],
             dispersion_sum=kinematics[f"_dispersion_sum"],
-            counts=counts_and_mass[f"n{ptype}"],
+            counts=counts_and_mass[f"n_{ptype}"],
             group_mass=store[f"mass_{ptype}"],
         )
         store.write_batch(results=derived, suffix=ptype)
@@ -221,7 +221,7 @@ def run_halo_stages(
     derived = _derive_halo_quantities(
         group_mass=store["mass_total"],
         L_mag=store["_L_mag_total"],
-        counts=store["_ntotal"],
+        counts=store["_n_total"],
         r200_factor=sim.r200_factor,
         scale_factor=sim.a,
     )
@@ -265,7 +265,7 @@ def run_galaxy_stages(
         per_ptype_derived = _derive_galaxy_quantities(
             ke_tot=galaxies[f"_ke_tot_{ptype}"], ke_rot=ke_rot,
             counter_rotating_mass=counter_rot, group_mass=galaxies[f"mass_{ptype}"],
-            counts=galaxies[f"n{ptype}"])
+            counts=galaxies[f"n_{ptype}"])
 
         galaxies.write_batch(results=per_ptype_derived, suffix=ptype)
 
@@ -274,7 +274,7 @@ def run_galaxy_stages(
         ke_rot=combined_ke_rot,
         counter_rotating_mass=combined_counter_rotating_mass,
         group_mass=galaxies["mass_baryon"],
-        counts=galaxies["_nbaryon"],
+        counts=galaxies["_n_baryon"],
     )
     galaxies.write_batch(results=derived, suffix="baryon")
 
@@ -407,12 +407,12 @@ def _compute_counts_and_mass(
     """
     Computes number counts and total masses for the input ptype, returning a dict of:
 
-    - n{ptype}
+    - n_{ptype}
     - mass_{ptype}
     """
     results: dict[str, np.ndarray] = {}
 
-    results[f"n{ptype}"] = count_per_group(group_idx=group_idx, n_groups=n_groups)
+    results[f"n_{ptype}"] = count_per_group(group_idx=group_idx, n_groups=n_groups)
     results[f"mass_{ptype}"] = sum_per_group(values=masses, group_idx=group_idx, n_groups=n_groups)
 
     return results
@@ -463,7 +463,7 @@ def _compute_ptype_kinematics(
     """
     Computes kinematic quantities, where ref_pos/vel is wrt the group centre (com for galaxies, minpot for halos), returning a tuple with a dict of:
 
-    - L{d} for d in x, y, z
+    - L
     - _dispersion_sum
     - _ke_tot
     - _ke_rot
@@ -648,15 +648,15 @@ def _combine_counts_and_mass(group_store: GroupStore, collective_name: str, cons
     """
     Combines counts and centre-of-mass results from constituent_ptypes (additive), returning a dict of:
 
-    - _n{collective_name}
+    - _n_{collective_name}
     - mass_{collective_name}
     """
     results: dict[str, np.ndarray] = {}
 
-    counts = sum(group_store[f"n{pt}"] for pt in constituent_ptypes)
+    counts = sum(group_store[f"n_{pt}"] for pt in constituent_ptypes)
     mass = sum(group_store[f"mass_{pt}"] for pt in constituent_ptypes)
 
-    results[f"_n{collective_name}"] = counts
+    results[f"_n_{collective_name}"] = counts
     results[f"mass_{collective_name}"] = mass
 
     return results
@@ -745,7 +745,7 @@ def _combine_ptype_sums(
         combined_ke += ptype_ke
         combined_dispersion_sum += ptype_dispersion_sum
 
-    combined_counts = counts_and_mass[f"_n{collective_name}"]
+    combined_counts = counts_and_mass[f"_n_{collective_name}"]
 
     combined_L_mag = np.linalg.norm(combined_L, axis=1)
     combined_velocity_dispersion = np.where(combined_counts > 0, np.sqrt(combined_dispersion_sum / counts_and_mass[f"mass_{collective_name}"]), np.nan)
