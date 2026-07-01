@@ -232,14 +232,6 @@ class GroupStore:
         """
         return self.columns[key]
     
-    def get_columns(self, keys: str | list[str]) -> np.ndarray:
-        """
-        For multi-column attributes (if they pop up): use GroupStore.get_columns(["key1", "key2"])
-        """
-        if isinstance(keys, list):
-            return np.column_stack([self.columns[k] for k in keys])
-        return self.columns[keys]
-    
     def __setitem__(self, key: str, array: np.ndarray) -> None:
         """
         Use GroupStore["key"] = array to add/modify an entry.

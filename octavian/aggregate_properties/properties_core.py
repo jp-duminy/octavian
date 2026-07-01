@@ -106,8 +106,8 @@ def run_core_ptype_pass(
         ptype_cache[ptype] = (group_idx, masses, positions, velocities, counts_and_mass)
 
     if group_type == "halos":
-        ref_pos = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
-        ref_vel = store.get_columns(["minpot_vx", "minpot_vy", "minpot_vz"])
+        ref_pos = store[f"minpot_pos"]
+        ref_vel = store[f"minpot_vel"]
     else:
         available_baryonic = [pt for pt in particles if particles[pt].is_baryonic]
         baryon_com = _combine_centre_of_mass(
@@ -117,8 +117,8 @@ def run_core_ptype_pass(
             constituent_ptypes=available_baryonic,
             boxsize=sim.boxsize,
         )
-        ref_pos = np.column_stack([baryon_com[f"x_galaxy_ref"], baryon_com[f"y_galaxy_ref"], baryon_com[f"z_galaxy_ref"]])
-        ref_vel = np.column_stack([baryon_com[f"vx_galaxy_ref"], baryon_com[f"vy_galaxy_ref"], baryon_com[f"vz_galaxy_ref"]])
+        ref_pos = baryon_com[f"pos_galaxy_ref"]
+        ref_vel = baryon_com[f"vel_galaxy_ref"]
     
     quantile_names = list(config["radial_quantiles"])
     quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
@@ -127,7 +127,7 @@ def run_core_ptype_pass(
 
         group_idx, masses, positions, velocities, counts_and_mass = ptype_cache[ptype]
 
-        com_vel = store.get_columns([f"vx_{ptype}", f"vy_{ptype}", f"vz_{ptype}"])
+        com_vel = store[f"_vel_{ptype}"]
 
         kinematics, radii = _compute_ptype_kinematics(positions=positions, velocities=velocities, masses=masses,
                                          group_idx=group_idx, ref_pos=ref_pos, ref_vel=ref_vel,
@@ -136,8 +136,8 @@ def run_core_ptype_pass(
         store.write_batch(results=kinematics, suffix=ptype)
 
         derived = _derive_kinematics(
-            L=kinematics["_L_vector"],
-            dispersion_sum=kinematics["_dispersion_sum"],
+            L=store[f"L_{ptype}"],
+            dispersion_sum=kinematics[f"_dispersion_sum"],
             counts=counts_and_mass[f"n{ptype}"],
             group_mass=store[f"mass_{ptype}"],
         )
@@ -186,7 +186,7 @@ def run_halo_stages(
     """
     group_key = store.group_key
     n_groups = store.n_groups
-    ref_pos = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
+    ref_pos = store[f"minpot_pos"]
 
     all_radii_list, all_masses_list, all_group_idx_list = [], [], [] # ghastly concatenation
 
@@ -239,9 +239,9 @@ def run_galaxy_stages(
     """
     group_key = galaxies.group_key
     n_groups = galaxies.n_groups
-    combined_L = galaxies.get_columns(["Lx_baryon", "Ly_baryon", "Lz_baryon"])
-    ref_pos = galaxies.get_columns(["x_baryon", "y_baryon", "z_baryon"])
-    ref_vel = galaxies.get_columns(["vx_baryon", "vy_baryon", "vz_baryon"])
+    combined_L = galaxies[f"L_baryon"]
+    ref_pos = galaxies[f"pos_baryon"]
+    ref_vel = galaxies[f"vel_baryon"]
 
     combined_ke_rot = np.zeros(n_groups)
     combined_counter_rotating_mass = np.zeros(n_groups)
@@ -335,9 +335,9 @@ def run_combined_radial_quantiles(
     quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
 
     if group_type == "halos":
-        baryon_ref = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
+        baryon_ref = store[f"minpot_pos"]
     else:
-        baryon_ref = store.get_columns(["x_baryon", "y_baryon", "z_baryon"])
+        baryon_ref = store[f"pos_baryon"]
         
     baryon_quantiles = _combined_quantiles(
         particles=particles, store=store, ptypes=available_baryonic_ptypes,
@@ -346,10 +346,9 @@ def run_combined_radial_quantiles(
     store.write_batch(results=baryon_quantiles, suffix="baryon")
 
     if group_type == "halos":
-        total_ref = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
         total_quantiles = _combined_quantiles(
             particles=particles, store=store, ptypes=available_ptypes,
-            ref_pos=total_ref, sim=sim, quantiles=quantiles, 
+            ref_pos=store[f"minpot_pos"], sim=sim, quantiles=quantiles, 
             quantile_names=quantile_names)
         
         store.write_batch(results=total_quantiles, suffix="total")
@@ -394,9 +393,8 @@ def _prepare_global_minimum_potential(
         best_pos[better] = positions[min_idx[better]] # you get the idea
         best_vel[better] = velocities[min_idx[better]]
 
-    for i, d in enumerate(["x", "y", "z"]):
-        results[f"minpot_{d}"] = best_pos[:, i]
-        results[f"minpot_v{d}"] = best_vel[:, i]
+    results[f"minpot_pos"] = best_pos
+    results[f"minpot_vel"] = best_vel
 
     return results
 
@@ -445,10 +443,8 @@ def _compute_centre_of_mass(
         positions=positions, velocities=velocities, masses=masses, group_idx=group_idx, 
         anchor_pos=anchor_positions, group_mass=group_mass, n_groups=n_groups, boxsize=boxsize)
 
-    for i, d in enumerate(["x", "y", "z"]):
-        results[f"{d}"] = com_positions[:, i]
-    for i, d in enumerate(["x", "y", "z"]):
-        results[f"v{d}"] = com_velocities[:, i]
+    results[f"_pos"] = com_positions
+    results[f"_vel"] = com_velocities
 
     return results
 
@@ -484,10 +480,8 @@ def _compute_ptype_kinematics(
     )
 
     results: dict[str, np.ndarray] = {}
-    for i, d in enumerate(["x", "y", "z"]):
-        results[f"L{d}"] = L[:, i]
 
-    results["_L_vector"] = L
+    results["L"] = L
     results["_ke_tot"] = ke_tot
     results["_dispersion_sum"] = dispersion_sum
 
@@ -578,12 +572,9 @@ def _derive_kinematics(
     small = (counts > 0) & (counts < 3) # groups with fewer than 3 counts have ill-defined rotational quantities (mask away)
     empty = counts == 0
 
-    for quantity in [velocity_dispersions, L_mag, alpha, beta]:
+    for quantity in [velocity_dispersions, L, L_mag, alpha, beta]:
         quantity[empty] = np.nan
         quantity[small] = 0.0
-    for i in range(3):
-        L[empty, i] = np.nan
-        L[small, i] = 0.0
 
     results["_L_mag"] = L_mag
     results["ALPHA"], results["BETA"] = alpha, beta
@@ -686,15 +677,15 @@ def _combine_centre_of_mass(
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups
     anchor_ptype = constituent_ptypes[0] # since the anchor can be anywhere, use first ptype
-    anchor_com = group_store.get_columns([f"x_{anchor_ptype}", f"y_{anchor_ptype}", f"z_{anchor_ptype}"])
+    anchor_com = group_store[f"_pos_{anchor_ptype}"]
     
     weighted_shift = np.zeros(shape=(n_groups,3))
     weighted_vel = np.zeros(shape=(n_groups, 3))
 
     for pt in constituent_ptypes:
 
-        pt_com = group_store.get_columns([f"x_{pt}", f"y_{pt}", f"z_{pt}"])
-        pt_vel = group_store.get_columns([f"vx_{pt}", f"vy_{pt}", f"vz_{pt}"])
+        pt_com = group_store[f"_pos_{pt}"]
+        pt_vel = group_store[f"_vel_{pt}"]
         pt_mass = group_store[f"mass_{pt}"][:, np.newaxis]  # upgrade dimensionality so this works with (n, 3) arrays
         
         shift = pt_com - anchor_com
@@ -706,9 +697,8 @@ def _combine_centre_of_mass(
     combined_com %= boxsize
     combined_vel = weighted_vel / combined_mass[:, np.newaxis]
 
-    for i, d in enumerate(["x", "y", "z"]):
-        results[f"{d}_{collective_name}"] = combined_com[:,i]
-        results[f"v{d}_{collective_name}"] = combined_vel[:,i]
+    results[f"pos_{collective_name}"] = combined_com
+    results[f"vel_{collective_name}"] = combined_vel
 
     return results
 
@@ -737,14 +727,11 @@ def _combine_ptype_sums(
     combined_L = np.zeros(shape=(n_groups, 3))
     combined_ke = np.zeros(shape=n_groups)
     combined_dispersion_sum = np.zeros(shape=n_groups)
-    combined_com_vel = np.column_stack([centre_of_mass[f"vx_{collective_name}"],
-                                        centre_of_mass[f"vy_{collective_name}"],
-                                        centre_of_mass[f"vz_{collective_name}"]])
+    combined_com_vel = centre_of_mass[f"vel_{collective_name}"]
 
     for pt in constituent_ptypes:
 
-        ptype_com_vel = group_store.get_columns([f"vx_{pt}", f"vy_{pt}", f"vz_{pt}"])
-        ptype_counts = group_store[f"n{pt}"]
+        ptype_com_vel = group_store[f"_vel_{pt}"]
         ptype_mass = group_store[f"mass_{pt}"]
 
         delta_vel = ptype_com_vel - combined_com_vel
@@ -752,15 +739,11 @@ def _combine_ptype_sums(
         ptype_dispersion_sum = (np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0) + ptype_mass * delta_vel_sq)
 
         ptype_ke = np.nan_to_num(group_store[f"_ke_tot_{pt}"], nan=0.0) + 0.5 * ptype_mass * delta_vel_sq
-        ptype_L = group_store.get_columns([f"Lx_{pt}", f"Ly_{pt}", f"Lz_{pt}"])
-        np.nan_to_num(ptype_L, copy=False, nan=0.0) # copy=False to avoid memory overhead
+        ptype_L = np.nan_to_num(group_store[f"L_{pt}"], nan=0.0)
 
         combined_L += ptype_L
         combined_ke += ptype_ke
         combined_dispersion_sum += ptype_dispersion_sum
-
-    for i, d in enumerate(["x", "y", "z"]):
-        results[f"L{d}_{collective_name}"] = combined_L[:,i]
 
     combined_counts = counts_and_mass[f"_n{collective_name}"]
 
@@ -772,14 +755,11 @@ def _combine_ptype_sums(
     small = (combined_counts > 0) & (combined_counts < 3)
     empty = combined_counts == 0
 
-    for quantity in [combined_L_mag, combined_alpha, combined_beta]:
+    for quantity in [combined_L_mag, combined_L, combined_alpha, combined_beta]:
         quantity[empty] = np.nan
         quantity[small] = 0.0
 
-    for i in range(3):
-        combined_L[empty, i] = np.nan
-        combined_L[small, i] = 0.0
-
+    results[f"L_{collective_name}"] = combined_L
     results[f"ALPHA_{collective_name}"] = combined_alpha
     results[f"BETA_{collective_name}"] = combined_beta
     results[f"_L_mag_{collective_name}"] = combined_L_mag

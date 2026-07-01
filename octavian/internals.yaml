@@ -30,8 +30,6 @@ stages:
     outputs:
       - columns: ["n{ptype}", "mass_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
-      - columns: ["{d}_{ptype}", "v{d}_{ptype}", "L{d}_{ptype}"]
-        over: {d: [x, y, z], ptype: [gas, star, dm, bh]}
       - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "ALPHA_{ptype}", "BETA_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
       - columns: ["BoverT_{ptype}", "kappa_rot_{ptype}"]
@@ -39,13 +37,12 @@ stages:
         applies_to: [galaxies]
       - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "ALPHA_{combined}", "BETA_{combined}"]
         over: {combined: [total, baryon]}
-      - columns: ["{d}_{combined}", "v{d}_{combined}", "L{d}_{combined}"]
-        over: {d: [x, y, z], combined: [total, baryon]}
+      - columns: ["pos_{combined}", "vel_{combined}"]
+        over: {combined: [total, baryon]}
       - columns: ["BoverT_{combined}", "kappa_rot_{combined}"]
         over: {combined: [baryon]}
         applies_to: [galaxies]
-      - columns: ["minpot_{d}", "minpot_v{d}"]
-        over: {d: [x, y, z]}
+      - columns: ["minpot_pos", "minpot_vel"]
         applies_to: [halos]
       - columns: ["radius_{quantile}_{ptype}"]
         over:
@@ -117,41 +114,33 @@ output_columns:
     unit:        "Msun"
     description: "Molecular hydrogen mass"
 
-  minpot_{d}:
-    over:        {d: [x, y, z]}
+  minpot_pos:
     dtype:       float64
     unit:        "kpc"
-    description: "{d}-coordinate of minimum potential particle"
+    description: "Position vector of particle at (halo) minimum potential"
 
-  minpot_v{d}:
-    over:        {d: [x, y, z]}
+  minpot_vel:
     dtype:       float64
     unit:        "km/s"
-    description: "{d}-velocity of minimum potential particle"
+    description: "Velocity vector of particle at (halo) minimum potential"
 
-  "{d}_{ptype}":
-    over:        {d: [x, y, z], ptype: [gas, star, dm, bh, total, baryon]}
+  "pos_{ptype}":
+    over:        {ptype: [total, baryon]}
     dtype:       float64
     unit:        "kpc"
-    description: "{d}-coordinate of mass-weighted COM ({ptype})"
+    description: "Position vector of mass-weighted COM ({ptype})"
 
-  "v{d}_{ptype}":
-    over:        {d: [x, y, z], ptype: [gas, star, dm, bh, total, baryon]}
+  "vel_{ptype}":
+    over:        {ptype: [total, baryon]}
     dtype:       float64
     unit:        "km/s"
-    description: "{d}-velocity of mass-weighted COM ({ptype})"
+    description: "Velocity vector of mass-weighted COM ({ptype})"
 
-  "L{d}_{ptype}":
-    over:        {d: [x, y, z], ptype: [gas, star, dm, bh, total, baryon]}
-    dtype:       float64
-    unit:        "Msun*kpc*km/s"
-    description: "{d}-component of angular momentum ({ptype})"
-
-  L_{ptype}:
+  "L_{ptype}":
     over:        {ptype: [gas, star, dm, bh, total, baryon]}
     dtype:       float64
     unit:        "Msun*kpc*km/s"
-    description: "Angular momentum magnitude ({ptype})"
+    description: "Angular momentum vector ({ptype})"
 
   velocity_dispersion_{ptype}:
     over:        {ptype: [gas, star, dm, bh, total, baryon]}
