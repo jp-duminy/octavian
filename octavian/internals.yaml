@@ -37,7 +37,7 @@ stages:
         applies_to: [galaxies]
       - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "ALPHA_{combined}", "BETA_{combined}"]
         over: {combined: [total, baryon]}
-      - columns: ["pos_{combined}", "vel_{combined}"]
+      - columns: ["com_pos_{combined}", "com_vel_{combined}"]
         over: {combined: [total, baryon]}
       - columns: ["BoverT_{combined}", "kappa_rot_{combined}"]
         over: {combined: [baryon]}
@@ -124,13 +124,13 @@ output_columns:
     unit:        "km/s"
     description: "Velocity vector of particle at (halo) minimum potential"
 
-  "pos_{ptype}":
+  "com_pos_{ptype}":
     over:        {ptype: [total, baryon]}
     dtype:       float64
     unit:        "kpc"
     description: "Position vector of mass-weighted COM ({ptype})"
 
-  "vel_{ptype}":
+  "com_vel_{ptype}":
     over:        {ptype: [total, baryon]}
     dtype:       float64
     unit:        "km/s"

@@ -12,8 +12,8 @@ NEVER_NAN = {
         "properties/core/radius_r20_total",
         "properties/core/radius_half_mass_total",
         "properties/core/radius_r80_total",
-        "properties/core/pos_total",
-        "properties/core/vel_total",
+        "properties/core/com_pos_total",
+        "properties/core/com_vel_total",
         "properties/core/minpot_pos",
         "properties/core/minpot_vel",
     ],
@@ -23,8 +23,8 @@ NEVER_NAN = {
         "properties/core/radius_r20_baryon",
         "properties/core/radius_half_mass_baryon",
         "properties/core/radius_r80_baryon",
-        "properties/core/pos_baryon",
-        "properties/core/vel_baryon",
+        "properties/core/com_pos_baryon",
+        "properties/core/com_vel_baryon",
         "properties/core/BoverT_baryon", "properties/core/kappa_rot_baryon",
         "properties/environment/local_mass_density_300kpc",
         "properties/environment/local_mass_density_1000kpc",
@@ -39,12 +39,12 @@ NEVER_NAN = {
 # nan here should only occur if the group is empty
 CONDITIONAL_NAN = {
     "halo_data": [
-        ("ntotal", [
+        ("n_total", [
             "properties/core/ALPHA_total",
             "properties/core/BETA_total",
             "properties/core/L_total",
         ]),
-        ("nbaryon", [
+        ("n_baryon", [
             "properties/core/radius_r20_baryon", "properties/core/radius_half_mass_baryon", "properties/core/radius_r80_baryon",
             "properties/core/velocity_dispersion_baryon",
             "properties/core/ALPHA_baryon", "properties/core/BETA_baryon",
@@ -80,7 +80,7 @@ CONDITIONAL_NAN = {
         ]),
     ],
     "galaxy_data": [
-        ("nbaryon", [
+        ("n_baryon", [
             "properties/core/ALPHA_baryon",
             "properties/core/BETA_baryon",
             "properties/core/L_baryon",

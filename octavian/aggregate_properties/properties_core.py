@@ -117,8 +117,8 @@ def run_core_ptype_pass(
             constituent_ptypes=available_baryonic,
             boxsize=sim.boxsize,
         )
-        ref_pos = baryon_com[f"pos_galaxy_ref"]
-        ref_vel = baryon_com[f"vel_galaxy_ref"]
+        ref_pos = baryon_com[f"com_pos_galaxy_ref"]
+        ref_vel = baryon_com[f"com_vel_galaxy_ref"]
     
     quantile_names = list(config["radial_quantiles"])
     quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
@@ -240,8 +240,8 @@ def run_galaxy_stages(
     group_key = galaxies.group_key
     n_groups = galaxies.n_groups
     combined_L = galaxies[f"L_baryon"]
-    ref_pos = galaxies[f"pos_baryon"]
-    ref_vel = galaxies[f"vel_baryon"]
+    ref_pos = galaxies[f"com_pos_baryon"]
+    ref_vel = galaxies[f"com_vel_baryon"]
 
     combined_ke_rot = np.zeros(n_groups)
     combined_counter_rotating_mass = np.zeros(n_groups)
@@ -337,7 +337,7 @@ def run_combined_radial_quantiles(
     if group_type == "halos":
         baryon_ref = store[f"minpot_pos"]
     else:
-        baryon_ref = store[f"pos_baryon"]
+        baryon_ref = store[f"com_pos_baryon"]
         
     baryon_quantiles = _combined_quantiles(
         particles=particles, store=store, ptypes=available_baryonic_ptypes,
@@ -697,8 +697,8 @@ def _combine_centre_of_mass(
     combined_com %= boxsize
     combined_vel = weighted_vel / combined_mass[:, np.newaxis]
 
-    results[f"pos_{collective_name}"] = combined_com
-    results[f"vel_{collective_name}"] = combined_vel
+    results[f"com_pos_{collective_name}"] = combined_com
+    results[f"com_vel_{collective_name}"] = combined_vel
 
     return results
 
@@ -727,7 +727,7 @@ def _combine_ptype_sums(
     combined_L = np.zeros(shape=(n_groups, 3))
     combined_ke = np.zeros(shape=n_groups)
     combined_dispersion_sum = np.zeros(shape=n_groups)
-    combined_com_vel = centre_of_mass[f"vel_{collective_name}"]
+    combined_com_vel = centre_of_mass[f"com_vel_{collective_name}"]
 
     for pt in constituent_ptypes:
 

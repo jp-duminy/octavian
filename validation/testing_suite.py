@@ -499,8 +499,8 @@ def check_for_nans(f: h5py.File) -> None:
 
         csr_keys = ["glist_lengths", "slist_lengths", "dmlist_lengths", "bhlist_lengths"]
         lengths = {k: f[group][k][:] for k in csr_keys if k in f[group]}
-        lengths["ntotal"] = sum(lengths[k] for k in csr_keys if k in lengths)
-        lengths["nbaryon"] = sum(lengths[k] for k in ["glist_lengths", "slist_lengths", "bhlist_lengths"] if k in lengths)
+        lengths["n_total"] = sum(lengths[k] for k in csr_keys if k in lengths)
+        lengths["n_baryon"] = sum(lengths[k] for k in ["glist_lengths", "slist_lengths", "bhlist_lengths"] if k in lengths)
 
         # datasets which can have NaN in them in the case where the group is missing a certain particle type
         for lengths_key, field_keys in CONDITIONAL_NAN[group]:
