@@ -78,12 +78,14 @@ def run_core_ptype_pass(
     config: dict,
 ) -> None:
     """
-    Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore.
+    Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore. Loops over ptypes twice because global minpot/com need to be computed for reference positions
     """
+    ptype_cache: dict[str, tuple[np.ndarray, ...]] = {} # this allows the second pass to access the [valid]-masked per-ptype arrays
+    n_groups = store.n_groups
+
     for ptype in particles:
 
         data = particles[ptype]
-        n_groups = store.n_groups
         group_ids = data[store.group_key]  
         group_idx = store.get_indexer(group_id=group_ids)
 
@@ -101,16 +103,33 @@ def run_core_ptype_pass(
                                                  boxsize=sim.boxsize)
         store.write_batch(results=centre_of_mass, suffix=ptype)
 
-        if group_type == "halos":
-            ref_pos = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
-            ref_vel = store.get_columns(["minpot_vx", "minpot_vy", "minpot_vz"])
-        else:
-            ref_pos = store.get_columns([f"x_{ptype}", f"y_{ptype}", f"z_{ptype}"])
-            ref_vel = store.get_columns([f"vx_{ptype}", f"vy_{ptype}", f"vz_{ptype}"])
+        ptype_cache[ptype] = (group_idx, masses, positions, velocities, counts_and_mass)
+
+    if group_type == "halos":
+        ref_pos = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
+        ref_vel = store.get_columns(["minpot_vx", "minpot_vy", "minpot_vz"])
+    else:
+        available_baryonic = [pt for pt in particles if particles[pt].is_baryonic]
+        baryon_com = _combine_centre_of_mass(
+            group_store=store,
+            combined_mass=sum(store[f"mass_{pt}"] for pt in available_baryonic),
+            collective_name="galaxy_ref",  
+            constituent_ptypes=available_baryonic,
+            boxsize=sim.boxsize,
+        )
+        ref_pos = np.column_stack([baryon_com[f"x_galaxy_ref"], baryon_com[f"y_galaxy_ref"], baryon_com[f"z_galaxy_ref"]])
+        ref_vel = np.column_stack([baryon_com[f"vx_galaxy_ref"], baryon_com[f"vy_galaxy_ref"], baryon_com[f"vz_galaxy_ref"]])
+    
+    quantile_names = list(config["radial_quantiles"])
+    quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
+
+    for ptype in particles: # second pass does kinematics which require collective group centres
+
+        group_idx, masses, positions, velocities, counts_and_mass = ptype_cache[ptype]
 
         com_vel = store.get_columns([f"vx_{ptype}", f"vy_{ptype}", f"vz_{ptype}"])
 
-        kinematics, radii = _compute_kinematics(positions=positions, velocities=velocities, masses=masses,
+        kinematics, radii = _compute_ptype_kinematics(positions=positions, velocities=velocities, masses=masses,
                                          group_idx=group_idx, ref_pos=ref_pos, ref_vel=ref_vel,
                                          com_vel=com_vel, n_groups=n_groups, n_particles=len(group_idx),
                                          boxsize=sim.boxsize)
@@ -122,9 +141,6 @@ def run_core_ptype_pass(
             counts=counts_and_mass[f"n{ptype}"],
         )
         store.write_batch(results=derived, suffix=ptype)
-
-        quantile_names = list(config["radial_quantiles"])
-        quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
 
         radial = _compute_radial_quantities(
             radii=radii, masses=masses,
@@ -431,17 +447,17 @@ def _compute_centre_of_mass(
 
     return results
 
-def _compute_kinematics(
-    positions: np.ndarray, 
-    velocities: np.ndarray, 
-    masses: np.ndarray, 
+def _compute_ptype_kinematics(
+    positions: np.ndarray,
+    velocities: np.ndarray,
+    masses: np.ndarray,
     group_idx: np.ndarray,
-    ref_pos: np.ndarray, 
-    ref_vel: np.ndarray, 
-    com_vel: np.ndarray, 
+    ref_pos: np.ndarray,
+    ref_vel: np.ndarray,
+    com_vel: np.ndarray,
     n_groups: int,
-    n_particles: int, 
-    boxsize: float
+    n_particles: int,
+    boxsize: float,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
     """
     Computes kinematic quantities, where ref_pos/vel is wrt the group centre (com for galaxies, minpot for halos), returning a tuple with a dict of:
@@ -454,26 +470,21 @@ def _compute_kinematics(
 
     And an (n_particles) array of radii relative to the ref_pos.
     """
+    L, ke_tot, dispersion_sum, radii = compute_kinematics(
+        positions=positions, velocities=velocities,
+        masses=masses, group_idx=group_idx,
+        ref_pos=ref_pos, ref_vel=ref_vel,
+        com_vel=com_vel, n_groups=n_groups,
+        n_particles=n_particles, boxsize=boxsize,
+    )
+
     results: dict[str, np.ndarray] = {}
-
-    L, ke_tot, dispersion_sum, radii = compute_kinematics(positions=positions, velocities=velocities,
-                                                            masses=masses, group_idx=group_idx,
-                                                            ref_pos=ref_pos, ref_vel=ref_vel,
-                                                            com_vel=com_vel, n_groups=n_groups,
-                                                            n_particles=n_particles, boxsize=boxsize)
-
-    counter_rotating_mass, ke_rot = compute_rotational_quantities(positions=positions, velocities=velocities,
-                                                                masses=masses, group_idx=group_idx,
-                                                                ref_pos=ref_pos, ref_vel=ref_vel,
-                                                                L_group=L, n_groups=n_groups,
-                                                                n_particles = n_particles, boxsize=boxsize)
-    
     for i, d in enumerate(["x", "y", "z"]):
-        results[f"L{d}"] = L[:,i]
-    
+        results[f"L{d}"] = L[:, i]
+
     results["_L_vector"] = L
-    results["_ke_tot"], results["_dispersion_sum"]= ke_tot, dispersion_sum
-    results["_counter_rotating_mass"], results["_ke_rot"] = counter_rotating_mass, ke_rot
+    results["_ke_tot"] = ke_tot
+    results["_dispersion_sum"] = dispersion_sum
 
     return results, radii
 
@@ -720,14 +731,27 @@ def _combine_ptype_sums(
     combined_L = np.zeros(shape=(n_groups, 3))
     combined_ke = np.zeros(shape=n_groups)
     combined_dispersion_sum = np.zeros(shape=n_groups)
+    combined_com_vel = np.column_stack([centre_of_mass[f"vx_{collective_name}"],
+                                        centre_of_mass[f"vy_{collective_name}"],
+                                        centre_of_mass[f"vz_{collective_name}"]])
 
     for pt in constituent_ptypes:
-        ptype_L = group_store.get_columns([f"Lx_{pt}", f"Ly_{pt}", f"Lz_{pt}"])
-        np.nan_to_num(ptype_L, copy=False, nan=0.0)
-        combined_L += ptype_L
 
-        combined_ke += np.nan_to_num(group_store[f"_ke_tot_{pt}"], nan=0.0)
-        combined_dispersion_sum += np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0)
+        ptype_com_vel = group_store.get_columns([f"vx_{pt}", f"vy_{pt}", f"vz_{pt}"])
+        ptype_counts = group_store[f"n{pt}"]
+        ptype_mass = group_store[f"mass_{pt}"]
+
+        delta_vel = ptype_com_vel - combined_com_vel
+        delta_vel_sq = np.sum(delta_vel**2, axis=1)
+        ptype_dispersion_sum = (np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0) + ptype_counts * delta_vel_sq)
+
+        ptype_ke = np.nan_to_num(group_store[f"_ke_tot_{pt}"], nan=0.0) + 0.5 * ptype_mass * delta_vel_sq
+        ptype_L = group_store.get_columns([f"Lx_{pt}", f"Ly_{pt}", f"Lz_{pt}"])
+        np.nan_to_num(ptype_L, copy=False, nan=0.0) # copy=False to avoid memory overhead
+
+        combined_L += ptype_L
+        combined_ke += ptype_ke
+        combined_dispersion_sum += ptype_dispersion_sum
 
     for i, d in enumerate(["x", "y", "z"]):
         results[f"L{d}_{collective_name}"] = combined_L[:,i]
