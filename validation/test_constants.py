@@ -32,7 +32,7 @@ NEVER_NAN = {
         "properties/environment/local_number_density_300kpc",
         "properties/environment/local_number_density_1000kpc",
         "properties/environment/local_number_density_3000kpc",
-        "properties/environment/mass_baryon_30kpc",
+        "properties/environment/mass_total_30kpc",
     ],
 }
 

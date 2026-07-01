@@ -166,6 +166,6 @@ def compute_galaxy_aperture_masses(
 
     results[f"mass_HI_{int(aperture_size)}kpc"] = result_HI
     results[f"mass_H2_{int(aperture_size)}kpc"] = result_H2
-    results[f"mass_baryon_{int(aperture_size)}kpc"] = result[:, :len(ptypes)].sum(axis=1)
+    results[f"mass_total_{int(aperture_size)}kpc"] = result[:, :len(ptypes)].sum(axis=1)
 
     return results

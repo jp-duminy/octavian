@@ -127,7 +127,7 @@ def run_core_ptype_pass(
         quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
 
         radial = _compute_radial_quantities(
-            radii=radii, masses=data["mass"],
+            radii=radii, masses=masses,
             group_idx=group_idx, n_groups=n_groups,
             quantiles=quantiles,
             quantile_names=quantile_names,

@@ -81,7 +81,7 @@ stages:
         over: {radius: from_config:density_radii}
       - columns: ["mass_{ptype}_{aperture}kpc"]
         over:
-          ptype: [gas, star, dm, bh, HI, H2, baryon]
+          ptype: [gas, star, dm, bh, HI, H2, total]
           aperture: from_config:aperture_size
 
 # output column conventions
@@ -328,7 +328,7 @@ output_columns:
     unit:        "Msun"
     description: "H2 mass within {aperture} kpc aperture"
 
-  mass_baryon_{aperture}kpc:
+  mass_total_{aperture}kpc:
     over: {aperture: from_config:aperture_size}
     dtype:       float64
     unit:        "Msun"
