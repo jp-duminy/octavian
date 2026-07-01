@@ -62,7 +62,7 @@ def compute_kinematics(
             vel_sq_com += vel_rel_com**2
         
         radii[i] = np.sqrt(r_sq)
-        dispersion_sum[g] += vel_sq_com
+        dispersion_sum[g] += mass * vel_sq_com
         ke_tot[g] += 0.5 * mass * ke
 
         rx, ry, rz = pos_rel[0], pos_rel[1], pos_rel[2]

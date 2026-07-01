@@ -139,6 +139,7 @@ def run_core_ptype_pass(
             L=kinematics["_L_vector"],
             dispersion_sum=kinematics["_dispersion_sum"],
             counts=counts_and_mass[f"n{ptype}"],
+            group_mass=store[f"mass_{ptype}"],
         )
         store.write_batch(results=derived, suffix=ptype)
 
@@ -333,7 +334,11 @@ def run_combined_radial_quantiles(
     quantile_names = list(config["radial_quantiles"])
     quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
 
-    baryon_ref = store.get_columns(["x_baryon", "y_baryon", "z_baryon"])
+    if group_type == "halos":
+        baryon_ref = store.get_columns(["minpot_x", "minpot_y", "minpot_z"])
+    else:
+        baryon_ref = store.get_columns(["x_baryon", "y_baryon", "z_baryon"])
+        
     baryon_quantiles = _combined_quantiles(
         particles=particles, store=store, ptypes=available_baryonic_ptypes,
         ref_pos=baryon_ref, sim=sim, quantiles=quantiles, quantile_names=quantile_names)
@@ -554,7 +559,8 @@ def _compute_mass_profile_quantities(
 def _derive_kinematics(
     L: np.ndarray, 
     dispersion_sum: np.ndarray, 
-    counts: np.ndarray
+    counts: np.ndarray,
+    group_mass: np.ndarray,
 ) -> dict[str, np.ndarray]:
     """
     Compute derived kinematic quantities (simple arithmetic on the outputs of _compute_kinematics), returning a dict of:
@@ -567,7 +573,7 @@ def _derive_kinematics(
     L_mag = np.linalg.norm(L, axis=1)
     alpha = np.arctan2(L[:, 1], L[:, 2])
     beta = np.arcsin(L[:, 0] / L_mag)
-    velocity_dispersions = np.where(counts > 0, np.sqrt(dispersion_sum / np.maximum(counts, 1)), np.nan)
+    velocity_dispersions = np.where(counts > 0, np.sqrt(dispersion_sum / group_mass), np.nan)
 
     small = (counts > 0) & (counts < 3) # groups with fewer than 3 counts have ill-defined rotational quantities (mask away)
     empty = counts == 0
@@ -743,7 +749,7 @@ def _combine_ptype_sums(
 
         delta_vel = ptype_com_vel - combined_com_vel
         delta_vel_sq = np.sum(delta_vel**2, axis=1)
-        ptype_dispersion_sum = (np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0) + ptype_counts * delta_vel_sq)
+        ptype_dispersion_sum = (np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0) + ptype_mass * delta_vel_sq)
 
         ptype_ke = np.nan_to_num(group_store[f"_ke_tot_{pt}"], nan=0.0) + 0.5 * ptype_mass * delta_vel_sq
         ptype_L = group_store.get_columns([f"Lx_{pt}", f"Ly_{pt}", f"Lz_{pt}"])
@@ -759,7 +765,7 @@ def _combine_ptype_sums(
     combined_counts = counts_and_mass[f"_n{collective_name}"]
 
     combined_L_mag = np.linalg.norm(combined_L, axis=1)
-    combined_velocity_dispersion = np.where(combined_counts > 0, np.sqrt(combined_dispersion_sum / np.maximum(combined_counts, 1)), np.nan)
+    combined_velocity_dispersion = np.where(combined_counts > 0, np.sqrt(combined_dispersion_sum / counts_and_mass[f"mass_{collective_name}"]), np.nan)
     combined_alpha = np.arctan2(combined_L[:, 1], combined_L[:, 2])
     combined_beta = np.arcsin(combined_L[:, 0] / combined_L_mag)
 
