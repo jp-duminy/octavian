@@ -78,7 +78,7 @@ def run_core_ptype_pass(
     config: dict,
 ) -> None:
     """
-    Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore. Loops over ptypes twice because global minpot/com need to be computed for reference positions
+    Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore. Loops over ptypes twice because global minpot/com need to be computed for reference positions.
     """
     ptype_cache: dict[str, tuple[np.ndarray, ...]] = {} # this allows the second pass to access the [valid]-masked per-ptype arrays
     n_groups = store.n_groups
@@ -291,7 +291,7 @@ def _combined_quantiles(
     sim: SimulationAttributes,
     quantiles: np.ndarray,
     quantile_names: list[str],
-) -> None:
+) -> dict[str, np.ndarray]:
     """
     Concatenates, then computes combined quantiles, returning a dict of the same quantities computed by +compute_radial_quantities.
     """
@@ -364,8 +364,8 @@ def _prepare_global_minimum_potential(
 
     Neccesary for baryon/total aggregate properties. Returns a dict of:
 
-    - minpot_{d} for d in x, y, z
-    - minpot_v{d} 
+    - minpot_pos 
+    - minpot_vel
     """
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups
@@ -429,8 +429,8 @@ def _compute_centre_of_mass(
     """
     Computes centre-of-mass positions and velocities (with PBC handling), returning a dict of:
 
-    - {d} for d in x, y, z
-    - v{d}
+    - _pos 
+    - _vel
     """
     results: dict[str, np.ndarray] = {}
 
@@ -466,8 +466,6 @@ def _compute_ptype_kinematics(
     - L
     - _dispersion_sum
     - _ke_tot
-    - _ke_rot
-    - _counter_rotating_mass
 
     And an (n_particles) array of radii relative to the ref_pos.
     """
@@ -671,8 +669,8 @@ def _combine_centre_of_mass(
     """
     Combines centre of masses from constituent_ptypes. PBC-aware, returns a dict of
 
-    - {d}_{collective_name} for d in x, y, z
-    - v{d}_{collective_name}
+    - com_pos_{collective_name} 
+    - com_vel_{collective_name}
     """
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups
@@ -713,7 +711,7 @@ def _combine_ptype_sums(
 
     - quantities in combine_counts_and_mass
     - quantities in combine_centre_of_mass
-    - L{d}_{collective_name} for d in x, y, z
+    - L_{collective_name} 
     """
     results: dict[str, np.ndarray] = {}
     n_groups = group_store.n_groups

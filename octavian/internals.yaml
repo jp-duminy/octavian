@@ -83,13 +83,13 @@ stages:
 output_columns:
 
   parent_halo_index:
-    dtype:       int32
+    dtype:       int64
     unit:        ""
     description: "Corresponding index for parent halo."
 
   n_{ptype}:
     over:        {ptype: [gas, star, dm, bh]}
-    dtype:       int32
+    dtype:       int64
     unit:        ""
     description: "Number of {ptype} particles"
 

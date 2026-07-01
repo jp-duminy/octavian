@@ -168,9 +168,9 @@ def compute_cgm_properties(
     cgm_metal_mass = sum_per_group(values=(cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
 
     results["temp_mass_weighted_cgm"] = cgm_temp_mass / cgm_mass
-    results["temp_metal_weighted_cgm"] = cgm_temp_metal / cgm_temp_mass
+    results["temp_metal_weighted_cgm"] = cgm_temp_metal / cgm_metal_mass
     results["metallicity_mass_weighted_cgm"] = cgm_metal_mass / cgm_mass
-    results["metallicity_temp_weighted_cgm"] = cgm_temp_metal / cgm_metal_mass
+    results["metallicity_temp_weighted_cgm"] = cgm_temp_metal / cgm_temp_mass
 
     return results
 

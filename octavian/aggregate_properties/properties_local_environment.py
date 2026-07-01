@@ -42,6 +42,7 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
         aperture_results = compute_galaxy_aperture_masses(
             particles=simulation_data.particles,
             galaxies=galaxies,
+            halos=simulation_data.groups["halos"],
             boxsize=sim.boxsize,
             aperture_size=aperture,
         )
@@ -83,6 +84,7 @@ def compute_local_densities(
 def compute_galaxy_aperture_masses(
     particles: dict[str, ParticleStore], 
     galaxies: GroupStore, 
+    halos: GroupStore,
     boxsize: float, 
     aperture_size: float
 ) -> dict[str, np.ndarray]:
@@ -128,7 +130,8 @@ def compute_galaxy_aperture_masses(
     all_mass_HI, all_mass_H2 = all_mass_HI[order], all_mass_H2[order]
 
     # pre-sort galaxies by parent halo
-    gal_order, halos_with_galaxies, gal_start, gal_end = sort_by_group(group_ids=galaxies["parent_halo_index"]) # sort galaxies by halo
+    parent_halo_ids = halos.group_ids[galaxies["parent_halo_index"]] # 
+    gal_order, halos_with_galaxies, gal_start, gal_end = sort_by_group(group_ids=parent_halo_ids) # sort galaxies by halo
     gal_pos = galaxies[f"com_pos_baryon"]
 
     result = np.zeros(shape=(galaxies.n_groups,len(ptypes)))
@@ -158,7 +161,7 @@ def compute_galaxy_aperture_masses(
             neighbours = np.array(neighbours)
             result_HI[gal_indices[galaxies_idx_local]] = halo_mass_HI[neighbours].sum()
             result_H2[gal_indices[galaxies_idx_local]] = halo_mass_H2[neighbours].sum()
-            masses_by_type = np.bincount(x=halo_ptypes[neighbours], weights=halo_mass[neighbours], minlength=len(ptypes))
+            masses_by_type = np.bincount(halo_ptypes[neighbours], weights=halo_mass[neighbours], minlength=len(ptypes))
             result[gal_indices[galaxies_idx_local], :] = masses_by_type
 
     for i, name in enumerate(ptypes):
