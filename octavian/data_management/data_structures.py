@@ -23,7 +23,7 @@ from astropy.cosmology import FlatLambdaCDM
 # from the backend
 from octavian.data_management.conventions import (
     CONSTANTS, DTYPES, SimulationAttributes, SnapshotReader,
-    gizmo_unit_conversion_factor, derive_stellar_age,
+    gizmo_unit_conversion_factor, derive_stellar_age, calculate_temperature,
 )
 
 class GizmoReader(SnapshotReader):
@@ -35,21 +35,23 @@ class GizmoReader(SnapshotReader):
                  "PartType4": "star",
                  "PartType5": "bh",
                           }
-    dataset_map = {"pos": "Coordinates",
-                   "vel": "Velocities",
-                   "mass": "Masses",
-                   "potential": "Potential",
-                   "temperature": "InternalEnergy", # FIXME: should map properly
-                   "rho": "Density",
-                   "nh": "NeutralHydrogenAbundance",
-                   "sfr": "StarFormationRate",
-                   "age": "StellarFormationTime", # NOTE: we compute age from formationtime, but using "age" is for reader agnosticity
-                   "metallicity": "Metallicity",
-                   "fH2": "FractionH2",
-                   "bhmass": "BH_Mass",
-                   "bhmdot": "BH_Mdot",
-                   "HaloID": "HaloID", # TODO: come back to this when doing external halo finders
-                   "particle_index": "particle_index" # NOTE: this is not written from the snapshot directly
+    dataset_map = {"pos":                   "Coordinates",
+                   "vel":                   "Velocities",
+                   "mass":                  "Masses",
+                   "potential":             "Potential",
+                   "internal_energy":       "InternalEnergy", # FIXME: should map properly
+                   "electron_abundance":    "ElectronAbundance",
+                   "rho":                   "Density",
+                   "nh":                    "NeutralHydrogenAbundance",
+                   "sfr":                   "StarFormationRate",
+                   "age":                   "StellarFormationTime", # NOTE: we compute age from formationtime, but using "age" is for reader agnosticity
+                   "metallicity":           "Metallicity",
+                   "helium_fraction":       "Metallicity", # helium fraction is metallicity[:, 1] (metallicity is nx11 array)
+                   "fH2":                   "FractionH2",
+                   "bhmass":                "BH_Mass",
+                   "bhmdot":                "BH_Mdot",
+                   "HaloID":                "HaloID", # TODO: come back to this when doing external halo finders
+                   "particle_index":        "particle_index" 
                             }
     
     inverse_ptype_map = {v: k for k, v in ptype_map.items()} # for convenience
@@ -129,6 +131,9 @@ class GizmoReader(SnapshotReader):
         if dataset == "metallicity": # I think it's okay to have these as conditionals by way of being explicit
             raw_hdf5_array = raw_hdf5_array[:, 0]
 
+        if dataset == "helium_fraction":
+            raw_hdf5_array = raw_hdf5_array[:, 1]
+
         if dataset == "age":
             raw_hdf5_array = derive_stellar_age(formation_time=raw_hdf5_array, time_gyr=self.simulation_attributes.time_gyr, 
                                                 cosmology=self.simulation_attributes.cosmology)
@@ -202,6 +207,19 @@ def build_particle_stores(reader: SnapshotReader, internals: Internals, process_
 
         for dataset in ["mass", "pos", "vel"]:
             store[dataset] = reader.read_dataset(ptype, dataset)
+
+        if ptype == "gas":
+
+            internal_energy = reader.read_dataset(ptype, "internal_energy")
+
+            try:
+                electron_abundance = reader.read_dataset(ptype, "electron_abundance")
+            except KeyError:
+                electron_abundance = np.ones(store.n_particles)
+
+            helium_fraction = reader.read_dataset(ptype, "helium_fraction")
+            store["temperature"] = calculate_temperature(internal_energy=internal_energy, electron_abundance=electron_abundance,
+                                                        helium_fraction=helium_fraction)
 
         store["ptype"] = np.full(len(store), ptype)
         particles[ptype] = store

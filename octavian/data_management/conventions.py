@@ -127,7 +127,7 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
         "vel":             (u.km / u.s * np.sqrt(a),                            u.km / u.s),
         "mass":            (1e10 * u.M_sun / h,                                 u.M_sun), # 1e10 factor is just a Gizmo scaling convention
         "rho":             (1e10 * u.M_sun * h**2 / (u.kpc**3 * a**3),          u.g / u.cm**3),
-        "internal_energy": (u.km**2 / u.s**2,                                   u.km**2 / u.s**2),
+        "internal_energy": (u.km**2 / u.s**2,                                   u.cm**2 / u.s**2),
         "sfr":             (u.M_sun / u.yr,                                     u.M_sun / u.yr),
         "metallicity":     (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
         "nh":              (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
@@ -154,11 +154,29 @@ def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: F
 
 def calculate_hydrogen_number_density(rho_cgs: np.ndarray, XH: float) -> np.ndarray:
     """
-    Calculates nh from the simulation parameters. 
+    Calculates nh from the simulation parameters and user config.yaml. 
     """
     return rho_cgs * XH / CONSTANTS.PROTON_MASS_G
 
 # TODO: temperature from internal energy.
+
+def calculate_temperature(
+    internal_energy: np.ndarray, 
+    electron_abundance: np.ndarray, 
+    helium_fraction: np.ndarray, 
+    gamma: float = 5/3,
+) -> np.ndarray:
+    """
+    Calculates temperature from internal energy and electron abundance.
+    """
+    y_helium = helium_fraction / (4*(1-helium_fraction))  
+    mu = (1 + 4 * y_helium) / (1 + y_helium + electron_abundance)
+
+    mean_molecular_weight = mu * CONSTANTS.PROTON_MASS_G 
+
+    temperature = mean_molecular_weight * (gamma - 1) * internal_energy / CONSTANTS.BOLTZMANN_CGS
+
+    return temperature
 
 class SnapshotReader:
     """

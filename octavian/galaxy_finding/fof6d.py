@@ -89,9 +89,10 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
 
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
-    temperature = np.zeros(shape=gas.n_particles) # FIXME: temperature=0 for now
-    nH = rho * config["XH"] / CONSTANTS.PROTON_MASS_G
-    dense_mask = (nH > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0))
+    temperature = gas["temperature"] 
+    nH = rho * config["XH"] / CONSTANTS.PROTON_MASS_G # TODO: move to reader
+
+    dense_mask = (nH > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0)) # NOTE: sfr > 0 overrides of the density criterion
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
 
@@ -211,7 +212,7 @@ def run_fof6d_algorithm(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[
 
     # vectorised sigma per particle
     weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) # FIXME: unnormalised
+    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) #/ np.bincount(rows, weights=w, minlength=n))  FIXME: unnormalised
 
     # vectorised velocity criterion
     valid = vel_diff <= (params.velocity_LL * sigmas[rows])
