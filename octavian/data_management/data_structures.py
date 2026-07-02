@@ -24,6 +24,7 @@ from astropy.cosmology import FlatLambdaCDM
 from octavian.data_management.conventions import (
     CONSTANTS, DTYPES, SimulationAttributes, SnapshotReader,
     gizmo_unit_conversion_factor, derive_stellar_age, calculate_temperature,
+    calculate_hydrogen_number_density
 )
 
 class GizmoReader(SnapshotReader):
@@ -42,7 +43,7 @@ class GizmoReader(SnapshotReader):
                    "internal_energy":       "InternalEnergy", # FIXME: should map properly
                    "electron_abundance":    "ElectronAbundance",
                    "rho":                   "Density",
-                   "nh":                    "NeutralHydrogenAbundance",
+                   "fHI":                   "NeutralHydrogenAbundance",
                    "sfr":                   "StarFormationRate",
                    "age":                   "StellarFormationTime", # NOTE: we compute age from formationtime, but using "age" is for reader agnosticity
                    "metallicity":           "Metallicity",
@@ -137,6 +138,8 @@ class GizmoReader(SnapshotReader):
         if dataset == "age":
             raw_hdf5_array = derive_stellar_age(formation_time=raw_hdf5_array, time_gyr=self.simulation_attributes.time_gyr, 
                                                 cosmology=self.simulation_attributes.cosmology)
+            
+        
 
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
         if conversion_factor != 1.0: # skip unnecessary multiplication on (potentially giant) arrays

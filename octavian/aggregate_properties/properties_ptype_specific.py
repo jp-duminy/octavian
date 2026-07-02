@@ -80,7 +80,7 @@ def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
 
     Must be run before compute_gas_properties().
     """
-    fHI = gas["nh"].copy()
+    fHI = gas["fHI"]
     fH2 = gas["fH2"]
     gas["nH"] = gas["rho"] * XH / CONSTANTS.PROTON_MASS_G # neutral hydrogen abundance
 

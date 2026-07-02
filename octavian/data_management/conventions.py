@@ -93,7 +93,7 @@ DTYPES = {
     "internal_energy":  np.float64,
     "sfr":              np.float64,
     "metallicity":      np.float64,
-    "nh":               np.float64,
+    "fHI":              np.float64,
     "fH2":              np.float64,
     "potential":        np.float64,
     "formation_time":   np.float64,
@@ -130,7 +130,7 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
         "internal_energy": (u.km**2 / u.s**2,                                   u.cm**2 / u.s**2),
         "sfr":             (u.M_sun / u.yr,                                     u.M_sun / u.yr),
         "metallicity":     (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
-        "nh":              (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
+        "fHI":             (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
         "fH2":             (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
         "potential":       (u.km**2 / u.s**2,                                   u.km**2 / u.s**2),
         "formation_time":  (u.dimensionless_unscaled,                           u.dimensionless_unscaled),
@@ -154,7 +154,7 @@ def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: F
 
 def calculate_hydrogen_number_density(rho_cgs: np.ndarray, XH: float) -> np.ndarray:
     """
-    Calculates nh from the simulation parameters and user config.yaml. 
+    Calculates nH from the simulation parameters and user config.yaml. 
     """
     return rho_cgs * XH / CONSTANTS.PROTON_MASS_G
 

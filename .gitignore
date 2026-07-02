@@ -17,6 +17,7 @@ envs/
 octavian-env/
 *.conda
 *.ipynb_checkpoints/
+.png
 
 # Jupyter
 .ipynb_checkpoints
