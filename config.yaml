@@ -1,4 +1,5 @@
 # STAGES TO EXECUTE
+
 stages:
   find_galaxies: true
   properties_core: true
@@ -6,33 +7,43 @@ stages:
   properties_local_environment: true
 
 # PTYPES TO PROCESS
+
 # WARNING: this removes the ptype entirely, for example, star: false will stop FOF6D from running
 process_ptypes:
-  gas: true
-  star: true
-  dm: true
-  bh: true
+  gas:    true
+  star:   true
+  dm:     true
+  bh:     true
 
-# CONSTANTS
-MINIMUM_STARS_PER_GALAXY: 16
-MINIMUM_DM_PER_HALO: 24
-nHlim: 0.13
-Tlim: 1.0e+5
-XH: 0.76
+# GROUP THRESHOLDS
 
-# FOF6D
-b: 0.02 
-vel_LL: 1 
+MINIMUM_STARS_PER_GALAXY:   16
+MINIMUM_DM_PER_HALO:        24
+
+# PHYSICS CRITERIA
+
+nHlim:  0.13    # density above which gas is considered dense
+Tlim:   1.0e+5  # temperature below which gas is considered cold
+XH:     0.76    # hydrogen fraction
+FRAD:   0.1     # radiative efficiency of accretion (epsilon)
+MU:     0.6     # mean mass per-particle (gas); computed directly, if not available in snapshot, uses this
+
+# FOF6D ALGORITHM
+
+b:      0.02  # position-space linking length = b * mean_interparticle_separation
+vel_LL: 1     # velocity-space linking length = vel_LL * local_velocity_dispersion
 
 # AGGREGATE PROPERTIES
-radial_quantiles:
-  r20: 0.2
-  half_mass: 0.5
-  r80: 0.8
-# NOTE: these need to be lists even if single-valued for the unpacker
-aperture_size: [30] 
-virial_factors: [200, 500, 2500]
-density_radii: [300, 1000, 3000]
+
+radial_quantiles: # name: fraction of enclosed mass
+  r20:        0.2
+  half_mass:  0.5
+  r80:        0.8
+# NOTE: these need to be lists for the unpacker
+aperture_size:    [30]                # kpc
+virial_factors:   [200, 500, 2500]    # factor * critical density
+density_radii:    [300, 1000, 3000]   # kpc
 
 # PARALLELISM
-nproc: 4 # cores per node for joblib
+
+nproc: 4 # number of cores assigned to each rank
