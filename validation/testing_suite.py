@@ -29,6 +29,9 @@ import h5py
 import memray
 import numpy as np
 from matplotlib import pyplot as plt
+import scienceplots
+plt.style.use(["science", "high-vis"])
+plt.rcParams["text.usetex"] = False
 
 # data
 from test_constants import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
@@ -192,7 +195,7 @@ def _end_to_end_pipeline(snapshot_file: Path, output_file: Path, comm: MPI.Comm 
 
     with time_and_memory("FOF6D"):
 
-        for prop in ["rho", "temperature", "sfr"]:
+        for prop in ["rho", "sfr"]:
             particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
         fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config)
@@ -678,6 +681,37 @@ def check_output_against_reference(catalogue: str, group: str = "galaxy_data") -
             # totals
             logger.info(f"  {key} Difference: {ref_val.sum():.6e} -> {new_val.sum():.6e} ({(new_val.sum() - ref_val.sum()) / ref_val.sum():.4%} change)")
 
+def plot_gsmf(catalogue: str, boxsize: float, n_bins: int = 20) -> None:
+    """
+    Plots the galactic stellar mass function (useful for FOF6D testing)
+    """
+    with h5py.File(catalogue, "r") as f:
+
+        mass = f["galaxy_data"]["properties/core/mass_star"][:]
+
+        log_mass = np.log10(mass[mass > 0])
+        bin_edges = np.linspace(log_mass.min(), log_mass.max(), n_bins + 1)
+        counts, _ = np.histogram(log_mass, bins=bin_edges)
+
+        volume = boxsize**3
+        bin_centres = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        bin_width = bin_edges[1] - bin_edges[0]
+
+        phi = counts / (bin_width * volume)
+        phi_err = np.sqrt(counts) / (bin_width * volume)
+
+        mask = counts > 0
+
+        fig, ax = plt.subplots(figsize=(8,6))
+        ax.errorbar(x=bin_centres[mask], y=phi[mask], yerr=phi_err[mask], fmt="o", ls="-",
+                    capsize=3)
+        ax.set_yscale(f"log")
+        ax.set_xlabel(r"$\log_{10}(M_\star / M_\odot)$")
+        ax.set_ylabel(r"$\Phi$ [dex$^{-1}$ Mpc$^{-3}$ $h^3$]")
+        ax.set_title("Galaxy Stellar Mass Function")
+        fig.tight_layout()
+        fig.savefig(fname=f"gsmf.png", dpi=300)
+
 def record_test_results(all_timings: list[dict[str, float]], all_memories: list[dict[str, float]],
                         results: list[tuple[str, bool, str]], peak_memory: list[float]):
     """
@@ -831,7 +865,8 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
                 logger.info(f"{stage}: max={max(vals):.2f}s  spread={max(vals)-min(vals):.2f}")
 
             record_test_results(all_timings=all_timings, all_memories=all_memories, results=results, peak_memory=all_rss)
-            #check_output_against_reference(catalogue=output_catalogue)
+            #check_output_against_reference(catalogue=output_catalogue)#
+            plot_gsmf(catalogue=output_catalogue, boxsize=25e3/0.68)
 
 def main():
 
