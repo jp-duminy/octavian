@@ -6,7 +6,7 @@ Also contains backend dataclasses.
 """
 
 # default packages
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # units/arrays
 from astropy.constants import codata2014 as codata # unyt uses codata2014, need to migrate to codata2022
@@ -15,15 +15,16 @@ import astropy.units as u
 from astropy.cosmology import FLRW
 import numpy as np
 
-# TODO: put these in the config
-FRAD = 0.1  # radiative efficiency of accretion
-MU = 0.6    # mean molecular weight (assuming X=0.7, Y=0.28, Z=0.02)
-
 @dataclass(frozen=True, slots=True)
-class PhysicalConstants:
+class OctavianConstants:
     """
     From CODATA2014 and IAU2015 (plan to update to CODATA2022).
     """
+    # config-dependent parameters
+    mu:   float = 0.6 # (assuming X=0.7, Y=0.28, Z=0.02)
+    frad: float = 0.1
+
+    # fundamental values (CODATA/IAU)
     G_CGS:          float = codata.G.cgs.value
     C_CGS:          float = codata.c.cgs.value
     PROTON_MASS_G:  float = codata.m_p.cgs.value
@@ -34,13 +35,27 @@ class PhysicalConstants:
     KPC_M:          float = iau.kpc.si.value
     GYR_S:          float = (1* u.Gyr).to(u.s).value
 
+    # derived unit conversions
     HUBBLE_UNIT:          float = (1 * u.km / u.s / u.Mpc).to(1/u.s).value
     RHO_CGS_TO_MSUN_KPC3: float = (1 * u.g / u.cm**3).to(u.M_sun / u.kpc**3).value
     G_VCIRC:              float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
-    VIRIAL_TEMP_FACTOR:   float = (MU * codata.m_p.cgs.value * u.km.to(u.cm)**2 / (2 * codata.k_B.cgs.value))
-    EDD_FACTOR:           float = (4 * np.pi * codata.G.cgs * codata.m_p.cgs / (FRAD * codata.c.cgs * codata.sigma_T.cgs)).to(1 / u.yr).value
 
-CONSTANTS = PhysicalConstants()
+    # derived factors
+    VIRIAL_TEMP_FACTOR: float = field(init=False)
+    EDD_FACTOR:         float = field(init=False)
+
+    def __post_init__(self) -> None:
+
+        object.__setattr__( # expect ~3.6e5
+            self, "VIRIAL_TEMP_FACTOR",
+            self.mu * codata.m_p.cgs.value * u.km.to(u.cm)**2 / (2 * codata.k_B.cgs.value),
+        )
+
+        object.__setattr__( # expect ~2.2e-8
+            self, "EDD_FACTOR",
+            (4 * np.pi * codata.G.cgs * codata.m_p.cgs
+             / (self.frad * codata.c.cgs * codata.sigma_T.cgs)).to(1 / u.yr).value,
+        )
 
 @dataclass(slots=True, frozen=True)
 class SimulationAttributes:
@@ -153,16 +168,17 @@ def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: F
     redshifts = 1.0 / formation_time - 1.0
     return time_gyr - cosmology.age(redshifts).value # see astropy for integration details
 
-def calculate_hydrogen_number_density(rho_cgs: np.ndarray, XH: float) -> np.ndarray:
+def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctavianConstants, XH: float) -> np.ndarray:
     """
     Calculates nH from the simulation parameters and user config.yaml. 
     """
-    return rho_cgs * XH / CONSTANTS.PROTON_MASS_G
+    return rho_cgs * XH / constants.PROTON_MASS_G
 
 def calculate_temperature(
     internal_energy: np.ndarray, 
     electron_abundance: np.ndarray, 
     helium_fraction: np.ndarray, 
+    constants: OctavianConstants,
     gamma: float = 5/3,
 ) -> np.ndarray:
     """
@@ -171,9 +187,9 @@ def calculate_temperature(
     y_helium = helium_fraction / (4*(1-helium_fraction))  
     mu = (1 + 4 * y_helium) / (1 + y_helium + electron_abundance)
 
-    mean_molecular_weight = mu * CONSTANTS.PROTON_MASS_G 
+    mean_molecular_weight = mu * constants.PROTON_MASS_G 
 
-    temperature = mean_molecular_weight * (gamma - 1) * internal_energy / CONSTANTS.BOLTZMANN_CGS
+    temperature = mean_molecular_weight * (gamma - 1) * internal_energy / constants.BOLTZMANN_CGS
 
     return temperature
 

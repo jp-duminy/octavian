@@ -11,9 +11,9 @@ Original FoF: Davis et al. 1985, doi: 10.1086/163168
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes
+  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes, OctavianConstants
 
-from octavian.data_management import CONSTANTS, DTYPES
+from octavian.data_management import DTYPES
 # default library
 from dataclasses import dataclass
 
@@ -60,8 +60,12 @@ class FOF6DResult:
     ptypes: np.ndarray # move to integer codings eventually
     n_galaxies: int
 
-def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: SimulationAttributes, 
-                           config: dict,) -> tuple[list[FOF6DItem], FOF6DParameters]:
+def prepare_fof6d_data(
+    particles: dict[str, ParticleStore], 
+    simulation: SimulationAttributes, 
+    config: dict, 
+    constants: OctavianConstants
+) -> tuple[list[FOF6DItem], FOF6DParameters]:
     """
     Extracts relevant arrays/parameters & initialises dataclasses for the FOF6D algorithm.
     """
@@ -75,7 +79,7 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
     temperature = gas["temperature"] 
-    nH = rho * config["XH"] / CONSTANTS.PROTON_MASS_G # TODO: move to reader
+    nH = rho * config["XH"] / constants.PROTON_MASS_G # TODO: move to reader
 
     dense_mask = (nH > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0)) # NOTE: sfr > 0 overrides of the density criterion
 
@@ -100,13 +104,9 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
         ptype_list.append(particles[ptype]["ptype"][mask])
         index_list.append(np.arange(particles[ptype].n_particles)[mask])
         hid_list.append(halo_ids[mask])
-
-    mis = simulation.mis
-    boxsize = simulation.boxsize
     
-    b = 0.02 # NOTE: move to config
-    fof_LL = mis * b
-    vel_LL = 1. # NOTE: represents deviation from velocity dispersion rather than a distance in velocity space
+    fof_LL = simulation.mis * config["b"]
+    vel_LL = config["vel_LL"] # NOTE: represents deviation from velocity dispersion rather than a distance in velocity space
 
     kernel_table = create_kernel_table(fof_LL)
 
@@ -114,7 +114,7 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
         kernel_table=kernel_table,
         position_LL=fof_LL,
         velocity_LL=vel_LL,
-        boxsize=boxsize,
+        boxsize=simulation.boxsize,
         minstars=config['MINIMUM_STARS_PER_GALAXY'],
         cores_per_rank=config['nproc'],
     )
@@ -286,12 +286,16 @@ def store_fof6d_results(particles: dict[str, ParticleStore], result: FOF6DResult
 
         particles[ptype]["GalID"][result.write_keys[mask]] = result.galaxy_ids[mask]
 
-def find_galaxies(particles: dict[str, ParticleStore], simulation: SimulationAttributes, 
-              config: dict) -> FOF6DResult:
+def find_galaxies(
+    particles: dict[str, ParticleStore], 
+    simulation: SimulationAttributes, 
+    config: dict,
+    constants: OctavianConstants,
+) -> FOF6DResult:
     """
     Handles the end-to-end galaxy-finding with FOF6D pipeline; writes back to ParticleStore.
     """
-    work_items, params = prepare_fof6d_data(particles=particles, simulation=simulation, config=config)
+    work_items, params = prepare_fof6d_data(particles=particles, simulation=simulation, config=config, constants=constants)
     result = dispatch_fof6d(items=work_items, params=params)
     store_fof6d_results(particles=particles, result=result)
 

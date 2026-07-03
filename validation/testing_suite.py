@@ -39,7 +39,7 @@ from test_constants import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 # octavian pipeline stages
 from octavian.data_management import (
     filter_snapshot, write_analysis_to_output_file, construct_particle_csr_lists,
-    merge_intermediate_catalogues, GizmoReader, ParticleStore, GroupStore, SimulationData, Internals,
+    merge_intermediate_catalogues, GizmoReader, ParticleStore, GroupStore, SimulationData, Internals, OctavianConstants,
     build_group_store, build_particle_stores, load_internals, resolve_dependencies, get_releasable_columns
 )
 from octavian.galaxy_finding import find_galaxies
@@ -139,6 +139,8 @@ def test_filter_snapshot(n_ranks: int, sentinel_value: int = 0) -> list[Path]:
     for i in range(n_ranks):
         (test_config.working_directory / f"rank_{i}.hdf5").unlink(missing_ok=True) # clears previous intermediates
 
+    oc = OctavianConstants()
+
     with time_and_memory(f"Filter Snapshot"):
 
         with h5py.File(test_config.test_snapshot, 'r') as f: 
@@ -149,7 +151,7 @@ def test_filter_snapshot(n_ranks: int, sentinel_value: int = 0) -> list[Path]:
             logger.info(f"Gas: {numpart[0]}, Dark Matter: {numpart[1]}")
             logger.info(f"Stars: {numpart[4]}, Black Holes: {numpart[5]}")
 
-        reader = GizmoReader(test_config.test_snapshot)
+        reader = GizmoReader(test_config.test_snapshot, constants=oc)
 
         filter_snapshot(
             snapshot_file=test_config.test_snapshot,
@@ -186,19 +188,20 @@ def _end_to_end_pipeline(snapshot_file: Path, output_file: Path, comm: MPI.Comm 
         config = safe_load(f)
 
     internals = load_internals(internals_filepath=test_config.internals_file, user_config=config)
+    constants = OctavianConstants(mu=config["MU"], frad=config["FRAD"])
 
     with time_and_memory("Read-in Data"):
 
-        reader = GizmoReader(snapshot_file)
+        reader = GizmoReader(snapshot_file=snapshot_file, constants=constants)
         sim = reader.simulation_attributes
-        particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config["process_ptypes"])
+        particles = build_particle_stores(reader=reader, internals=internals, constants=constants, process_ptypes=config["process_ptypes"])
 
     with time_and_memory("FOF6D"):
 
         for prop in ["rho", "sfr"]:
             particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
-        fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config)
+        fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     with time_and_memory("Build GroupStores"):
 
@@ -222,7 +225,7 @@ def _end_to_end_pipeline(snapshot_file: Path, output_file: Path, comm: MPI.Comm 
 
         particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
 
-    simulation_data = SimulationData(simulation=sim, particles=particles, groups=groups)
+    simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
 
     requested = [name for name, enabled in config["stages"].items()
                  if enabled and name != "find_galaxies"]

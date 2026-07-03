@@ -8,13 +8,13 @@ Core aggregate properties. These include simple computations (per-ptype number c
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes, SimulationData
+  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes, SimulationData, OctavianConstants
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
 
 # others
 import numpy as np
-from octavian.data_management.conventions import CONSTANTS, DTYPES
+from octavian.data_management.conventions import DTYPES
 
 from octavian.aggregate_properties.aggregate_computations import (
     compute_kinematics,
@@ -38,6 +38,8 @@ def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
     """
     Top-level executor for the core aggregate properties.
     """
+    constants = simulation_data.constants
+
     for group_type in simulation_data.groups: # halos must run first (halo groupstore is built first)
 
         group_store = simulation_data.groups[group_type]
@@ -64,7 +66,7 @@ def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
 
         if group_type == "halos":
         
-            run_halo_stages(particles=particles, store=group_store, sim=sim, config=config)
+            run_halo_stages(particles=particles, store=group_store, sim=sim, constants=constants, config=config)
 
         elif group_type == "galaxies":
         
@@ -179,6 +181,7 @@ def run_halo_stages(
     particles: dict[str, ParticleStore],
     store: GroupStore,
     sim: SimulationAttributes,
+    constants: OctavianConstants,
     config: dict,
 ) -> None:
     """
@@ -215,6 +218,7 @@ def run_halo_stages(
         group_idx=all_group_idx, n_groups=n_groups,
         factors=factors,
         rhocrit_comoving=sim.rhocrit_comoving,
+        constants=constants,
     )
     store.write_batch(results=mass_profile)
 
@@ -224,6 +228,7 @@ def run_halo_stages(
         counts=store["_n_total"],
         r200_factor=sim.r200_factor,
         scale_factor=sim.a,
+        constants=constants,
     )
     store.write_batch(results=derived)
 
@@ -520,7 +525,8 @@ def _compute_mass_profile_quantities(
     group_idx: np.ndarray, 
     n_groups: int,
     factors: np.ndarray, 
-    rhocrit_comoving: float
+    rhocrit_comoving: float,
+    constants: OctavianConstants,
 ) -> dict[str, np.ndarray]:
     """
     Computes mass profile quantities (virial and vmax/rmax), (which as of 19/06/26 are only required for halos). Returns a dict of:
@@ -542,7 +548,7 @@ def _compute_mass_profile_quantities(
         results[f"mass_{factor}c"] = virial_mass[:, f]
 
     vmax, rmax = compute_vmax_and_rmax(radii=radii, masses=masses, offsets=offsets, idx_sorted=sorted_idx,
-                                       G=CONSTANTS.G_VCIRC, n_groups=n_groups)
+                                       G=constants.G_VCIRC, n_groups=n_groups)
     
     results["vmax"], results["rmax"] = vmax, rmax
 
@@ -585,7 +591,8 @@ def _derive_halo_quantities(
     L_mag: np.ndarray, 
     counts: np.ndarray, 
     r200_factor: float,
-    scale_factor: float
+    scale_factor: float,
+    constants: OctavianConstants,
 ) -> dict[str, np.ndarray]:
     """
     Derived halo quantities, returning a dict of:
@@ -597,9 +604,9 @@ def _derive_halo_quantities(
     """
     results: dict[str, np.ndarray] = {}
     r200 = r200_factor * group_mass**(1./3.) # NOTE: comoving
-    v_circ = np.sqrt(CONSTANTS.G_VCIRC * group_mass / (r200 * scale_factor)) # v_circ needs physical r200
+    v_circ = np.sqrt(constants.G_VCIRC * group_mass / (r200 * scale_factor)) # v_circ needs physical r200
 
-    virial_temperature = CONSTANTS.VIRIAL_TEMP_FACTOR * v_circ** 2
+    virial_temperature = constants.VIRIAL_TEMP_FACTOR * v_circ** 2
     spin_param = L_mag / (np.sqrt(2) * group_mass * v_circ * r200)
 
     empty = counts == 0

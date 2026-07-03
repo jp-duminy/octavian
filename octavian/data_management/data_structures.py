@@ -22,7 +22,7 @@ from astropy.cosmology import FlatLambdaCDM
 
 # from the backend
 from octavian.data_management.conventions import (
-    CONSTANTS, DTYPES, SimulationAttributes, SnapshotReader,
+    OctavianConstants, DTYPES, SimulationAttributes, SnapshotReader,
     gizmo_unit_conversion_factor, derive_stellar_age, calculate_temperature,
     calculate_hydrogen_number_density, calculate_mean_interparticle_separation
 )
@@ -57,9 +57,10 @@ class GizmoReader(SnapshotReader):
     
     inverse_ptype_map = {v: k for k, v in ptype_map.items()} # for convenience
 
-    def __init__(self, snapshot_file: Path):
+    def __init__(self, snapshot_file: Path, constants: OctavianConstants):
 
         self.snapshot_file = snapshot_file
+        self.constants = constants
 
         self.read_header()
         self.unit_conversions = {
@@ -86,9 +87,9 @@ class GizmoReader(SnapshotReader):
 
             cosmology = FlatLambdaCDM(H0=100*h, Om0=omega_matter)
             time_gyr = cosmology.age(redshift).value
-            Hz = 100 * h * np.sqrt(omega_lambda + omega_matter * a**-3) * CONSTANTS.HUBBLE_UNIT
+            Hz = 100 * h * np.sqrt(omega_lambda + omega_matter * a**-3) * self.constants.HUBBLE_UNIT
             E_z = np.sqrt(omega_lambda + omega_matter * a**-3)
-            rhocrit = (3. * Hz**2 / (8 * np.pi * CONSTANTS.G_CGS)) * CONSTANTS.RHO_CGS_TO_MSUN_KPC3
+            rhocrit = (3. * Hz**2 / (8 * np.pi * self.constants.G_CGS)) * self.constants.RHO_CGS_TO_MSUN_KPC3
             omega_matter_z = (omega_matter * a**-3) / E_z**2
 
             self.simulation_attributes = SimulationAttributes(
@@ -103,7 +104,7 @@ class GizmoReader(SnapshotReader):
 
                 cosmology = cosmology, # perhaps slightly hacky but astropy builds all its cosmo classes on FLRW
                 time_gyr = time_gyr,
-                time = time_gyr * CONSTANTS.GYR_S,
+                time = time_gyr * self.constants.GYR_S,
                 
                 Hz = Hz,
                 rhocrit = rhocrit,
@@ -142,8 +143,6 @@ class GizmoReader(SnapshotReader):
             raw_hdf5_array = derive_stellar_age(formation_time=raw_hdf5_array, time_gyr=self.simulation_attributes.time_gyr, 
                                                 cosmology=self.simulation_attributes.cosmology)
             
-        
-
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
         if conversion_factor != 1.0: # skip unnecessary multiplication on (potentially giant) arrays
             raw_hdf5_array = raw_hdf5_array * conversion_factor
@@ -196,7 +195,12 @@ class ParticleStore:
         """
         for name in names: self.columns.pop(name, None) 
 
-def build_particle_stores(reader: SnapshotReader, internals: Internals, process_ptypes: dict[str, bool],) -> dict[str, ParticleStore]:
+def build_particle_stores(
+    reader: SnapshotReader, 
+    internals: Internals, 
+    process_ptypes: dict[str, bool],
+    constants: OctavianConstants,
+) -> dict[str, ParticleStore]:
     """
     Constructs basic particle stores using information from what is available in the snapshot, and what the config specifies to process.
     """
@@ -225,7 +229,7 @@ def build_particle_stores(reader: SnapshotReader, internals: Internals, process_
 
             helium_fraction = reader.read_dataset(ptype, "helium_fraction")
             store["temperature"] = calculate_temperature(internal_energy=internal_energy, electron_abundance=electron_abundance,
-                                                        helium_fraction=helium_fraction)
+                                                        helium_fraction=helium_fraction, constants=constants)
 
         store["ptype"] = np.full(len(store), ptype)
         particles[ptype] = store
@@ -315,6 +319,7 @@ class SimulationData:
     - Simulation-specific attributes (boxsize, cosmological parameters, etc).
     """
     simulation:  SimulationAttributes
+    constants:   OctavianConstants
     particles:   dict[str, ParticleStore]
     groups:      dict[str, GroupStore]
 

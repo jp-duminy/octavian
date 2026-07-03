@@ -12,13 +12,12 @@ Particle type-specific aggregate properties. For example:
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, SimulationData
+  from octavian.data_management import ParticleStore, SimulationData, OctavianConstants
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
 
 # others
 import numpy as np
-from octavian.data_management.conventions import CONSTANTS, DTYPES
 
 from octavian.aggregate_properties.aggregate_helpers import (
     sum_per_group,
@@ -31,8 +30,9 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
     Top-level executor for the ptype-specific aggregate properties.
     """
     particles = simulation_data.particles
+    constants = simulation_data.constants
 
-    _prepare_hydrogen_fractions(gas=particles["gas"], XH=config["XH"])
+    _prepare_hydrogen_fractions(gas=particles["gas"], constants=constants, XH=config["XH"])
 
     for group_type in simulation_data.groups:
 
@@ -63,7 +63,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
         bh_group_idx = group_store.get_indexer(group_id=bh[group_key])
         bh_results = compute_bh_properties(
             bh=bh, group_idx=bh_group_idx,
-            n_groups=n_groups, edd_factor=CONSTANTS.EDD_FACTOR
+            n_groups=n_groups, edd_factor=constants.EDD_FACTOR
         )
         group_store.write_batch(results=bh_results)
 
@@ -74,7 +74,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
             )
             group_store.write_batch(results=cgm_results)
 
-def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
+def _prepare_hydrogen_fractions(gas: ParticleStore, constants: OctavianConstants, XH: float) -> None:
     """
     Derive HI/H2 masses from snapshot information, mutates the gas ParticleStore.
 
@@ -82,7 +82,7 @@ def _prepare_hydrogen_fractions(gas: ParticleStore, XH: float) -> None:
     """
     fHI = gas["fHI"]
     fH2 = gas["fH2"]
-    gas["nH"] = gas["rho"] * XH / CONSTANTS.PROTON_MASS_G # neutral hydrogen abundance
+    gas["nH"] = gas["rho"] * XH / constants.PROTON_MASS_G # neutral hydrogen abundance
 
     # enforce mass conservation: fHI + fH2 <= 1
     not_conserving = (fHI + fH2) > 1.0
