@@ -68,8 +68,8 @@ test_config = TestConfig(test_snapshot=Path(f"/home/jpduminy/Octavian/test_snaps
                             internals_file=Path(f"/home/jpduminy/Repositories/octavian/octavian/internals.yaml"),
                             working_directory=Path(f"/home/jpduminy/Octavian/Intermediates/"),
                             output_directory=Path(f"/home/jpduminy/Octavian/Outputs/"),
-                            n_ranks=2,
-                            n_proc=4,
+                            n_ranks=4,
+                            n_proc=2,
 )
 
 logging.basicConfig(
@@ -131,12 +131,12 @@ def test_header_info() -> None:
         logger.info(f"Omega0: {header['Omega0']}, Omega_lambda: {header['OmegaLambda']}")
         logger.info(f"Redshift: {header['Redshift']:.3f}")        
 
-def test_filter_snapshot(sentinel_value: int = 0) -> list[Path]:
+def test_filter_snapshot(n_ranks: int, sentinel_value: int = 0) -> list[Path]:
     """
     Tests whether the snapshot filter keeps all the right particles and distributes load equally.
     The sentinel value is usually 0.
     """
-    for i in range(test_config.n_ranks):
+    for i in range(n_ranks):
         (test_config.working_directory / f"rank_{i}.hdf5").unlink(missing_ok=True) # clears previous intermediates
 
     with time_and_memory(f"Filter Snapshot"):
@@ -155,14 +155,14 @@ def test_filter_snapshot(sentinel_value: int = 0) -> list[Path]:
             snapshot_file=test_config.test_snapshot,
             intermediate_directory=test_config.working_directory,
             reader=reader,
-            n_split=test_config.n_ranks,
+            n_split=n_ranks,
         )
 
     with h5py.File(test_config.test_snapshot, 'r') as f:
 
         n_original = sum(np.sum(f[pt]['HaloID'][:] != sentinel_value) for pt in RAW_PTYPES) # particles in unfiltered snapshot
 
-    split_files = [test_config.working_directory / f"rank_{i}.hdf5" for i in range(test_config.n_ranks)]
+    split_files = [test_config.working_directory / f"rank_{i}.hdf5" for i in range(n_ranks)]
     n_filtered = 0
 
     for path in split_files:
@@ -214,7 +214,7 @@ def _end_to_end_pipeline(snapshot_file: Path, output_file: Path, comm: MPI.Comm 
         for ptype in particles:
             particles[ptype]["potential"] = reader.read_dataset(ptype=ptype, dataset="potential")
 
-        for prop in ["nh", "fH2", "metallicity"]:
+        for prop in ["fHI", "fH2", "metallicity"]:
             particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
         for prop in ["metallicity", "age"]:
@@ -681,13 +681,28 @@ def check_output_against_reference(catalogue: str, group: str = "galaxy_data") -
             # totals
             logger.info(f"  {key} Difference: {ref_val.sum():.6e} -> {new_val.sum():.6e} ({(new_val.sum() - ref_val.sum()) / ref_val.sum():.4%} change)")
 
-def plot_gsmf(catalogue: str, boxsize: float, n_bins: int = 20) -> None:
+def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32, n_bins: int = 20) -> None:
     """
     Plots the galactic stellar mass function (useful for FOF6D testing)
     """
     with h5py.File(catalogue, "r") as f:
 
         mass = f["galaxy_data"]["properties/core/mass_star"][:]
+        mass_gas = f["galaxy_data"]["properties/core/mass_gas"][:]
+        n_star = f["galaxy_data"]["properties/core/n_star"][:]
+        n_gas = f["galaxy_data"]["properties/core/n_gas"][:]
+
+        star_mask = n_star >= minstars
+        mass = mass[star_mask]
+        mass_gas = mass_gas[star_mask]
+        n_star = n_star[star_mask]
+        n_gas = n_gas[star_mask]
+
+        logger.info(f"Resolved star mass: {np.sum(mass):.2e}")
+        logger.info(f"Resolved star counts: {np.sum(n_star):.2e}")
+        logger.info(f"Resolved gas mass: {np.sum(mass_gas):.2e}")
+        logger.info(f"Resolved gas counts: {np.sum(n_gas):.2e}")
+        logger.info(f"Resolved galaxies: {star_mask.sum()}")
 
         log_mass = np.log10(mass[mass > 0])
         bin_edges = np.linspace(log_mass.min(), log_mass.max(), n_bins + 1)
@@ -708,7 +723,7 @@ def plot_gsmf(catalogue: str, boxsize: float, n_bins: int = 20) -> None:
         ax.set_yscale(f"log")
         ax.set_xlabel(r"$\log_{10}(M_\star / M_\odot)$")
         ax.set_ylabel(r"$\Phi$ [dex$^{-1}$ Mpc$^{-3}$ $h^3$]")
-        ax.set_title("Galaxy Stellar Mass Function")
+        ax.set_title("Galaxy Stellar Mass Function: temp/kernel/normalisation/mis fixed.")
         fig.tight_layout()
         fig.savefig(fname=f"gsmf.png", dpi=300)
 
@@ -825,7 +840,7 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
 
         if rank == 0:
             logger.info(f"Testing Octavian with {size} ranks.")
-            test_filter_snapshot()
+            test_filter_snapshot(n_ranks=size)
             logger.info("Filtering complete.")
 
         comm.Barrier()
@@ -866,7 +881,7 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
 
             record_test_results(all_timings=all_timings, all_memories=all_memories, results=results, peak_memory=all_rss)
             #check_output_against_reference(catalogue=output_catalogue)#
-            plot_gsmf(catalogue=output_catalogue, boxsize=25e3/0.68)
+            plot_gsmf(catalogue=output_catalogue, boxsize=25, minstars=32)
 
 def main():
 

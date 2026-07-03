@@ -60,21 +60,6 @@ class FOF6DResult:
     ptypes: np.ndarray # move to integer codings eventually
     n_galaxies: int
 
-# NOTE: just pass the simulationattributes dataclass when this gets moved to read-in 
-def compute_mean_interparticle_separation(dm_mass_total: float, n_dm: int, baryonic_mass_total: float, omega_matter: float,
-                                          h: float, a: float, time_s: float) -> float:
-    """
-    Computes the mean separation between particles (lambda) across the box.
-    """
-    G_CODE = CONSTANTS.G_CGS / CONSTANTS.KPC_CM**3 * CONSTANTS.M_SUN_G * (time_s / a)**2 # G [kpc^3/(M_sun * t/a)^2]
-    H0_CODE = 100 * CONSTANTS.HUBBLE_UNIT * (time_s / a) # H0 = 100h^-1 in hubble units (work in h^-1)
-
-    omega_baryon = baryonic_mass_total / (baryonic_mass_total + dm_mass_total) * omega_matter
-    rho_dm = (omega_matter - omega_baryon) * 3.0 * H0_CODE**2 / (8.0 * np.pi * G_CODE) / h
-    mean_interparticle_separation = ((dm_mass_total / n_dm / rho_dm)**(1./3.)) / h
-
-    return mean_interparticle_separation # NOTE: old code returned efres and omega_baryon but they were unused
-
 def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: SimulationAttributes, 
                            config: dict,) -> tuple[list[FOF6DItem], FOF6DParameters]:
     """
@@ -96,11 +81,6 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
 
-    n_dm, dm_mass_total = particles["dm"].n_particles, np.sum(particles["dm"]["mass"])
-    baryonic_mass_total = sum(
-        particles[pt]["mass"].sum() for pt in ["gas", "star", "bh"] if pt in particles
-    )
-
     for ptype in ["star", "gas", "bh"]:
 
         if ptype not in particles:
@@ -121,14 +101,13 @@ def prepare_fof6d_data(particles: dict[str, ParticleStore], simulation: Simulati
         index_list.append(np.arange(particles[ptype].n_particles)[mask])
         hid_list.append(halo_ids[mask])
 
-    mis = compute_mean_interparticle_separation(dm_mass_total=dm_mass_total, n_dm=n_dm, baryonic_mass_total=baryonic_mass_total,
-                                                omega_matter=simulation.omega_matter, h=simulation.h, a=simulation.a,
-                                                time_s=simulation.time)
+    mis = simulation.mis
+    boxsize = simulation.boxsize
     
     b = 0.02 # NOTE: move to config
     fof_LL = mis * b
     vel_LL = 1. # NOTE: represents deviation from velocity dispersion rather than a distance in velocity space
-    boxsize = simulation.boxsize
+
     kernel_table = create_kernel_table(fof_LL)
 
     params = FOF6DParameters(
@@ -177,7 +156,7 @@ def create_kernel_table(fof_LL,ntab=1000):
     hinv = 1./fof_LL
     for i in range(ntab):
         r = 1. * i / ntab
-        q = 2 * r * hinv # FIXME: double normalisation
+        q = 2 * r #  FIXME: double normalisation
         if q > 2: kerneltab[i] = 0.0
         elif q > 1: kerneltab[i] = 0.25 * (2 - q)**3
         else: kerneltab[i] = 1 - 1.5 * q * q * (1 - 0.5 * q)
@@ -212,12 +191,12 @@ def run_fof6d_algorithm(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[
 
     # vectorised sigma per particle
     weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)) #/ np.bincount(rows, weights=w, minlength=n))  FIXME: unnormalised
+    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)  / np.bincount(rows, weights=w, minlength=n)) #  FIXME: unnormalised
 
     # vectorised velocity criterion
     valid = vel_diff <= (params.velocity_LL * sigmas[rows])
-
     adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
+        
     n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
 
     # split by label — numpy instead of python loop

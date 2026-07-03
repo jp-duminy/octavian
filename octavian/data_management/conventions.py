@@ -54,6 +54,7 @@ class SimulationAttributes:
     redshift:           float
     omega_matter:       float # I renamed this because O0 isn't very readable
     omega_lambda:       float
+    mis:                float
 
     # derived
     cosmology:          FLRW
@@ -158,8 +159,6 @@ def calculate_hydrogen_number_density(rho_cgs: np.ndarray, XH: float) -> np.ndar
     """
     return rho_cgs * XH / CONSTANTS.PROTON_MASS_G
 
-# TODO: temperature from internal energy.
-
 def calculate_temperature(
     internal_energy: np.ndarray, 
     electron_abundance: np.ndarray, 
@@ -177,6 +176,16 @@ def calculate_temperature(
     temperature = mean_molecular_weight * (gamma - 1) * internal_energy / CONSTANTS.BOLTZMANN_CGS
 
     return temperature
+
+def calculate_mean_interparticle_separation(
+    n_star: int,
+    n_gas: int,
+    boxsize: float,
+) -> float:
+    """
+    Computes the baryonic mean interparticle separation from the number of star and gas particles; black holes make up a small-enough subset of the box to be safely disregarded.
+    """
+    return boxsize / (n_star + n_gas)**(1./3.)
 
 class SnapshotReader:
     """

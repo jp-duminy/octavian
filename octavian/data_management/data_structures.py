@@ -24,7 +24,7 @@ from astropy.cosmology import FlatLambdaCDM
 from octavian.data_management.conventions import (
     CONSTANTS, DTYPES, SimulationAttributes, SnapshotReader,
     gizmo_unit_conversion_factor, derive_stellar_age, calculate_temperature,
-    calculate_hydrogen_number_density
+    calculate_hydrogen_number_density, calculate_mean_interparticle_separation
 )
 
 class GizmoReader(SnapshotReader):
@@ -77,10 +77,12 @@ class GizmoReader(SnapshotReader):
             header = f["Header"].attrs
 
             h = header["HubbleParam"]
+            boxsize = header["BoxSize"] / h
             omega_matter = header["Omega0"]
             omega_lambda = header["OmegaLambda"]
             a = header["Time"]
             redshift = header["Redshift"]
+            n_star, n_gas = header["NumPart_Total"][4], header["NumPart_Total"][0]
 
             cosmology = FlatLambdaCDM(H0=100*h, Om0=omega_matter)
             time_gyr = cosmology.age(redshift).value
@@ -92,11 +94,12 @@ class GizmoReader(SnapshotReader):
             self.simulation_attributes = SimulationAttributes(
 
                 h = h,
-                boxsize = header["BoxSize"] / h,
+                boxsize = boxsize,
                 a = a,
                 redshift = redshift,
                 omega_matter = omega_matter,
                 omega_lambda = omega_lambda,
+                mis = calculate_mean_interparticle_separation(n_star=n_star, n_gas=n_gas, boxsize=boxsize),
 
                 cosmology = cosmology, # perhaps slightly hacky but astropy builds all its cosmo classes on FLRW
                 time_gyr = time_gyr,
