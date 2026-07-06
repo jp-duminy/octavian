@@ -1,1 +1,1 @@
-from octavian.galaxy_finding.fof6d import find_galaxies
+from octavian.galaxy_finding.find_galaxies import find_galaxies

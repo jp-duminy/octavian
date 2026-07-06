@@ -34,7 +34,7 @@ def run_fof6d_algorithm(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[
 
     if n_stars < params.minstars:
         empty = np.empty(0, dtype=np.int32)
-        return empty, empty, np.empty(0, dtype=object), 0, {} # match the type check annotation
+        return empty, empty, np.empty(0, dtype=object), 0 # match the type check annotation
     
     sort_order, cell_ids_sorted, cell_offsets, unique_cells, grid_dims = construct_sparse_cell_linked_list(
                                                                             pos=work_item.pos, linking_length=params.linking_length)
@@ -86,7 +86,7 @@ def run_fof6d_algorithm(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[
     if n_galaxies == 0: # no galaxies
 
         empty = np.empty(0, dtype=np.int32)
-        return empty, empty, np.empty(0, dtype=object), 0, {}
+        return empty, empty, np.empty(0, dtype=object), 0
 
     return np.concatenate(all_keys), np.concatenate(all_gids), np.concatenate(all_ptypes), n_galaxies
 

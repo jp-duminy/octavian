@@ -30,8 +30,8 @@ MU:     0.6     # mean mass per-particle (gas); computed directly, if not availa
 
 # FOF6D ALGORITHM
 
-b:      0.02  # position-space linking length = b * mean_interparticle_separation
-vel_LL: 1     # velocity-space linking length = vel_LL * local_velocity_dispersion
+b:                0.02  # position-space linking length = b * mean_interparticle_separation
+velocity_factor:  1     # velocity-space linking length = velocity_factor * local_velocity_dispersion
 
 # AGGREGATE PROPERTIES
 

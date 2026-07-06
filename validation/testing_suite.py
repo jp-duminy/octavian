@@ -62,7 +62,7 @@ PTYPES = ["gas", "star", "bh", "dm"]
 BARYON_PTYPES = ["gas", "star", "bh"]
 SUFFIXES = ["lengths", "offsets", "indices"] # for csr indexing
 
-test_config = TestConfig(test_snapshot=Path(f"/home/jpduminy/Octavian/test_snapshot_large.hdf5"),
+test_config = TestConfig(test_snapshot=Path(f"/home/jpduminy/Octavian/test_snapshot_large_z0.hdf5"),
                             reference_catalogue =Path(f"/home/jpduminy/Octavian/Outputs/reference_catalogue_large.hdf5"),
                             config_file=Path(f"/home/jpduminy/Repositories/octavian/config.yaml"),
                             internals_file=Path(f"/home/jpduminy/Repositories/octavian/octavian/internals.yaml"),
@@ -707,11 +707,16 @@ def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32, n_bins: int = 
         logger.info(f"Resolved gas counts: {np.sum(n_gas):.2e}")
         logger.info(f"Resolved galaxies: {star_mask.sum()}")
 
-        log_mass = np.log10(mass[mass > 0])
-        bin_edges = np.linspace(log_mass.min(), log_mass.max(), n_bins + 1)
+        positive_mask = (mass > 0)
+        log_mass = np.log10(mass[positive_mask])
+
+        bin_edges = np.linspace(8.5, 12.0, n_bins + 1)
+        bin_width = bin_edges[1] - bin_edges[0]
+        bin_centres = 0.5 * (bin_edges[:-1] + bin_edges[1:])
         counts, _ = np.histogram(log_mass, bins=bin_edges)
 
         volume = boxsize**3
+
         bin_centres = 0.5 * (bin_edges[:-1] + bin_edges[1:])
         bin_width = bin_edges[1] - bin_edges[0]
 
@@ -721,12 +726,13 @@ def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32, n_bins: int = 
         mask = counts > 0
 
         fig, ax = plt.subplots(figsize=(8,6))
-        ax.errorbar(x=bin_centres[mask], y=phi[mask], yerr=phi_err[mask], fmt="o", ls="-",
-                    capsize=3)
+        ax.errorbar(x=bin_centres[mask], y=phi[mask], yerr=phi_err[mask], color="red", fmt="o", ls="-",
+                    capsize=3, label="GSMF")
+        ax.legend()
         ax.set_yscale(f"log")
         ax.set_xlabel(r"$\log_{10}(M_\star / M_\odot)$")
         ax.set_ylabel(r"$\Phi$ [dex$^{-1}$ Mpc$^{-3}$ $h^3$]")
-        ax.set_title("Galaxy Stellar Mass Function: temp/kernel/normalisation/mis fixed.")
+        ax.set_title("Galaxy Stellar Mass Function: z=0, all fixes, new algo (no self-pairs)")
         fig.tight_layout()
         fig.savefig(fname=f"gsmf.png", dpi=300)
 

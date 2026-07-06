@@ -1,28 +1,26 @@
 """
 
-Octavian 6D friends-of-friends galaxy-finding algorithm.
+Octavian galaxy finding, calling the internal FOF6D algorithm in fof6d_algorith.py
 
-For the deeper workings of the algorithm please refer to the scipy.spatial framework
-Original FoF: Davis et al. 1985, doi: 10.1086/163168
+If this is very slow, numba may not be jitting on your cluster. Please check whether this is the case.
 
 """
 
 # type checking (semantic)
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes, OctavianConstants
+  from octavian.data_management import ParticleStore, SimulationAttributes, OctavianConstants
 
+# octavians
 from octavian.data_management import DTYPES
+from octavian.galaxy_finding.fof6d_algorithm import run_fof6d_algorithm, unwrap_positions
 # default library
 from dataclasses import dataclass
 
 # other libraries
 import numpy as np
 from joblib import Parallel, delayed
-from scipy.spatial import KDTree
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import connected_components
 
 # slots=True turns off unneeded dict behaviour which avoids accidental mutation & improves memory usage 
 # frozen=True adds tiny overhead but is safe
@@ -43,9 +41,8 @@ class FOF6DParameters:
     """
     Fixed simulation/runtime parameters which the algorithm needs.
     """
-    kernel_table: np.ndarray
-    position_LL: float
-    velocity_LL: float
+    linking_length: float
+    velocity_factor: float
     boxsize: float
     minstars: int
     cores_per_rank: int
@@ -55,7 +52,7 @@ class FOF6DResult:
     """
     Assignments made by FOF6D for writing back to datamanager.
     """
-    write_keys: np.ndarray # for now, indexes back into datamanager
+    write_keys: np.ndarray # indexes back into the ParticleStores
     galaxy_ids: np.ndarray 
     ptypes: np.ndarray # move to integer codings eventually
     n_galaxies: int
@@ -94,7 +91,7 @@ def prepare_fof6d_data(
         in_range = (halo_ids >= 0) & (halo_ids < len(eligible_set))
         masked_hids = np.where(in_range, halo_ids, 0) # have to mask before & operator 
         
-        if ptype == 'gas':
+        if ptype == "gas":
             mask = dense_mask & in_range & eligible_set[masked_hids] # dense criterion for gas specifically
         else:
             mask = in_range & eligible_set[masked_hids]
@@ -105,26 +102,22 @@ def prepare_fof6d_data(
         index_list.append(np.arange(particles[ptype].n_particles)[mask])
         hid_list.append(halo_ids[mask])
     
-    fof_LL = simulation.mis * config["b"]
-    vel_LL = config["vel_LL"] # NOTE: represents deviation from velocity dispersion rather than a distance in velocity space
-
-    kernel_table = create_kernel_table(fof_LL)
+    linking_length = simulation.mis * config["b"]
 
     params = FOF6DParameters(
-        kernel_table=kernel_table,
-        position_LL=fof_LL,
-        velocity_LL=vel_LL,
+        linking_length=linking_length,
+        velocity_factor=config["velocity_factor"],
         boxsize=simulation.boxsize,
         minstars=config['MINIMUM_STARS_PER_GALAXY'],
         cores_per_rank=config['nproc'],
     )
 
-    # NOTE: this copies the same pattern as CGP does on read-in
+    # NOTE: in-halo concatenation, could be expensive
     all_pos, all_vel = np.concatenate(pos_list, dtype=DTYPES["pos"]), np.concatenate(vel_list, dtype=DTYPES["vel"]) 
     all_ptype, all_halo_ids = np.concatenate(ptype_list), np.concatenate(hid_list)
     all_write_key = np.concatenate(index_list)
 
-    order = np.argsort(all_halo_ids, kind='mergesort')
+    order = np.argsort(all_halo_ids, stable=True) # keep stable=True on for deterministic results
     all_pos, all_vel = all_pos[order], all_vel[order]
     all_ptype, all_halo_ids = all_ptype[order], all_halo_ids[order]
     all_write_key = all_write_key[order]
@@ -138,99 +131,22 @@ def prepare_fof6d_data(
     size_order = np.argsort(sizes)[::-1] # largest halos first
 
     items = []
+
     for i in size_order:
+
         s, e = starts[i], ends[i]
+
+        halo_pos = all_pos[s:e].copy()
+        unwrap_positions(positions=halo_pos, boxsize=simulation.boxsize)
+
         items.append(FOF6DItem(
-            pos=all_pos[s:e],
+            pos=halo_pos,
             vel=all_vel[s:e],
             ptype=all_ptype[s:e],
             write_key=all_write_key[s:e],
         ))
 
     return items, params
-
-# REVIEW: necessity of these two functions, hangover from Caesar; we are probably efficient enough to refactor this.
-# kernel table for fof6d velocity criterion distance weights
-def create_kernel_table(fof_LL,ntab=1000):
-    kerneltab = np.zeros(ntab+1)
-    hinv = 1./fof_LL
-    for i in range(ntab):
-        r = 1. * i / ntab
-        q = 2 * r #  FIXME: double normalisation
-        if q > 2: kerneltab[i] = 0.0
-        elif q > 1: kerneltab[i] = 0.25 * (2 - q)**3
-        else: kerneltab[i] = 1 - 1.5 * q * q * (1 - 0.5 * q)
-    return kerneltab
-
-# kernel table lookup
-def kernel(r_over_h,kerneltab):
-    ntab = len(kerneltab) - 1
-    rtab = ntab * r_over_h + 0.5
-    itab = rtab.astype(int)
-    return kerneltab[itab]
-
-def run_fof6d_algorithm(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
-
-    n = len(work_item.pos)
-    if n < params.minstars:
-        return []
-
-    tree = KDTree(work_item.pos, boxsize=params.boxsize) # REVIEW: move this to PBCs
-    sdm = tree.sparse_distance_matrix(tree, params.position_LL, output_type='coo_matrix')
-
-    rows = sdm.row
-    cols = sdm.col
-    dists = sdm.data
-
-    # vectorised kernel weights (adapted from Jakub)
-    q = dists / params.position_LL
-    w = kernel(q, params.kernel_table)  # already works on arrays
-
-    # vectorised velocity differences
-    vel_diff = np.linalg.norm(work_item.vel[cols] - work_item.vel[rows], axis=1)
-
-    # vectorised sigma per particle
-    weighted_dv_sq = w * vel_diff**2 # same as Jakub (I renamed variables for readability)
-    sigmas = np.sqrt(np.bincount(rows, weights=weighted_dv_sq, minlength=n)  / np.bincount(rows, weights=w, minlength=n)) #  FIXME: unnormalised
-
-    # vectorised velocity criterion
-    valid = vel_diff <= (params.velocity_LL * sigmas[rows])
-    adj = csr_matrix((np.ones(valid.sum()), (rows[valid], cols[valid])), shape=(n, n)) # np.ones matrix; boolean mask with rows, cols
-        
-    n_components, labels = connected_components(adj, directed=False) # directed=False means we only care about connections (preserves original logic)
-
-    # split by label — numpy instead of python loop
-    label_order = np.argsort(labels)
-    sorted_labels = labels[label_order]
-    label_splits = np.flatnonzero(np.diff(sorted_labels)) + 1
-    component_groups = np.split(label_order, label_splits)
-
-    out_keys = []
-    out_gids = []
-    out_ptypes = []
-    local_gal_id = 0
-
-    for component in component_groups:
-
-        if len(component) < params.minstars:
-            continue
-
-        component_ptype = work_item.ptype[component]
-
-        if np.sum(component_ptype == 'star') < params.minstars:
-            continue
-
-        out_keys.append(work_item.write_key[component])
-        out_gids.append(np.full(len(component), local_gal_id, dtype=np.int64))
-        out_ptypes.append(component_ptype)
-        local_gal_id += 1
-
-    if local_gal_id == 0: # no galaxies
-
-        empty = np.empty(0, dtype=np.int64)
-        return empty, empty, np.empty(0, dtype=object), 0
-
-    return np.concatenate(out_keys), np.concatenate(out_gids), np.concatenate(out_ptypes), local_gal_id # local_gal_id is proxy for n_galaxies
 
 def collect_fof6d_results(results: tuple[np.ndarray, np.ndarray, np.ndarray, int]) -> FOF6DResult:
     """
@@ -240,12 +156,12 @@ def collect_fof6d_results(results: tuple[np.ndarray, np.ndarray, np.ndarray, int
 
     if not not_empty: # NOTE: flag this in the logger when added
 
-        return FOF6DResult(write_keys=np.empty(shape=not_empty), 
-                           galaxy_ids=np.empty(shape=not_empty),
-                           ptypes=np.empty(shape=not_empty),
+        return FOF6DResult(write_keys=np.empty(0, dtype=np.int64), 
+                           galaxy_ids=np.empty(0, dtype=np.int64),
+                           ptypes=np.empty(0, dtype=object),
                            n_galaxies=0)
     
-    keys, gids, ptypes, counts = zip(*results)
+    keys, gids, ptypes, counts = zip(*not_empty)
 
     all_keys = np.concatenate(keys)
     all_gids = np.concatenate(gids)
@@ -268,7 +184,7 @@ def dispatch_fof6d(items: list[FOF6DItem], params: FOF6DParameters) -> FOF6DResu
     """
     per_halo_results = Parallel(n_jobs=params.cores_per_rank, batch_size=1)(
         delayed(run_fof6d_algorithm)(work_item=w, params=params) for w in items)
-    
+
     return collect_fof6d_results(per_halo_results)
 
 def store_fof6d_results(particles: dict[str, ParticleStore], result: FOF6DResult) -> None:
