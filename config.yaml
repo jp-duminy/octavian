@@ -46,4 +46,4 @@ density_radii:    [300, 1000, 3000]   # kpc
 
 # PARALLELISM
 
-nproc: 4 # number of cores assigned to each rank
+cores_per_rank: 4 # number of VPU cores assigned to each MPI rank

@@ -143,7 +143,7 @@ def prepare_fof6d_data(
         velocity_factor=config["velocity_factor"],
         boxsize=simulation.boxsize,
         minstars=config["MINIMUM_STARS_PER_GALAXY"],
-        cores_per_rank=config["nproc"],
+        cores_per_rank=config["cores_per_rank"],
     )
 
     # NOTE: in-halo concatenation, could be expensive
