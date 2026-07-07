@@ -208,7 +208,7 @@ def calculate_mean_interparticle_separation(
     Returns the mean interparticle separation.
     """
     mis = boxsize / (n_star + n_gas)**(1./3.)
-    logger.info(f"Mean baryonic interparticle separation: {mis:.2f}")
+    logger.debug(f"Mean baryonic interparticle separation: {mis:.2f}")
 
     return mis
 
