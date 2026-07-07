@@ -40,7 +40,8 @@ from test_constants import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 from octavian.data_management import (
     filter_snapshot, write_analysis_to_output_file, construct_particle_csr_lists,
     merge_intermediate_catalogues, GizmoReader, ParticleStore, GroupStore, SimulationData, Internals, OctavianConstants,
-    build_group_store, build_particle_stores, load_internals, resolve_dependencies, get_releasable_columns
+    build_group_store, build_particle_stores, load_internals, resolve_dependencies, get_releasable_columns,
+    configure_logger, get_logger
 )
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
@@ -71,13 +72,6 @@ test_config = TestConfig(test_snapshot=Path(f"/home/jpduminy/Octavian/test_snaps
                             n_ranks=4,
                             n_proc=2,
 )
-
-logging.basicConfig(
-        level=logging.INFO,
-        format=f"[%(levelname)s] %(name)s — %(message)s",
-    )
-
-logger = logging.getLogger("octavian.tests")
 
 timings = {}
 memories = {}
@@ -110,6 +104,7 @@ def time_and_memory(label: str):
     with time_and_memory(f"stagename"):
         foo()
     """
+    logger = get_logger()
     t0 = perf_counter()
     original_memory = peak_memory_gb()
     yield
@@ -124,6 +119,8 @@ def test_header_info() -> None:
     """
     Checks the header information.
     """
+    logger = get_logger()
+
     with h5py.File(test_config.test_snapshot, 'r') as f:
 
         header = f["Header"].attrs
@@ -136,6 +133,8 @@ def test_filter_snapshot(n_ranks: int, sentinel_value: int = 0) -> list[Path]:
     Tests whether the snapshot filter keeps all the right particles and distributes load equally.
     The sentinel value is usually 0.
     """
+    logger = get_logger()
+
     for i in range(n_ranks):
         (test_config.working_directory / f"rank_{i}.hdf5").unlink(missing_ok=True) # clears previous intermediates
 
@@ -265,6 +264,7 @@ def _assert_conserved(label: str, pre: int, post: int):
     """
     Helper function to check whether the counts are preserved.
     """
+    logger = get_logger()
     logger.info(f"{label}: pre-merge={pre} / post-merge={post}")
     assert pre == post, f"{label} mismatch: {post - pre:+d}"
 
@@ -272,6 +272,7 @@ def test_remerge(files: list[Path], output_path: Path, internals: Internals, sen
     """
     Tests the remerging of the snapshot.
     """
+    logger = get_logger()
     n_halos_original, n_galaxies_original = 0, 0
     
     for path in files:
@@ -303,6 +304,7 @@ def _validate_csr_integrity(f: h5py.File, group_data: str, particle_list: str) -
     """
     Validates CSR format of particle lists (sanity checks); handles empty groups too.
     """
+    logger = get_logger()
     lengths = f[group_data][f"membership/{particle_list}_lengths"][:]
     offsets = f[group_data][f"membership/{particle_list}_offsets"][:]
     indices = f[group_data][f"membership/{particle_list}_indices"][:]
@@ -349,6 +351,7 @@ def validate_halo_membership(f: h5py.File) -> None:
     """
     Tests output catalogue halo membership.
     """
+    logger = get_logger()
     # check keys exist
     all_keys = [f"membership/{p}_{s}" for p in PTYPES for s in SUFFIXES] # perhaps a cleaner way to do this
     _check_keys_exist(f=f["halo_data"], keys=all_keys)
@@ -368,6 +371,7 @@ def validate_galaxy_membership(f: h5py.File) -> None:
     """
     Tests output catalogue galaxy membership.
     """
+    logger = get_logger()
     # check keys exist, same code block as halo function (slightly dubious I know)
     all_keys = [f"membership/{p}_{s}" for p in BARYON_PTYPES for s in SUFFIXES] 
     _check_keys_exist(f=f["galaxy_data"], keys=all_keys)
@@ -390,6 +394,7 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
     """
     Validate galaxy-halo relationships are sensible.
     """
+    logger = get_logger()
     # check parent halo indices are valid
     parent_halo_indices = f["galaxy_data"]["properties/core/parent_halo_index"][:]
     n_halos = len(f["halo_data"]["HaloID"])
@@ -429,6 +434,7 @@ def validate_group_counts(f: h5py.File, group_data: str) -> None:
     """
     Quick check validating merge_catalogues and CGP agree on group counts.
     """
+    logger = get_logger()
 
     if group_data == "halo_data":
         ptypes = PTYPES
@@ -447,6 +453,8 @@ def validate_mass_budget(f: h5py.File) -> None:
     """
     Check the mass within galaxies and halos makes sense physically.
     """
+    logger = get_logger()
+
     baryonic_mass = {}
 
     for group in ["halo_data", "galaxy_data"]:
@@ -494,6 +502,8 @@ def check_for_nans(f: h5py.File) -> None:
     """
     Scans the catalogue for any dubious NaN occurences.
     """
+    logger = get_logger()
+
     for group in ["halo_data", "galaxy_data"]:
 
         # datasets which should not have NaN in them
@@ -550,6 +560,8 @@ def validate_against_reference(catalogue: str, reference: str, rtol: float = 1e-
 
     Also validates whether NaNs occur in the same place.
     """
+    logger = get_logger()
+
     with h5py.File(catalogue, "r") as new, h5py.File(reference, "r") as ref:
 
         for group_name in ["halo_data", "galaxy_data"]:
@@ -631,6 +643,7 @@ def record_assertion_result(label: str) -> Generator[None, None, None]: # the co
     Used for wrapping the validation checks in a try / except.
     Prevents an error being thrown.
     """
+    logger = get_logger()
     try:
         yield
         results.append((label, True, ""))
@@ -670,6 +683,8 @@ def check_output_against_reference(catalogue: str, group: str = "galaxy_data") -
     Checks how the number of galaxies and the mass budget changes between the output catalogue and reference catalogue.
     Can check halos but really it is galaxies for now we should validate.
     """
+    logger = get_logger()
+
     with h5py.File(catalogue, 'r') as f, h5py.File(str(test_config.reference_catalogue), 'r') as ref:
 
         n_ref = len(ref[group]["dicts/masses.total"])
@@ -688,6 +703,8 @@ def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32) -> None:
     """
     Plots the galactic stellar mass function (useful for FOF6D testing)
     """
+    logger = get_logger()
+
     with h5py.File(catalogue, "r") as f:
 
         mass = f["galaxy_data"]["properties/core/mass_star"][:]
@@ -739,6 +756,8 @@ def record_test_results(all_timings: list[dict[str, float]], all_memories: list[
     """
     Checks the validation outputs and writes the result to a .txt file.
     """
+    logger = get_logger()
+
     COMMIT_HASH = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() # current version
     filepath = test_config.output_directory / f"test_summary_{COMMIT_HASH[:8]}.txt"
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -796,13 +815,9 @@ def test_full_serial_run() -> None:
     """
     memray_file = Path(test_config.working_directory / f"memray.bin")
     memray_file.unlink(missing_ok=True)
-
+    logger = get_logger()
+    
     with memray.Tracker(memray_file, native_traces=True):
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format=f"[%(levelname)s] %(name)s — %(message)s",
-        )
 
         logger.info(f"Testing Octavian in serial configuration.")
         test_filter_snapshot()
@@ -834,16 +849,12 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
     """
     rank = comm.Get_rank()
     size = comm.Get_size()
+    logger = get_logger()
 
     memray_file = Path(test_config.working_directory / f"memray_rank_{rank}.bin")
     memray_file.unlink(missing_ok=True)
 
     with memray.Tracker(memray_file, native_traces=True):
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format=f"[Rank {rank}] [%(levelname)s] %(name)s — %(message)s",
-        )
 
         if rank == 0:
             logger.info(f"Testing Octavian with {size} ranks.")
@@ -893,6 +904,8 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
 def main():
 
     comm = _get_mpi_communicator()
+    rank = comm.Get_rank() if comm is not None else 0
+    configure_logger(rank=rank, output_level="INFO", output_log_directory=test_config.working_directory / f"rank_{rank}_log")
 
     if comm is not None:
         test_full_parallel_run(comm)
