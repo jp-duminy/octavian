@@ -14,9 +14,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from octavian.data_management import ParticleStore, SimulationData, OctavianConstants
 
-import warnings
-warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
-
 # others
 import numpy as np
 
@@ -24,6 +21,7 @@ from octavian.aggregate_properties.aggregate_helpers import (
     sum_per_group,
     max_value_per_group,
     max_idx_per_group,
+    guarded_divide
 )
 from octavian.data_management import get_logger
 logger = get_logger()
@@ -159,9 +157,9 @@ def compute_gas_properties(
     results["mass_HI"] = mass_HI
     results["mass_H2"] = mass_H2
     results["sfr"] = sfr
-    results["metallicity_mass_weighted"] =  metal_mass / gas_mass
-    results["metallicity_sfr_weighted"] =  metal_sfr / sfr
-    results["temp_mass_weighted"] = temp_mass / gas_mass
+    results["metallicity_mass_weighted"] =  guarded_divide(numerator=metal_mass, denominator=gas_mass)
+    results["metallicity_sfr_weighted"] =  guarded_divide(numerator=metal_sfr, denominator=sfr)
+    results["temp_mass_weighted"] = guarded_divide(numerator=temp_mass, denominator=gas_mass)
 
     return results
 
@@ -199,10 +197,10 @@ def compute_cgm_properties(
     cgm_temp_metal = sum_per_group(values=(cgm_temperatures * cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
     cgm_metal_mass = sum_per_group(values=(cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
 
-    results["temp_mass_weighted_cgm"] = cgm_temp_mass / cgm_mass
-    results["temp_metal_weighted_cgm"] = cgm_temp_metal / cgm_metal_mass
-    results["metallicity_mass_weighted_cgm"] = cgm_metal_mass / cgm_mass
-    results["metallicity_temp_weighted_cgm"] = cgm_temp_metal / cgm_temp_mass
+    results["temp_mass_weighted_cgm"] = guarded_divide(numerator=cgm_temp_mass, denominator=cgm_mass)
+    results["temp_metal_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_metal_mass)
+    results["metallicity_mass_weighted_cgm"] = guarded_divide(numerator=cgm_metal_mass, denominator=cgm_mass)
+    results["metallicity_temp_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_temp_mass)
 
     return results
 
@@ -230,9 +228,9 @@ def compute_star_properties(
     age_mass = sum_per_group(values=(ages * masses), group_idx=group_idx, n_groups=n_groups)
     age_metal = sum_per_group(values=(ages * masses * metallicities), group_idx=group_idx, n_groups=n_groups)
 
-    results["metallicity_stellar"] = metal_mass / star_mass
-    results["age_mass_weighted"] = age_mass / star_mass
-    results["age_metal_weighted"] = age_metal / metal_mass
+    results["metallicity_stellar"] = guarded_divide(numerator=metal_mass, denominator=star_mass)
+    results["age_mass_weighted"] = guarded_divide(numerator=age_mass, denominator=star_mass)
+    results["age_metal_weighted"] = guarded_divide(numerator=age_metal, denominator=metal_mass)
 
     return results
 
@@ -269,7 +267,7 @@ def compute_bh_properties(
     bhmdot[with_bh] = bhmdots[max_idx[with_bh]]
 
     results["bhmdot"] = bhmdot
-    results["bh_fedd"] = bhmdot / (edd_factor * mass)
+    results["bh_fedd"] = guarded_divide(numerator=bhmdot, denominator=(edd_factor * mass))
     results["bh_mass_max"] = max_mass
 
     return results

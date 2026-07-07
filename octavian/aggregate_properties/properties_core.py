@@ -8,9 +8,7 @@ Core aggregate properties. These include simple computations (per-ptype number c
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes, SimulationData, OctavianConstants
-import warnings
-warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
+    from octavian.data_management import ParticleStore, GroupStore, SimulationAttributes, SimulationData, OctavianConstants
 
 # others
 import numpy as np
@@ -33,7 +31,9 @@ from octavian.aggregate_properties.aggregate_helpers import (
     count_per_group,
     min_idx_per_group,
     first_idx_per_group,
-    build_group_csr
+    build_group_csr,
+    guarded_arcsin,
+    guarded_divide,
 )
 
 def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
@@ -576,8 +576,8 @@ def _derive_kinematics(
 
     L_mag = np.linalg.norm(L, axis=1)
     alpha = np.arctan2(L[:, 1], L[:, 2])
-    beta = np.arcsin(L[:, 0] / L_mag)
-    velocity_dispersions = np.where(counts > 0, np.sqrt(dispersion_sum / group_mass), np.nan)
+    beta = guarded_arcsin(guarded_divide(L[:, 0], L_mag, fill_value=0.0))
+    velocity_dispersions = np.where(counts > 0, np.sqrt(guarded_divide(dispersion_sum, group_mass)), np.nan)
 
     small = (counts > 0) & (counts < 3) # groups with fewer than 3 counts have ill-defined rotational quantities (mask away)
     empty = counts == 0
@@ -613,10 +613,10 @@ def _derive_halo_quantities(
     """
     results: dict[str, np.ndarray] = {}
     r200 = r200_factor * group_mass**(1./3.) # NOTE: comoving
-    v_circ = np.sqrt(constants.G_VCIRC * group_mass / (r200 * scale_factor)) # v_circ needs physical r200
+    v_circ = np.sqrt(guarded_divide(numerator=(constants.G_VCIRC * group_mass), denominator=(r200 * scale_factor))) # v_circ needs physical r200
 
     virial_temperature = constants.VIRIAL_TEMP_FACTOR * v_circ** 2
-    spin_param = L_mag / (np.sqrt(2) * group_mass * v_circ * r200)
+    spin_param = guarded_divide(numerator=L_mag, denominator=(np.sqrt(2) * group_mass * v_circ * r200))
 
     empty = counts == 0
     logger.debug(f"{empty.sum()} halos are empty (NaN for their halo quantities).")
@@ -646,8 +646,8 @@ def _derive_galaxy_quantities(
     """
     results: dict[str, np.ndarray] = {}
 
-    BoverT = (2 * counter_rotating_mass) / group_mass
-    kappa_rot = ke_rot / ke_tot
+    BoverT = guarded_divide(numerator=(2 * counter_rotating_mass), denominator=group_mass)
+    kappa_rot = guarded_divide(numerator=ke_rot, denominator=ke_tot)
 
     small = (counts > 0) & (counts < 3) # groups with fewer than 3 counts have ill-defined rotational quantities (mask away)
     empty = counts == 0
@@ -709,9 +709,9 @@ def _combine_centre_of_mass(
         weighted_shift += pt_mass * shift
         weighted_vel += pt_mass * pt_vel
 
-    combined_com = anchor_com + weighted_shift / combined_mass[:, np.newaxis]
+    combined_com = guarded_divide(numerator=(anchor_com + weighted_shift), denominator=(combined_mass[:, np.newaxis]))
     combined_com %= boxsize
-    combined_vel = weighted_vel / combined_mass[:, np.newaxis]
+    combined_vel = guarded_divide(numerator=weighted_vel, denominator=combined_mass[:, np.newaxis])
 
     results[f"com_pos_{collective_name}"] = combined_com
     results[f"com_vel_{collective_name}"] = combined_vel
@@ -764,9 +764,11 @@ def _combine_ptype_sums(
     combined_counts = counts_and_mass[f"_n_{collective_name}"]
 
     combined_L_mag = np.linalg.norm(combined_L, axis=1)
-    combined_velocity_dispersion = np.where(combined_counts > 0, np.sqrt(combined_dispersion_sum / counts_and_mass[f"mass_{collective_name}"]), np.nan)
+    combined_velocity_dispersion = np.where(combined_counts > 0, 
+        np.sqrt(guarded_divide(numerator=combined_dispersion_sum, denominator=counts_and_mass[f"mass_{collective_name}"])), 
+                                    np.nan)
     combined_alpha = np.arctan2(combined_L[:, 1], combined_L[:, 2])
-    combined_beta = np.arcsin(combined_L[:, 0] / combined_L_mag)
+    combined_beta = guarded_arcsin(guarded_divide(numerator=combined_L[:, 0], denominator=combined_L_mag))
 
     small = (combined_counts > 0) & (combined_counts < 3)
     empty = combined_counts == 0
