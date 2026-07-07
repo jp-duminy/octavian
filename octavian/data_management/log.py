@@ -49,7 +49,4 @@ def get_logger() -> logging.Logger:
     """
     logger = logging.getLogger("OCTAVIAN")
 
-    if not logger.handlers:
-        raise RuntimeError(f"get_logger() was called before configure_logger(); please configure logger before attempting to use it!")
-    
     return logger

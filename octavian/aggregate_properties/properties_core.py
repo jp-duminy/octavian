@@ -15,6 +15,8 @@ warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected
 # others
 import numpy as np
 from octavian.data_management.conventions import DTYPES
+from octavian.data_management import get_logger
+logger = get_logger()
 
 from octavian.aggregate_properties.aggregate_computations import (
     compute_kinematics,
@@ -41,6 +43,8 @@ def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
     constants = simulation_data.constants
 
     for group_type in simulation_data.groups: # halos must run first (halo groupstore is built first)
+
+        logger.info(f"Running core properties for {group_type}: {simulation_data.groups[group_type].n_groups} members")
 
         group_store = simulation_data.groups[group_type]
         particles = simulation_data.particles
@@ -71,6 +75,8 @@ def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
         elif group_type == "galaxies":
         
             run_galaxy_stages(particles=particles, galaxies=group_store, halos=simulation_data.groups["halos"], available_baryonic_ptypes=available_baryonic, sim=sim)
+
+        logger.info(f"Core properties computed for {group_type}.")
 
 def run_core_ptype_pass(
     particles: dict[str, ParticleStore],
@@ -576,6 +582,9 @@ def _derive_kinematics(
     small = (counts > 0) & (counts < 3) # groups with fewer than 3 counts have ill-defined rotational quantities (mask away)
     empty = counts == 0
 
+    if small.sum() >= 0.5 * len(velocity_dispersions):
+        logger.debug(f"{small.sum()}/{len(velocity_dispersions)} groups hit the small flag in _derive_kinematics.")
+
     for quantity in [velocity_dispersions, L, L_mag, alpha, beta]:
         quantity[empty] = np.nan
         quantity[small] = 0.0
@@ -610,6 +619,8 @@ def _derive_halo_quantities(
     spin_param = L_mag / (np.sqrt(2) * group_mass * v_circ * r200)
 
     empty = counts == 0
+    logger.debug(f"{empty.sum()} halos are empty (NaN for their halo quantities).")
+
     for arr in [r200, v_circ, virial_temperature, spin_param]:
         arr[empty] = np.nan
 
@@ -799,11 +810,21 @@ def _assign_parent_halo_indices(particles: dict[str, ParticleStore], galaxies: G
 
     galaxy_idx = galaxies.get_indexer(group_id=all_gids)
     first_particle_idx = first_idx_per_group(group_idx=galaxy_idx, n_groups=galaxies.n_groups)
-    valid = first_particle_idx >= 0 # NOTE: add note in logger if this triggers
+    valid = first_particle_idx >= 0 
+
+    if not valid.all():
+        n_orphan = (~valid).sum()
+        logger.warning(f"{n_orphan} galaxies have no baryonic particles!")
+
     galaxy_halo_id = np.full(shape=galaxies.n_groups, fill_value=-1, dtype=DTYPES["HaloID"])
     galaxy_halo_id[valid] = all_hids[first_particle_idx[valid]]
 
     parent_halo_index = halos.get_indexer(group_id=galaxy_halo_id)
+
+    if np.any(parent_halo_index == -1):
+        n_orphan = (parent_halo_index == -1).sum()
+        logger.warning(f"{n_orphan} galaxies exist with no valid parent halo.")
+
     results["parent_halo_index"] = parent_halo_index
 
     return results

@@ -12,7 +12,8 @@ Particle type-specific aggregate properties. For example:
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, SimulationData, OctavianConstants
+    from octavian.data_management import ParticleStore, SimulationData, OctavianConstants
+
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) # suppresses expected warnings for NaN (empty) groups.
 
@@ -24,6 +25,8 @@ from octavian.aggregate_properties.aggregate_helpers import (
     max_value_per_group,
     max_idx_per_group,
 )
+from octavian.data_management import get_logger
+logger = get_logger()
 
 def run_ptype_specific_properties(simulation_data: SimulationData, config: dict) -> None:
     """
@@ -33,8 +36,11 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
     constants = simulation_data.constants
 
     _prepare_hydrogen_fractions(gas=particles["gas"], constants=constants, XH=config["XH"])
+    logger.info(f"Hydrogen fractions prepared.")
 
     for group_type in simulation_data.groups:
+
+        logger.info(f"Running ptype-specific properties for {group_type}: {simulation_data.groups[group_type].n_groups} members")
 
         group_store = simulation_data.groups[group_type]
         group_key = group_store.group_key
@@ -74,6 +80,8 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
             )
             group_store.write_batch(results=cgm_results)
 
+        logger.info(f"Computed ptype-specific properties for {group_type}.")
+
 def _prepare_hydrogen_fractions(gas: ParticleStore, constants: OctavianConstants, XH: float) -> None:
     """
     Derive HI/H2 masses from snapshot information, mutates the gas ParticleStore.
@@ -86,7 +94,8 @@ def _prepare_hydrogen_fractions(gas: ParticleStore, constants: OctavianConstants
 
     # enforce mass conservation: fHI + fH2 <= 1
     not_conserving = (fHI + fH2) > 1.0
-    fHI[not_conserving] = 1.0 - fH2[not_conserving]
+    logger.debug(f"{not_conserving.sum()} particles not conserving hydrogen mass.")
+    fHI[not_conserving] = 1.0 - fH2[not_conserving] # fix relative to fH2 (this is an inherited convention)
 
     mass = gas["mass"]
     gas["fHI"] = fHI

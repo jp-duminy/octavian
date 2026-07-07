@@ -15,7 +15,10 @@ from scipy.sparse import csr_array
 
 # other Octavian data structures
 if TYPE_CHECKING:
-  from octavian.data_management import ParticleStore, GroupStore, SimulationData
+    from octavian.data_management import ParticleStore, GroupStore, SimulationData
+
+from octavian.data_management import get_logger
+logger = get_logger()
 from octavian.data_management.conventions import DTYPES
 from octavian.aggregate_properties.aggregate_helpers import (
     sort_by_group,
@@ -26,6 +29,7 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
     Top-level executor for local environment properties.
     """
     galaxies = simulation_data.groups["galaxies"]
+    logger.info(f"Running local environment properties: {galaxies.n_groups} members")
     sim = simulation_data.simulation
 
     density_results = compute_local_densities(
@@ -47,6 +51,8 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
             aperture_size=aperture,
         )
         galaxies.write_batch(results=aperture_results)
+    
+    logger.info(f"Local environment properties computed.")
 
 def compute_local_densities(
     pos: np.ndarray, 
