@@ -50,4 +50,4 @@ cores_per_rank: 4 # number of VPU cores assigned to each MPI rank
 
 # LOGGING
 
-terminal_output_level: "INFO"
+terminal_output_level: "INFO" # how chatty do you want Octavian to be (set to WARNING for runtime-critical notifications)

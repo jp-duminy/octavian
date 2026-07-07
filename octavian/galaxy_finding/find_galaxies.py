@@ -18,6 +18,8 @@ from dataclasses import dataclass
 # octavians
 from octavian.data_management import DTYPES
 from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
+from octavian.data_management import get_logger
+logger = get_logger()
 
 # other libraries
 import numpy as np
@@ -71,7 +73,11 @@ def find_galaxies(
     """
     Handles the end-to-end galaxy-finding with FOF6D pipeline; writes back to ParticleStore.
     """
+    logger.info(f"Locating galaxies with FOF6D algorithm.")
+
     work_data, params = prepare_fof6d_data(particles=particles, simulation=simulation, config=config, constants=constants)
+
+    logger.debug(f"Linking length: {params.linking_length}")
 
     numba.set_num_threads(params.cores_per_rank) # same as joblib nproc
 
@@ -85,6 +91,8 @@ def find_galaxies(
     result = extract_galaxies_from_parents(work_data=work_data, parents=parents, minstars=params.minstars)
 
     store_fof6d_results(particles=particles, result=result)
+
+    logger.info(f"Located {result.n_galaxies} galaxies.")
 
     return result
 
@@ -112,7 +120,12 @@ def prepare_fof6d_data(
     temperature = gas["temperature"] 
     nH = rho * config["XH"] / constants.PROTON_MASS_G # TODO: move to reader
 
-    dense_mask = (nH > config['nHlim']) & ((temperature < config['Tlim']) | (sfr > 0)) # NOTE: sfr > 0 overrides of the density criterion
+    dense_mask = (nH > config["nHlim"]) & ((temperature < config["Tlim"]) | (sfr > 0)) # NOTE: sfr > 0 overrides of the density criterion
+
+    n_dense = dense_mask.sum()
+    n_cold = ((temperature < config["Tlim"]) & (nH > config["nHlim"])).sum()
+    n_sfr = (sfr > 0).sum()
+    logger.debug(f"Gas criteria, cold/dense: {n_cold}, star-forming: {n_sfr}, total masked: {n_dense}/{len(dense_mask)}")
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
 
