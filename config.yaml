@@ -47,3 +47,7 @@ density_radii:    [300, 1000, 3000]   # kpc
 # PARALLELISM
 
 cores_per_rank: 4 # number of VPU cores assigned to each MPI rank
+
+# LOGGING
+
+terminal_output_level: "INFO"
