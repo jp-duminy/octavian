@@ -15,6 +15,9 @@ import astropy.units as u
 from astropy.cosmology import FLRW
 import numpy as np
 
+from octavian.data_management.log import get_logger
+logger = get_logger()
+
 @dataclass(frozen=True, slots=True)
 class OctavianConstants:
     """
@@ -155,7 +158,8 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     }
 
     if dataset not in conversions:
-        return 1.0 # TODO: add a warning in the logger for this later.
+        logger.warning(f"{dataset} not found in GIZMO conversions list.")
+        return 1.0 
 
     snap_unit, internal_unit = conversions[dataset]
 
@@ -200,8 +204,13 @@ def calculate_mean_interparticle_separation(
 ) -> float:
     """
     Computes the baryonic mean interparticle separation from the number of star and gas particles; black holes make up a small-enough subset of the box to be safely disregarded.
+
+    Returns the mean interparticle separation.
     """
-    return boxsize / (n_star + n_gas)**(1./3.)
+    mis = boxsize / (n_star + n_gas)**(1./3.)
+    logger.info(f"Mean baryonic interparticle separation: {mis:.2f}")
+
+    return mis
 
 class SnapshotReader:
     """

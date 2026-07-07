@@ -9,7 +9,9 @@ This is a modularised version of the old DataManager, its functionality divided 
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.data_management.pipeline_management import Internals
+    from octavian.data_management.pipeline_management import Internals
+from octavian.data_management.log import get_logger
+logger = get_logger()
 
 # defaults
 from pathlib import Path
@@ -58,6 +60,8 @@ class GizmoReader(SnapshotReader):
     inverse_ptype_map = {v: k for k, v in ptype_map.items()} # for convenience
 
     def __init__(self, snapshot_file: Path, constants: OctavianConstants):
+
+        logger.info(f"Using GIZMO reader.")
 
         self.snapshot_file = snapshot_file
         self.constants = constants
