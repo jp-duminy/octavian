@@ -35,7 +35,6 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
     particles = simulation_data.particles
     constants = simulation_data.constants
 
-    _prepare_hydrogen_fractions(gas=particles["gas"], constants=constants, XH=config["XH"])
     logger.info(f"Hydrogen fractions prepared.")
 
     for group_type in simulation_data.groups:
@@ -47,76 +46,94 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
         n_groups = group_store.n_groups
 
         # gas
-        gas = particles["gas"]
-        gas_group_idx = group_store.get_indexer(group_id=gas[group_key])
-        gas_results = compute_gas_properties(
-            gas=gas, gas_mass=group_store["mass_gas"],
-            group_idx=gas_group_idx, n_groups=n_groups
-        )
-        group_store.write_batch(results=gas_results)
+        if "gas" in particles:
+
+            gas = particles["gas"]
+            gas_group_idx = group_store.get_indexer(group_id=gas[group_key])
+
+            nH, fHI, fH2 = _prepare_hydrogen_fractions(rho=gas["rho"], fHI=gas["fHI"], fH2=gas["fH2"],
+                                            XH=config["XH"], proton_mass=constants.PROTON_MASS_G)
+            
+            gas_results = compute_gas_properties(
+                gas=gas, gas_mass=group_store["mass_gas"], fHI=fHI,
+                fH2=fH2, group_idx=gas_group_idx, n_groups=n_groups
+            )
+            group_store.write_batch(results=gas_results)
+
+            if group_type == "halos":
+
+                cgm_results = compute_cgm_properties(
+                    gas=gas, nH=nH, group_idx=gas_group_idx,
+                    n_groups=n_groups, nHlim=config["nHlim"]
+                )
+                group_store.write_batch(results=cgm_results)
 
         # stars
-        star = particles["star"]
-        star_group_idx = group_store.get_indexer(group_id=star[group_key])
-        star_results = compute_star_properties(
-            star=star, star_mass=group_store["mass_star"],
-            group_idx=star_group_idx, n_groups=n_groups
-        )
-        group_store.write_batch(results=star_results)
+        if "star" in particles:
+
+            star = particles["star"]
+            star_group_idx = group_store.get_indexer(group_id=star[group_key])
+            star_results = compute_star_properties(
+                star=star, star_mass=group_store["mass_star"],
+                group_idx=star_group_idx, n_groups=n_groups
+            )
+            group_store.write_batch(results=star_results)
 
         # black holes
-        bh = particles["bh"]
-        bh_group_idx = group_store.get_indexer(group_id=bh[group_key])
-        bh_results = compute_bh_properties(
-            bh=bh, group_idx=bh_group_idx,
-            n_groups=n_groups, edd_factor=constants.EDD_FACTOR
-        )
-        group_store.write_batch(results=bh_results)
+        if "bh" in particles:
 
-        if group_type == "halos":
-            cgm_results = compute_cgm_properties(
-                gas=gas, group_idx=gas_group_idx,
-                n_groups=n_groups, nHlim=config["nHlim"]
+            bh = particles["bh"]
+            bh_group_idx = group_store.get_indexer(group_id=bh[group_key])
+            bh_results = compute_bh_properties(
+                bh=bh, group_idx=bh_group_idx,
+                n_groups=n_groups, edd_factor=constants.EDD_FACTOR
             )
-            group_store.write_batch(results=cgm_results)
+            group_store.write_batch(results=bh_results)
 
         logger.info(f"Computed ptype-specific properties for {group_type}.")
 
-def _prepare_hydrogen_fractions(gas: ParticleStore, constants: OctavianConstants, XH: float) -> None:
+def _prepare_hydrogen_fractions(
+    rho: np.ndarray, 
+    fHI: np.ndarray, 
+    fH2: np.ndarray,
+    XH: float, 
+    proton_mass: float
+) -> tuple[np.ndarray, ...]:
     """
-    Derive HI/H2 masses from snapshot information, mutates the gas ParticleStore.
+    Enforces hydrogen fraction conservation and computes and hydrogen abundance, returning a tuple of:
 
-    Must be run before compute_gas_properties().
+    - nH: hydrogen abundance
+    - fHI: fraction of ionised hydrogen
+    - fH2: fraction of molecular hydrogen
+
+    Necessary for (cgm) gas properties.
     """
-    fHI = gas["fHI"]
-    fH2 = gas["fH2"]
-    gas["nH"] = gas["rho"] * XH / constants.PROTON_MASS_G # neutral hydrogen abundance
-
-    # enforce mass conservation: fHI + fH2 <= 1
-    not_conserving = (fHI + fH2) > 1.0
+    not_conserving = (fHI + fH2) > 1.0 # enforce mass conservation: fHI + fH2 <= 1
     logger.debug(f"{not_conserving.sum()} particles not conserving hydrogen mass.")
+    fHI = fHI.copy()
     fHI[not_conserving] = 1.0 - fH2[not_conserving] # fix relative to fH2 (this is an inherited convention)
 
-    mass = gas["mass"]
-    gas["fHI"] = fHI
-    gas["mass_HI"] = XH * fHI * mass
-    gas["mass_H2"] = XH * fH2 * mass
+    nH = rho * XH / proton_mass
+
+    return nH, fHI, fH2
 
 def compute_gas_properties(
     gas: ParticleStore, 
     gas_mass: np.ndarray, 
+    fHI: np.ndarray,
+    fH2: np.ndarray,
     group_idx: np.ndarray, 
     n_groups: int, 
 ) -> dict[str, np.ndarray]:
     """
-    Run _prepare_gas_fractions() first!
-
     Computes gas-specific properties, returning a dict of:
 
     - mass_HI, mass_H2
     - sfr
     - metallicity_{mass/sfr}_weighted
     - temp_mass_weighted
+
+    And writes HI/H2 masses back to ParticleStore for local environment properties.
     """
     results: dict[str, np.ndarray] = {}
     valid = group_idx >= 0 # indexer assigns -1 to particles not in groups
@@ -127,8 +144,13 @@ def compute_gas_properties(
     sfrs = gas["sfr"][valid]
     masses = gas["mass"][valid] # particle-level
 
-    mass_HI = sum_per_group(values=gas["mass_HI"][valid], group_idx=group_idx, n_groups=n_groups)
-    mass_H2 = sum_per_group(values=gas["mass_H2"][valid], group_idx=group_idx, n_groups=n_groups)
+    masses_HI = fHI * gas["mass"] # also store these on ParticleStore for local environment
+    masses_H2 = fH2 * gas["mass"]
+    gas["mass_HI"] = masses_HI
+    gas["mass_H2"] = masses_H2
+
+    mass_HI = sum_per_group(values=masses_HI[valid], group_idx=group_idx, n_groups=n_groups)
+    mass_H2 = sum_per_group(values=masses_H2[valid], group_idx=group_idx, n_groups=n_groups)
     sfr = sum_per_group(values=sfrs, group_idx=group_idx, n_groups=n_groups)
     metal_mass = sum_per_group(values=(metallicities * masses), group_idx=group_idx, n_groups=n_groups)
     metal_sfr = sum_per_group(values=(metallicities * sfrs), group_idx=group_idx, n_groups=n_groups)
@@ -146,7 +168,8 @@ def compute_gas_properties(
 def compute_cgm_properties(
     gas: ParticleStore, 
     group_idx: np.ndarray, 
-    n_groups: int, 
+    nH: np.ndarray,
+    n_groups: int,
     nHlim: float,
 ) -> dict[str, np.ndarray]:
     """
@@ -164,7 +187,7 @@ def compute_cgm_properties(
     metallicities = gas["metallicity"][valid]
     masses = gas["mass"][valid] # particle-level
 
-    nH = gas["nH"][valid]
+    nH = nH[valid]
     cgm_criterion = nH < nHlim
     cgm_idx = group_idx[cgm_criterion]
     cgm_masses = masses[cgm_criterion]

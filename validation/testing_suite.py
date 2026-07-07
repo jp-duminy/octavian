@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 from pathlib import Path
 from contextlib import contextmanager
 from time import perf_counter
-import logging
 import subprocess
 from dataclasses import dataclass
 from yaml import safe_load

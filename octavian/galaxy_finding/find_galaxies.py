@@ -118,7 +118,7 @@ def prepare_fof6d_data(
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
     temperature = gas["temperature"] 
-    nH = rho * config["XH"] / constants.PROTON_MASS_G # TODO: move to reader
+    nH = rho * config["XH"] / constants.PROTON_MASS_G # recomputed but trying to engineer this away is painful
 
     dense_mask = (nH > config["nHlim"]) & ((temperature < config["Tlim"]) | (sfr > 0)) # NOTE: sfr > 0 overrides of the density criterion
 
