@@ -20,6 +20,8 @@ import numpy as np
 
 # octavian
 from octavian.data_management.conventions import DTYPES
+from octavian.data_management.log import get_logger
+logger = get_logger()
 
 HDF5_GROUP_NAMES = {
     "halos": "halo_data",
@@ -43,6 +45,9 @@ def filter_snapshot(snapshot_file: Path,
 
     Constant defaults are empirically chosen but work well, only change with good reason.
     """
+    logger.info(f"Splitting snapshot into {n_split} intermediate files.")
+    logger.debug(f"alpha: {alpha}, beta: {beta}")
+
     with h5py.File(snapshot_file, "r") as f:
 
         for i in range(n_split):
@@ -155,11 +160,15 @@ def filter_snapshot(snapshot_file: Path,
 
                 diag.attrs["n_halos"] = len(rank_assignments[i])
                 diag.attrs["total_weight"] = rank_loads[i]
+    
+    logger.info(f"Intermediate files created.")
 
 def merge_intermediate_catalogues(files: list[Path], output_path: Path, internals: Internals) -> None:
     """
     Merges per-rank HDF5 catalogues into a single output file, groups sorted by mass descending.
     """
+    logger.info(f"Merging {len(files)} intermediate files into output catalogue.")
+
     sort_column = {"halos": "properties/core/mass_total", "galaxies": "properties/core/mass_baryon"}
 
     # first pass: collect lengths and sort keys per group type
@@ -302,6 +311,8 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 membership_grp.create_dataset(f"{ptype}_indices", data=indices, compression=1)
                 membership_grp.create_dataset(f"{ptype}_offsets", data=offsets, compression=1)
                 membership_grp.create_dataset(f"{ptype}_lengths", data=lengths, compression=1)
+
+    logger.info(f"Created merged analysis catalogue.")
 
 def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
     """
