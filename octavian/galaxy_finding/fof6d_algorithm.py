@@ -14,101 +14,90 @@ Original FoF: Davis et al. 1985, doi: 10.1086/163168
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-  from octavian.galaxy_finding.find_galaxies import FOF6DItem, FOF6DParameters
+  from octavian.galaxy_finding.find_galaxies import FOF6DParameters
 
 # workhorses
-from numba import njit
+from numba import njit, prange # NOTE: do not attach parallel=True to the individual algorithm functions, only the executor!
 import numpy as np
-from time import perf_counter
 
-def run_fof6d_algorithm(work_item: FOF6DItem, params: FOF6DParameters) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+@njit(cache=True, parallel=True)
+def dispatch_fof6d(
+    positions: np.ndarray,
+    velocities: np.ndarray,
+    parents: np.ndarray,
+    ptype_codes: np.ndarray,
+    starts: np.ndarray,
+    ends: np.ndarray,
+    linking_length: float,
+    velocity_factor: float,
+    minstars: int,
+    star_ptype_code: np.int8,
+) -> None:
     """
-    Runs the FOF6D algorithm (see internals of fof6d_algorithm.py for detailed information) on one work item according to the params. Returns a tuple of 3 (n_particles) arrays and an int:
-
-    - all_keys: corresponding particle indices to match their GalIDs
-    - all_gids: corresponding GalIDs
-    - all_ptypes: corresponding ptypes
-    - n_galaxies: the number of galaxies found
+    Parallelises the galaxy finding by dispatching halos to different cores; modifies the input parents array in place.
     """
-    n_stars = np.sum(work_item.ptype == "star")
+    n_halos = len(starts)
 
-    if n_stars < params.minstars:
-        empty = np.empty(0, dtype=np.int32)
-        return empty, empty, np.empty(0, dtype=object), 0 # match the type check annotation
-    
-    sort_order, cell_ids_sorted, cell_offsets, unique_cells, grid_dims = construct_sparse_cell_linked_list(
-                                                                            pos=work_item.pos, linking_length=params.linking_length)
-    sorted_pos = work_item.pos[sort_order]
-    sorted_vel = work_item.vel[sort_order]
+    neighbour_offsets = np.array( # for symmetric vel criterion
+    [(dx, dy, dz) 
+     for dx in range(-1, 2) 
+     for dy in range(-1, 2) 
+     for dz in range(-1, 2)
+     if (dx, dy, dz) > (0, 0, 0)],
+    dtype=np.int64)
 
-    sigmas = compute_local_velocity_dispersions(
-        positions=sorted_pos, velocities=sorted_vel,
-        cell_ids_sorted=cell_ids_sorted, cell_offsets=cell_offsets,
-        unique_cells=unique_cells, grid_dims=grid_dims,
-        linking_length=params.linking_length)
+    for halo_idx in prange(n_halos):
 
-    parents_sorted = link_particles(
-        positions=sorted_pos, velocities=sorted_vel, sigmas=sigmas,
-        neighbour_offsets=NEIGHBOUR_OFFSETS,
-        cell_ids_sorted=cell_ids_sorted, cell_offsets=cell_offsets,
-        unique_cells=unique_cells, grid_dims=grid_dims,
-        linking_length=params.linking_length, velocity_factor=params.velocity_factor)
+        s, e  = starts[halo_idx], ends[halo_idx]
+        n_stars = np.sum(ptype_codes[s:e] == star_ptype_code)
 
-    parents = np.empty_like(parents_sorted)
-    parents[sort_order] = parents_sorted
-    parents_order = np.argsort(parents, stable=True) # keep stable=True on for deterministic results between runs
-    parents = parents[parents_order]
-    label_splits = np.flatnonzero(np.diff(parents)) + 1 # shift array left (diff produces array with length n-1)
-    component_groups = np.split(parents_order, label_splits)
-
-    all_keys = []
-    all_gids = []
-    all_ptypes = []
-    current_gal_id = 0
-
-    for component in component_groups:
-
-        if len(component) < params.minstars:
+        if n_stars < minstars:
             continue
 
-        component_ptype = work_item.ptype[component]
+        halo_pos = positions[s:e]
+        halo_vel = velocities[s:e]
 
-        if np.sum(component_ptype == "star") < params.minstars:
-            continue
+        sort_order, cell_ids_sorted, cell_offsets, unique_cells, grid_dims = construct_sparse_cell_linked_list(
+            pos=halo_pos, linking_length=linking_length)
+        
+        sorted_pos = halo_pos[sort_order]
+        sorted_vel = halo_vel[sort_order]
 
-        all_keys.append(work_item.write_key[component])
-        all_gids.append(np.full(len(component), current_gal_id, dtype=np.int64))
-        all_ptypes.append(component_ptype)
-        current_gal_id += 1
+        sigmas = compute_local_velocity_dispersions(positions=sorted_pos, velocities=sorted_vel, cell_ids_sorted=cell_ids_sorted,
+                                                    cell_offsets=cell_offsets, unique_cells=unique_cells, grid_dims=grid_dims,
+                                                    linking_length=linking_length)
+        
+        parents_sorted = link_particles(
+            positions=sorted_pos, velocities=sorted_vel, sigmas=sigmas,
+            neighbour_offsets=neighbour_offsets,
+            cell_ids_sorted=cell_ids_sorted, cell_offsets=cell_offsets,
+            unique_cells=unique_cells, grid_dims=grid_dims,
+            linking_length=linking_length, velocity_factor=velocity_factor)
+        
+        for i in range(e - s):
+            parents[s + sort_order[i]] = sort_order[parents_sorted[i]]
 
-    n_galaxies = current_gal_id # renamed for readability; at the conclusion of the loop the current GalID is the number of galaxies found
-
-    if n_galaxies == 0: # no galaxies
-
-        empty = np.empty(0, dtype=np.int32)
-        return empty, empty, np.empty(0, dtype=object), 0
-
-    return np.concatenate(all_keys), np.concatenate(all_gids), np.concatenate(all_ptypes), n_galaxies
-
+@njit(cache=True)
 def unwrap_positions(positions: np.ndarray, boxsize: float) -> None:
     """
-    Unwraps a position array in-place using minimum-image convention (so copy before if mutating in place will corrupt adjacents!)
+    Unwraps PBCs by anchoring a halo to its first particle; mutates the positions array in-place.
     """
-    half_box = boxsize / 2
+    half_box = boxsize * 0.5
+    n_particles = len(positions)
 
     for axis in range(3):
-        
-        anchor_pos = positions[0,axis] # unwrap relative to the first particle in each group (standard Octavian convention)
 
-        dx = positions[1:,axis] - anchor_pos
+        anchor = positions[0, axis]
 
-        too_positive = dx > half_box
-        too_negative = dx < -half_box
+        for i in range(1, n_particles):
 
-        positions[1:,axis][too_positive] -= boxsize
-        positions[1:,axis][too_negative] += boxsize
+            delta = positions[i, axis] - anchor
 
-        assert(max(positions[:,axis]) - min(positions[:,axis]) < boxsize/2), f"Halo spans more than half the boxsize."
+            if delta > half_box:
+                positions[i, axis] -= boxsize
+
+            elif delta < -half_box:
+                positions[i, axis] += boxsize
 
 @njit(cache=True)
 def construct_sparse_cell_linked_list(pos: np.ndarray, linking_length: float) -> tuple[np.ndarray, ...]:
@@ -158,16 +147,6 @@ def construct_sparse_cell_linked_list(pos: np.ndarray, linking_length: float) ->
     unique_cells = cell_ids_sorted[cell_offsets[:-1]]
 
     return sort_order, cell_ids_sorted, cell_offsets, unique_cells, grid_dims
-
-# the velocity criterion (whether undirected or directed) is symmetric in comparison; each pair only needs visiting once
-NEIGHBOUR_OFFSETS = np.array(
-    [(dx, dy, dz) 
-     for dx in range(-1, 2) 
-     for dy in range(-1, 2) 
-     for dz in range(-1, 2)
-     if (dx, dy, dz) > (0, 0, 0)],
-    dtype=np.int64,
-)
 
 @njit(cache=True)
 def link_particles(
