@@ -30,7 +30,7 @@ import memray
 import numpy as np
 from matplotlib import pyplot as plt
 import scienceplots
-plt.style.use(["science", "high-vis"])
+plt.style.use(["science"])
 plt.rcParams["text.usetex"] = False
 
 # data
@@ -684,7 +684,7 @@ def check_output_against_reference(catalogue: str, group: str = "galaxy_data") -
             # totals
             logger.info(f"  {key} Difference: {ref_val.sum():.6e} -> {new_val.sum():.6e} ({(new_val.sum() - ref_val.sum()) / ref_val.sum():.4%} change)")
 
-def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32, n_bins: int = 20) -> None:
+def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32) -> None:
     """
     Plots the galactic stellar mass function (useful for FOF6D testing)
     """
@@ -710,9 +710,7 @@ def plot_gsmf(catalogue: str, boxsize: float, minstars: int = 32, n_bins: int = 
         positive_mask = (mass > 0)
         log_mass = np.log10(mass[positive_mask])
 
-        bin_edges = np.linspace(8.5, 12.0, n_bins + 1)
-        bin_width = bin_edges[1] - bin_edges[0]
-        bin_centres = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+        bin_edges = np.arange(8.5, 12.0 + 0.2, 0.2)
         counts, _ = np.histogram(log_mass, bins=bin_edges)
 
         volume = boxsize**3
