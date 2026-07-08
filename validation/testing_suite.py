@@ -44,7 +44,7 @@ from octavian.data_management import (
 )
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
-from octavian.run_octavian import _get_mpi_communicator
+from octavian.run_octavian import get_mpi_communicator
 
 @dataclass
 class TestConfig:
@@ -178,7 +178,7 @@ def test_filter_snapshot(n_ranks: int, sentinel_value: int = 0) -> list[Path]:
 
     logger.info(f"filter_snapshot passes tests.")
 
-def _end_to_end_pipeline(snapshot_file: Path, output_file: Path, comm: MPI.Comm | None) -> None:
+def _end_to_end_pipeline(snapshot_file: Path, output_file: Path) -> None:
     """
     Executes each stage of the Octavian pipeline with timings.
     """
@@ -824,7 +824,7 @@ def test_full_serial_run() -> None:
 
         snapshot_file = test_config.working_directory / f"rank_0.hdf5"
         intermediate_file = test_config.working_directory / f"rank_0_analysis.hdf5"
-        _end_to_end_pipeline(snapshot_file=snapshot_file, output_file=intermediate_file, comm=None)
+        _end_to_end_pipeline(snapshot_file=snapshot_file, output_file=intermediate_file)
 
         output_catalogue = test_config.working_directory / f"output_catalogue.hdf5"
 
@@ -864,7 +864,7 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
 
         snapshot_file = test_config.working_directory / f"rank_{rank}.hdf5"
         intermediate_file = test_config.working_directory / f"rank_{rank}_intermediate_analysis.hdf5"
-        _end_to_end_pipeline(snapshot_file=snapshot_file, output_file=intermediate_file, comm=comm)
+        _end_to_end_pipeline(snapshot_file=snapshot_file, output_file=intermediate_file)
 
         comm.Barrier()
 
@@ -902,7 +902,7 @@ def test_full_parallel_run(comm: MPI.Comm) -> None:
 
 def main():
 
-    comm = _get_mpi_communicator()
+    comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm is not None else 0
     configure_logger(rank=rank, output_level="INFO", output_log_directory=test_config.working_directory / f"rank_{rank}_log")
 
