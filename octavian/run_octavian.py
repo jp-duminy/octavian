@@ -117,7 +117,7 @@ def run_octavian(
     intermediate_directory = output_directory / "Intermediates"
     intermediate_directory.mkdir(parents=True, exist_ok=True)
 
-    configure_logger(rank=rank, output_level="INFO", output_log_directory=intermediate_directory / f"rank_{rank}_log")
+    configure_logger(rank=rank, output_level="INFO", output_log_directory=intermediate_directory)
     logger = get_logger()
 
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
