@@ -1,0 +1,7 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff-check
+        args: [--fix] # this will automatically do unused/bad imports or weird syntax for you but delete this if you'd rather do it manually
+      - id: ruff-format
