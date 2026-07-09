@@ -1,0 +1,329 @@
+"""
+
+Tests whether the aggregate property internal functions correctly recover properties from the numpy implementation with known arrays.
+
+For the heavier compute functions which have more intricate logic, it is not possible to loop over groups with numpy to verify the results independently; you must replicate the same logic as the engine room functions, which means you will always get the same answer. As such, I decided it was better to do some simple asserts (is this result physical?) more akin to the testing_suite.py functions.
+
+"""
+
+import numpy as np
+
+from octavian.aggregate_properties.aggregate_computations import (
+    compute_kinematics,
+    compute_rotational_quantities,
+    compute_enclosed_mass_radii,
+    compute_virial_quantities,
+    compute_centre_of_mass,
+    compute_vmax_and_rmax,
+    compute_radii,
+)
+
+from octavian.aggregate_properties.aggregate_helpers import (
+    sum_per_group,
+    count_per_group,
+    max_value_per_group,
+    min_value_per_group,
+    min_idx_per_group,
+    max_idx_per_group,
+    first_idx_per_group,
+    build_group_csr,
+    sort_by_group,
+)
+
+from octavian.data_management import OctavianConstants
+oc = OctavianConstants()
+
+SEED = 2317434
+
+N_GROUPS = 3
+BOXSIZE = 100.0
+
+GROUP_IDX = np.array([0, 0, 0, 1, 1, 1, 1, 2, 2, 2], dtype=np.int64)
+
+rng = np.random.default_rng(seed=SEED)
+pos = rng.uniform(0, BOXSIZE, size=(len(GROUP_IDX), 3))
+vel = rng.normal(0, 70.0, size=(len(GROUP_IDX), 3))
+
+pos[0] = [99.0, 50.0, 50.0] # make these groups straddle the boundary for PBC checks
+pos[1] = [1.0, 50.0, 50.0]
+
+masses = rng.uniform(1e5, 1e7, size=len(GROUP_IDX))
+ref_pos = np.array([pos[GROUP_IDX == g].mean(axis=0) for g in range(N_GROUPS)])
+ref_vel = np.array([vel[GROUP_IDX == g].mean(axis=0) for g in range(N_GROUPS)])
+
+def test_count_per_group() -> None:
+    """
+    Tests aggregate helper count_per_group (bincount wrapper).
+    """
+    expected = [np.count_nonzero(GROUP_IDX == g) for g in range(N_GROUPS)]
+    result = count_per_group(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_array_equal(expected, result, err_msg="count_per_group failed.")
+
+def test_sum_per_group() -> None:
+    """
+    Tests aggregate helper sum_per_group (bincount wrapper) with the masses array.
+    """
+    expected = [np.sum(masses[GROUP_IDX == g]) for g in range(N_GROUPS)]
+    result = sum_per_group(values=masses, group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_allclose(expected, result, rtol=1e-14, err_msg="sum_per_group failed.") # floating point differences can occur here
+
+def test_value_per_group() -> None:
+    """
+    Tests aggregate helpers max/min_value_per_group with the masses array.
+    """
+    max_expected = [np.max(masses[GROUP_IDX == g]) for g in range(N_GROUPS)]
+    max_result = max_value_per_group(values=masses, group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_allclose(max_expected, max_result, rtol=1e-14, err_msg="max_value_per_group failed.")
+
+    min_expected = [np.min(masses[GROUP_IDX == g]) for g in range(N_GROUPS)]
+    min_result = min_value_per_group(values=masses, group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_allclose(min_expected, min_result, rtol=1e-14, err_msg="min_value_per_group failed.")
+
+def test_idx_per_group() -> None:
+    """
+    Tests aggregate helpers max/min_idx_per_group with the masses array.
+    """
+    max_expected = [np.flatnonzero(GROUP_IDX == g)[np.argmax(masses[GROUP_IDX == g])] for g in range(N_GROUPS)]
+    max_result = max_idx_per_group(values=masses, group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_array_equal(max_expected, max_result, err_msg="max_idx_per_group failed.")
+
+    min_expected = [np.flatnonzero(GROUP_IDX == g)[np.argmin(masses[GROUP_IDX == g])] for g in range(N_GROUPS)]
+    min_result = min_idx_per_group(values=masses, group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_array_equal(min_expected, min_result, err_msg="min_idx_per_group failed.")
+
+def test_first_idx_per_group() -> None:
+    """
+    Tests aggregate helper first_idx_per_group.
+    """
+    first_expected = [np.flatnonzero(GROUP_IDX == g)[0] for g in range(N_GROUPS)]
+    first_result = first_idx_per_group(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    np.testing.assert_array_equal(first_expected, first_result, err_msg="first_idx_per_group failed.")
+
+def test_group_csr() -> None:
+    """
+    Tests aggregate helper build_group_csr.
+    """
+    offsets, idx_sorted = build_group_csr(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    for g in range(N_GROUPS):
+
+        expected = np.flatnonzero(GROUP_IDX == g)
+        result = idx_sorted[offsets[g]:offsets[g+1]]
+
+        np.testing.assert_array_equal(np.sort(result), expected, err_msg=f"build_group_csr failed.")
+
+def test_sort_by_group() -> None:
+    """
+    Tests aggregate helper sort_by_group.
+    """
+    order, unique_ids, starts, ends = sort_by_group(group_ids=GROUP_IDX)
+
+    for i in range(len(unique_ids)):
+
+        expected = np.flatnonzero(GROUP_IDX == unique_ids[i])
+        result = order[starts[i]:ends[i]]
+
+        np.testing.assert_array_equal(np.sort(result), expected, err_msg=f"build_group_csr failed.")
+
+def test_radii() -> None:
+    """
+    Tests engine room function compute_radii.
+    """
+    delta = pos - ref_pos[GROUP_IDX]
+    delta -= BOXSIZE * np.round(delta / BOXSIZE)
+    expected = np.linalg.norm(delta, axis=1)
+
+    result = compute_radii(positions=pos, ref_pos=ref_pos, group_idx=GROUP_IDX,
+                           n_particles=len(pos), boxsize=BOXSIZE)
+
+    np.testing.assert_allclose(result, expected, rtol=1e-14)
+
+def test_com() -> None:
+    """
+    Tests engine room function compute_centre_of_mass.
+    """
+    group_mass = np.array([masses[GROUP_IDX == g].sum() for g in range(N_GROUPS)])
+    anchor_pos = np.array([pos[np.flatnonzero(GROUP_IDX == g)[0]] for g in range(N_GROUPS)]) # mirror convention of anchoring to first particle
+
+    expected_pos = np.zeros((N_GROUPS, 3))
+    expected_vel = np.zeros((N_GROUPS, 3))
+
+    for g in range(N_GROUPS):
+
+        mask = GROUP_IDX == g
+        delta = pos[mask] - anchor_pos[g]
+        delta -= BOXSIZE * np.round(delta / BOXSIZE)
+        expected_pos[g] = (anchor_pos[g] + np.average(delta, weights=masses[mask], axis=0)) % BOXSIZE
+        expected_vel[g] = np.average(vel[mask], weights=masses[mask], axis=0)
+
+    result_pos, result_vel = compute_centre_of_mass(
+        positions=pos, velocities=vel, masses=masses, group_idx=GROUP_IDX,
+        anchor_pos=anchor_pos, group_mass=group_mass, n_groups=N_GROUPS, boxsize=BOXSIZE)
+
+    np.testing.assert_allclose(result_pos, expected_pos, rtol=1e-12)
+    np.testing.assert_allclose(result_vel, expected_vel, rtol=1e-12)
+
+def test_kinematics() -> None:
+    """
+    Tests engine room function compute_kinematics.
+    """
+    com_vel = np.array([np.average(vel[GROUP_IDX == g], weights=masses[GROUP_IDX == g], axis=0)
+                        for g in range(N_GROUPS)])
+
+    expected_L = np.zeros((N_GROUPS, 3))
+    expected_ke = np.zeros(N_GROUPS)
+    expected_disp = np.zeros(N_GROUPS)
+
+    for g in range(N_GROUPS):
+
+        mask = GROUP_IDX == g
+        delta_pos = pos[mask] - ref_pos[g]
+        delta_pos -= BOXSIZE * np.round(delta_pos / BOXSIZE)
+        delta_vel_ref = vel[mask] - ref_vel[g]
+        delta_vel_com = vel[mask] - com_vel[g]
+        m = masses[mask]
+
+        expected_L[g] = np.sum(m[:, None] * np.cross(delta_pos, delta_vel_ref), axis=0)
+        expected_ke[g] = 0.5 * np.sum(m * np.sum(delta_vel_ref**2, axis=1))
+        expected_disp[g] = np.sum(m * np.sum(delta_vel_com**2, axis=1))
+
+    delta = pos - ref_pos[GROUP_IDX]
+    delta -= BOXSIZE * np.round(delta / BOXSIZE)
+    expected_radii = np.linalg.norm(delta, axis=1)
+
+    result_L, result_ke, result_disp, result_radii = compute_kinematics(
+        positions=pos, velocities=vel, masses=masses, group_idx=GROUP_IDX,
+        ref_pos=ref_pos, ref_vel=ref_vel, com_vel=com_vel,
+        n_groups=N_GROUPS, n_particles=len(pos), boxsize=BOXSIZE)
+
+    np.testing.assert_allclose(result_L, expected_L, rtol=1e-12)
+    np.testing.assert_allclose(result_ke, expected_ke, rtol=1e-12)
+    np.testing.assert_allclose(result_disp, expected_disp, rtol=1e-12)
+    np.testing.assert_allclose(result_radii, expected_radii, rtol=1e-12)
+
+def test_rotational_quantities() -> None:
+    """
+    Tests engine room function compute_rotational_quantities.
+    """
+    L_group = np.zeros((N_GROUPS, 3))
+
+    for g in range(N_GROUPS):
+
+        mask = GROUP_IDX == g
+        delta_pos = pos[mask] - ref_pos[g]
+        delta_pos -= BOXSIZE * np.round(delta_pos / BOXSIZE)
+        delta_vel = vel[mask] - ref_vel[g]
+        L_group[g] = np.sum(masses[mask, None] * np.cross(delta_pos, delta_vel), axis=0)
+
+    expected_counter = np.zeros(N_GROUPS)
+    expected_krot = np.zeros(N_GROUPS)
+
+    for g in range(N_GROUPS):
+
+        mask = GROUP_IDX == g
+        delta_pos = pos[mask] - ref_pos[g]
+        delta_pos -= BOXSIZE * np.round(delta_pos / BOXSIZE)
+        delta_vel = vel[mask] - ref_vel[g]
+        m = masses[mask]
+
+        momentum = m[:, None] * delta_vel
+        L_particles = np.cross(delta_pos, momentum)
+        L_dot = np.sum(L_particles * L_group[g], axis=1)
+
+        expected_counter[g] = np.sum(m[L_dot < 0])
+
+        R_cyl = np.linalg.norm(np.cross(delta_pos, L_group[g]), axis=1)
+
+        for i in range(len(m)):
+
+            if R_cyl[i] > 0.0:
+
+                v_circ = L_dot[i] / (R_cyl[i] * m[i])
+                expected_krot[g] += 0.5 * m[i] * v_circ**2
+
+    result_counter, result_krot = compute_rotational_quantities(
+        positions=pos, velocities=vel, masses=masses, group_idx=GROUP_IDX,
+        ref_pos=ref_pos, ref_vel=ref_vel, L_group=L_group,
+        n_groups=N_GROUPS, n_particles=len(pos), boxsize=BOXSIZE)
+
+    np.testing.assert_allclose(result_counter, expected_counter, rtol=1e-12)
+    np.testing.assert_allclose(result_krot, expected_krot, rtol=1e-12)
+
+def test_enclosed_mass_radii() -> None:
+    """
+    Verifies engine room function enclosed_mass_radii output is sensible.
+    """
+    delta = pos - ref_pos[GROUP_IDX]
+    delta -= BOXSIZE * np.round(delta / BOXSIZE)
+    radii = np.linalg.norm(delta, axis=1)
+
+    quantiles = np.array([0.2, 0.5, 0.8])
+    offsets, idx_sorted = build_group_csr(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    result = compute_enclosed_mass_radii(
+        radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted,
+        n_groups=N_GROUPS, quantiles=quantiles)
+
+    for g in range(N_GROUPS):
+
+        row = result[g]
+        valid = ~np.isnan(row)
+        assert np.all(np.diff(row[valid]) >= 0), f"enclosed_mass_radii_failed: not monotonically increasing."
+        assert np.all(row[valid] <= np.max(radii[GROUP_IDX == g])), f"enclosed_mass_radii_failed: enclosed radius exceeds max particle radius."
+
+def test_virial_quantities() -> None:
+    """
+    Verifies engine room function compute_virial_quantities output is sensible.
+    """
+    delta = pos - ref_pos[GROUP_IDX]
+    delta -= BOXSIZE * np.round(delta / BOXSIZE)
+    radii = np.linalg.norm(delta, axis=1)
+
+    rhocrit = 1e-29
+    factors = np.array([200.0, 500.0])
+    offsets, idx_sorted = build_group_csr(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    result_r, result_m = compute_virial_quantities(
+        radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted,
+        n_groups=N_GROUPS, rhocrit=rhocrit, factors=factors)
+
+    for g in range(N_GROUPS):
+
+        if not np.isnan(result_r[g, 0]):
+
+            assert result_r[g, 1] <= result_r[g, 0], f"compute_virial_quantities failed: r500 > r200."
+            assert result_m[g, 1] <= result_m[g, 0], f"compute_virial_quantities failed: m500 > m200."
+            assert result_r[g, 0] <= np.max(radii[GROUP_IDX == g]), f"compute_virial_quantities failed: virial radius exceeds max particle radius."
+
+
+def test_vmax_rmax() -> None:
+    """
+    Verifies engine room function compute_vmax_and_rmax output is sensible.
+    """
+    delta = pos - ref_pos[GROUP_IDX]
+    delta -= BOXSIZE * np.round(delta / BOXSIZE)
+    radii = np.linalg.norm(delta, axis=1)
+
+    offsets, idx_sorted = build_group_csr(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+
+    result_vmax, result_rmax = compute_vmax_and_rmax(
+        radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted,
+        G=oc.G_VCIRC, n_groups=N_GROUPS)
+
+    for g in range(N_GROUPS):
+
+        if not np.isnan(result_vmax[g]):
+
+            assert result_vmax[g] > 0, f"compute_vmax_and_rmax failed: negative vmax."
+            assert result_rmax[g] > 0, f"compute_vmax_and_rmax failed: negative rmax."
+            assert result_rmax[g] <= np.max(radii[GROUP_IDX == g]), f"compute_vmax_and_rmax failed: rmax exceeds max particle radius."
+            total_mass = np.sum(masses[GROUP_IDX == g])
+            v_at_outer = np.sqrt(oc.G_VCIRC * total_mass / np.max(radii[GROUP_IDX == g]))
+            assert result_vmax[g] >= v_at_outer * 0.99, f"compute_vmax_and_rmax failed: vmax below circular velocity."
