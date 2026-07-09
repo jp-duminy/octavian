@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=82.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "Octavian"
-version = "0.5.1"
+version = "0.5.2"
 description = "Simulation analysis toolkit for SPH codes with built-in galaxy finding."
 requires-python = ">=3.14"
 authors = [
