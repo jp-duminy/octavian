@@ -5,18 +5,17 @@ Properties related to a structure's local environment (number densities, apertur
 """
 
 # semantic
-
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from octavian.data_management import ParticleStore, GroupStore, SimulationData, OctavianConfig
 
 # others
 import numpy as np
 from scipy.spatial import KDTree  # remember, always pass boxsize
 from scipy.sparse import csr_array
 
-# other Octavian data structures
-if TYPE_CHECKING:
-    from octavian.data_management import ParticleStore, GroupStore, SimulationData
-
+# octavian
 from octavian.data_management import get_logger
 from octavian.data_management.conventions import DTYPES
 from octavian.aggregate_properties.aggregate_helpers import (
@@ -26,7 +25,7 @@ from octavian.aggregate_properties.aggregate_helpers import (
 logger = get_logger()
 
 
-def run_local_environment(simulation_data: SimulationData, config: dict) -> None:
+def run_local_environment(simulation_data: SimulationData, config: OctavianConfig) -> None:
     """
     Top-level executor for local environment properties.
     """
@@ -39,11 +38,11 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
         mass=galaxies["mass_baryon"],
         n_groups=galaxies.n_groups,
         boxsize=sim.boxsize,
-        radii=config["density_radii"],
+        radii=config.density_radii,
     )
     galaxies.write_batch(results=density_results)
 
-    for aperture in config["aperture_size"]:
+    for aperture in config.aperture_size:
         aperture_results = compute_galaxy_aperture_masses(
             particles=simulation_data.particles,
             galaxies=galaxies,

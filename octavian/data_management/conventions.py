@@ -7,6 +7,8 @@ Also contains backend dataclasses.
 
 # default packages
 from dataclasses import dataclass, field
+from yaml import safe_load
+from pathlib import Path
 
 # units/arrays
 from astropy.constants import codata2014 as codata  # unyt uses codata2014, need to migrate to codata2022
@@ -18,6 +20,65 @@ import numpy as np
 from octavian.data_management.log import get_logger
 
 logger = get_logger()
+
+
+@dataclass(frozen=True, slots=True)
+class OctavianConfig:
+    """
+    User-configured parameters as specified in config.yaml.
+    """
+
+    stages: dict[str, bool]
+    process_ptypes: dict[str, bool]
+
+    min_stars_per_galaxy: int
+    min_dm_per_halo: int
+
+    nH_lim: float
+    T_lim: float
+    XH: float
+    FRAD: float
+    MU: float
+
+    b: float
+    velocity_factor: float
+
+    radial_quantiles: dict[str, float]
+    aperture_size: list[int]
+    virial_factors: list[int]
+    density_radii: list[int]
+
+    cores_per_rank: int
+
+    terminal_output_level: str
+
+    @classmethod
+    def from_yaml(cls, config_path: Path) -> OctavianConfig:
+        """
+        Parses a config.yaml file into the dataclass.
+        """
+        with open(config_path, "r") as f:
+            raw = safe_load(f)
+
+        return cls(
+            stages=raw["stages"],
+            process_ptypes=raw["process_ptypes"],
+            min_stars_per_galaxy=raw["MINIMUM_STARS_PER_GALAXY"],
+            min_dm_per_halo=raw["MINIMUM_DM_PER_HALO"],
+            nH_lim=raw["nH_lim"],
+            T_lim=raw["T_lim"],
+            XH=raw["XH"],
+            FRAD=raw["FRAD"],
+            MU=raw["MU"],
+            b=raw["b"],
+            velocity_factor=raw["velocity_factor"],
+            radial_quantiles=raw["radial_quantiles"],
+            aperture_size=raw["aperture_size"],
+            virial_factors=raw["virial_factors"],
+            density_radii=raw["density_radii"],
+            cores_per_rank=raw["cores_per_rank"],
+            terminal_output_level=raw["terminal_output_level"],
+        )
 
 
 @dataclass(frozen=True, slots=True)

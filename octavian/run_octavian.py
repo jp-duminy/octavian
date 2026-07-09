@@ -23,6 +23,7 @@ from octavian.data_management import (
     SimulationData,
     Internals,
     OctavianConstants,
+    OctavianConfig,
     build_group_store,
     build_particle_stores,
     load_internals,
@@ -35,7 +36,6 @@ from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
 
 # data handling
-from yaml import safe_load
 from pathlib import Path
 
 
@@ -52,16 +52,16 @@ def get_mpi_communicator() -> MPI.Comm | None:
     return None
 
 
-def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, internals: Internals) -> None:
+def execute_pipeline(snapshot_path: Path, output_path: Path, config: OctavianConfig, internals: Internals) -> None:
     """
     Executes each toggled stage of the Octavian pipeline.
     """
-    constants = OctavianConstants(mu=config["MU"], frad=config["FRAD"])
+    constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
     reader = GizmoReader(snapshot_file=snapshot_path, constants=constants)
     sim = reader.simulation_attributes
     particles = build_particle_stores(
-        reader=reader, internals=internals, constants=constants, process_ptypes=config["process_ptypes"]
+        reader=reader, internals=internals, constants=constants, process_ptypes=config.process_ptypes
     )
 
     for prop in ["rho", "sfr"]:
@@ -88,7 +88,7 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, inter
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
 
-    requested = [name for name, enabled in config["stages"].items() if enabled and name != "find_galaxies"]
+    requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
     ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
 
     stage_dispatch = {
@@ -156,10 +156,8 @@ def run_octavian(
     intermediate_file = intermediate_directory / f"rank_{rank}.hdf5"
     intermediate_output = intermediate_directory / f"rank_{rank}_intermediate_analysis.hdf5"
 
-    with open(config_path, "r") as f:
-        config = safe_load(f)
-
-    internals = load_internals(internals_filepath=internals_path, user_config=config)
+    config = OctavianConfig.from_yaml(config_path=config_path)
+    internals = load_internals(internals_filepath=internals_path, config=config)
 
     execute_pipeline(
         snapshot_path=intermediate_file, output_path=intermediate_output, config=config, internals=internals

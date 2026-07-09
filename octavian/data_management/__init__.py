@@ -25,6 +25,7 @@ from octavian.data_management.pipeline_management import (
 from octavian.data_management.conventions import (
     DTYPES as DTYPES,
     OctavianConstants as OctavianConstants,
+    OctavianConfig as OctavianConfig,
 )
 from octavian.data_management.log import (
     configure_logger as configure_logger,

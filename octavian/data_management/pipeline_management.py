@@ -4,6 +4,12 @@ The circulatory system of Octavian, managing how user-configured stages are run 
 
 """
 
+# semantic
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from octavian.data_management.conventions import OctavianConfig
+
 # all default libraries
 from dataclasses import dataclass
 from yaml import safe_load
@@ -48,7 +54,7 @@ class OutputColumnMetadata:
     label: str
 
 
-def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
+def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internals:
     """
     Loads stage definitions from internals.yaml, validates output columns, and returns the Internals dataclass which contains resolved metadata/ordering from internals.yaml
     """
@@ -60,7 +66,7 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
 
     for template, meta in raw_output_columns.items():
         if "over" in meta:
-            resolved = resolve_over(meta["over"], user_config)
+            resolved = resolve_over(meta["over"], config)
 
             for key, values in resolved.items():
                 assert values, (
@@ -96,7 +102,7 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
             templates = sub_block["columns"]
 
             if "over" in sub_block:
-                resolved_over = resolve_over(sub_block["over"], user_config)
+                resolved_over = resolve_over(sub_block["over"], config)
 
                 for key, values in resolved_over.items():
                     assert len(values) > 0, (
@@ -136,7 +142,7 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     )
 
 
-def resolve_over(over: dict[str, list | str], user_config: dict) -> dict[str, list[str]]:
+def resolve_over(over: dict[str, list | str], config: OctavianConfig) -> dict[str, list[str]]:
     """
     Expands the "over:" field in internals.yaml.
     """
@@ -145,7 +151,7 @@ def resolve_over(over: dict[str, list | str], user_config: dict) -> dict[str, li
     for key, val in over.items():
         if isinstance(val, str) and val.startswith("from_config:"):
             config_key = val.split(":", maxsplit=1)[1]
-            config_value = user_config[config_key]
+            config_value = getattr(config, config_key)
 
             if isinstance(config_value, dict):
                 config_value = list(config_value.keys())  # needed for the radial quantiles dict in config
