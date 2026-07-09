@@ -1,33 +1,50 @@
-/build
-/dist
-/*egg-info
-/.vscode
-*/__pycache__
-octavian/*/__pycache__
-
-# Python
+# python
 __pycache__/
 *.py[cod]
 *.so
-*.egg-info/
 *.egg
+*.egg-info/
+dist/
+build/
+*.whl
+sdist/
 
-# Conda
+# virtual environments
+.venv/
 envs/
 octavian-env/
-*.conda
-*.ipynb_checkpoints/
+
+# data files
+*.hdf5
+*.npy
+*.npz
+*.csv
 *.png
+*.jpg
+*.jpeg
 
-# Jupyter
-.ipynb_checkpoints
-
-# VS Code
+# editors
 .vscode/
+.idea/
 
-# OS
+# os
 .DS_Store
 Thumbs.db
 
-code_graveyard.py
+# jupyter
+.ipynb_checkpoints/
+
+# testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# type checking
+.mypy_cache/
+.pyright/
+
+# ruff
+.ruff_cache/
+
+# jp's testing file
 test_attributes.py
