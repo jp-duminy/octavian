@@ -1,3 +1,5 @@
+# run pre-commit install in terminal to activate this; update with whatever the repo link syntax is
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20
