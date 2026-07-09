@@ -7,7 +7,7 @@ NOTE: this is now calling dead code as of v0.3.0, so it will need to be refactor
 """
 
 # type checking (semantic, do not worry about this)
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

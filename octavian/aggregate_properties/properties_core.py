@@ -5,7 +5,7 @@ Core aggregate properties. These include simple computations (per-ptype number c
 """
 
 # semantic
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

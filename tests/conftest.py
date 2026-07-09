@@ -6,7 +6,7 @@ This is for automated CI/CD (did your commit break anything in the analysis?). P
 
 """
 
-from __future__ import annotations
+
 
 from pathlib import Path
 from yaml import safe_load

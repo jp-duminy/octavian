@@ -5,7 +5,7 @@ Functions which write data from analysis stages into CSR format lists for HDF5 c
 """
 
 # type checking (semantic)
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

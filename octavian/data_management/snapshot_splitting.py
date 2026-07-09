@@ -6,7 +6,7 @@ NOTE: this will eventually be legacy code, as we intend to move away from interm
 
 """
 
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

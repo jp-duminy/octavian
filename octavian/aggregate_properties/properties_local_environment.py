@@ -5,7 +5,7 @@ Properties related to a structure's local environment (number densities, apertur
 """
 
 # semantic
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 # others

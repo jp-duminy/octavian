@@ -8,7 +8,7 @@ test_snapshot_large: 4GB
 """
 
 # type checking (semantic, do not worry about this)
-from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from mpi4py import MPI

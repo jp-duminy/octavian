@@ -7,7 +7,7 @@ If this is very slow, numba may not be jitting on your cluster. Please check whe
 """
 
 # type checking (semantic)
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

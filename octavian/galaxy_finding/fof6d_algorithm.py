@@ -11,7 +11,7 @@ Original FoF: Davis et al. 1985, doi: 10.1086/163168
 """
 
 # type checking (semantic)
-from __future__ import annotations
+
 
 # workhorses
 from numba import (

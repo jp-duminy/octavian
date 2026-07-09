@@ -6,7 +6,7 @@ This is a modularised version of the old DataManager, its functionality divided 
 """
 
 # semantic
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
