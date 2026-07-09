@@ -77,6 +77,7 @@ CONDITIONAL_NAN = {
             "properties/core/velocity_dispersion_bh",
             "properties/core/L_bh", 
             "properties/core/ALPHA_bh", "properties/core/BETA_bh",
+            "properties/particle_specific/bhmdot", "properties/particle_specific/bh_fedd",
         ]),
     ],
     "galaxy_data": [
@@ -111,6 +112,7 @@ CONDITIONAL_NAN = {
             "properties/core/L_bh",
             "properties/core/ALPHA_bh", "properties/core/BETA_bh",
             "properties/core/BoverT_bh", "properties/core/kappa_rot_bh",
+            "properties/particle_specific/bhmdot", "properties/particle_specific/bh_fedd",
         ]),
     ],
 }
@@ -121,12 +123,12 @@ ZERO_WHEN_EMPTY = {
         ("membership/gas_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
         ("membership/star_lengths", ["properties/core/mass_star"]),
         ("membership/dm_lengths", ["properties/core/mass_dm"]),
-        ("membership/bh_lengths", ["properties/core/mass_bh"]),
+        ("membership/bh_lengths", ["properties/core/mass_bh", "properties/particle_specific/bh_mass_max"]),
     ],
     "galaxy_data": [
         ("membership/gas_lengths", ["properties/core/mass_gas", "properties/particle_specific/mass_HI", "properties/particle_specific/mass_H2"]),
         ("membership/star_lengths", ["properties/core/mass_star"]),
-        ("membership/bh_lengths", ["properties/core/mass_bh"]),
+        ("membership/bh_lengths", ["properties/core/mass_bh", "properties/particle_specific/bh_mass_max"]),
     ],
 }
 
@@ -142,4 +144,5 @@ SOFT_NAN = [
     "properties/core/spin_param", "properties/core/virial_temperature",
     "properties/core/r200c", "properties/core/r500c", "properties/core/r2500c",
     "properties/core/m200c", "properties/core/m500c", "properties/core/m2500c",
+    "properties/core/vmax", "properties/core/rmax"
 ]
