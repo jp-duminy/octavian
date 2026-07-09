@@ -10,36 +10,43 @@ from yaml import safe_load
 from pathlib import Path
 from itertools import product
 
+
 @dataclass(frozen=True, slots=True)
 class PipelineStage:
     """
     Object containing metadata about an Octavian analysis stage.
     """
-    name:                    str
-    label:                   str
-    requires:                frozenset[str]
-    applies_to:              frozenset[str]
-    needs_particle_columns:  frozenset[str]
+
+    name: str
+    label: str
+    requires: frozenset[str]
+    applies_to: frozenset[str]
+    needs_particle_columns: frozenset[str]
+
 
 @dataclass(frozen=True, slots=True)
 class Internals:
     """
     Internal pipeline management and naming dictionaries for data writing.
     """
+
     stages: dict[str, PipelineStage]
     baryonic_ptypes: frozenset[str]
-    group_types: dict[str, dict]  
+    group_types: dict[str, dict]
     output_columns: dict[str, OutputColumnMetadata]
+
 
 @dataclass(frozen=True, slots=True)
 class OutputColumnMetadata:
     """
     For stamping attributes on HDF5 datasets: dtype/unit/brief description of each column as specified in internals.yaml.
     """
+
     dtype: str
     unit: str
     description: str
     label: str
+
 
 def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     """
@@ -52,14 +59,12 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     output_columns = {}
 
     for template, meta in raw_output_columns.items():
-
         if "over" in meta:
             resolved = resolve_over(meta["over"], user_config)
 
             for key, values in resolved.items():
                 assert values, (
-                    f"Output column template {template!r}: 'over' key {key!r} "
-                    "cannot find anything to iterate over."
+                    f"Output column template {template!r}: 'over' key {key!r} cannot find anything to iterate over."
                 )
 
             expanded = expand_column_templates([template], resolved)
@@ -73,7 +78,6 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     stages: dict[str, PipelineStage] = {}
 
     for stage_name, stage_config in internals["stages"].items():
-
         stages[stage_name] = PipelineStage(
             name=stage_name,
             label=stage_config["label"],
@@ -86,11 +90,9 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
     expanded_output_columns: dict[str, OutputColumnMetadata] = {}
 
     for stage_name, stage_config in internals["stages"].items():
-
         stage_label = stages[stage_name].label
 
         for sub_block in stage_config.get("outputs", []):
-
             templates = sub_block["columns"]
 
             if "over" in sub_block:
@@ -108,14 +110,10 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
                 expanded = list(templates)
 
             for col_name in expanded:
-
                 assert col_name in output_columns, (
-                    f"Stage {stage_name!r} says it outputs {col_name!r}. "
-                    f"However, this is not found in output_columns."
+                    f"Stage {stage_name!r} says it outputs {col_name!r}. However, this is not found in output_columns."
                 )
-                assert col_name not in all_stage_outputs, (
-                    f"Output {col_name!r} is being computed by multiple stages."
-                )
+                assert col_name not in all_stage_outputs, f"Output {col_name!r} is being computed by multiple stages."
                 all_stage_outputs.add(col_name)
 
                 meta = output_columns[col_name]
@@ -137,6 +135,7 @@ def load_internals(internals_filepath: Path, user_config: dict) -> Internals:
         output_columns=expanded_output_columns,
     )
 
+
 def resolve_over(over: dict[str, list | str], user_config: dict) -> dict[str, list[str]]:
     """
     Expands the "over:" field in internals.yaml.
@@ -144,31 +143,31 @@ def resolve_over(over: dict[str, list | str], user_config: dict) -> dict[str, li
     resolved: dict[str, list[str]] = {}
 
     for key, val in over.items():
-
         if isinstance(val, str) and val.startswith("from_config:"):
-
             config_key = val.split(":", maxsplit=1)[1]
             config_value = user_config[config_key]
 
             if isinstance(config_value, dict):
-                config_value = list(config_value.keys()) # needed for the radial quantiles dict in config
+                config_value = list(config_value.keys())  # needed for the radial quantiles dict in config
 
             resolved[key] = [str(v) for v in config_value]
 
         else:
             resolved[key] = [str(v) for v in val]
-            
+
     return resolved
 
-def expand_column_templates(outputs: list[str],over: dict[str, list[str]]) -> list[str]:
+
+def expand_column_templates(outputs: list[str], over: dict[str, list[str]]) -> list[str]:
     """
     Expands an output column template in internals.yaml if they have ptype or quantity-specific fields (e.g. mass_star_30kpc), returning a list.
     """
     expanded: list[str] = []
 
     for template in outputs:
-
-        matched_keys = [key for key in over if f"{{{key}}}" in template] # triple bracket is needed to parse the .yaml {}
+        matched_keys = [
+            key for key in over if f"{{{key}}}" in template
+        ]  # triple bracket is needed to parse the .yaml {}
 
         if not matched_keys:
             expanded.append(template)
@@ -186,6 +185,7 @@ def expand_column_templates(outputs: list[str],over: dict[str, list[str]]) -> li
 
     return expanded
 
+
 def get_releasable_columns(current_index: int, ordered_stages: list[PipelineStage]) -> frozenset[str]:
     """
     Returns a (frozen) set of which ParticleStore columns (the expensive ones) are no longer needed by any remaining stage and thus can be safely discarded.
@@ -193,14 +193,15 @@ def get_releasable_columns(current_index: int, ordered_stages: list[PipelineStag
     current_needs = ordered_stages[current_index].needs_particle_columns
     future_needs: set[str] = set()
 
-    for stage in ordered_stages[current_index + 1:]:
+    for stage in ordered_stages[current_index + 1 :]:
         future_needs |= stage.needs_particle_columns
 
     return current_needs - future_needs
 
+
 def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str]) -> list[PipelineStage]:
     """
-    Resolves user-requested stage dependencies. 
+    Resolves user-requested stage dependencies.
 
     Returns a list of Stages in the correct order of execution.
     """
@@ -208,34 +209,29 @@ def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str])
     stack = list(requested)
 
     while stack:
-
-        stage_name = stack.pop() # final element
+        stage_name = stack.pop()  # final element
         assert stage_name in stages, f"{stage_name} is not in the supported stages; check typo?"
 
         if stage_name in needed:
             continue
 
         needed.add(stage_name)
-        stack.extend(stages[stage_name].requires) # see PipelineStage dataclass
-    
+        stack.extend(stages[stage_name].requires)  # see PipelineStage dataclass
+
     # NOTE: this second part is Kahn's algorithm, which for a pipeline with a few stages is definitely overengineering; however, it is inexpensive and provides flexibility for future modules to be extended to Octavian, hence I'd argue in favour of using it
     depth = {n: 0 for n in needed}
     dependents = {n: [] for n in needed}
 
     for n in needed:
-
         for req in stages[n].requires:
-
             if req in needed:
-
                 depth[n] += 1
                 dependents[req].append(n)
 
-    ready = [n for n in needed if depth[n] == 0] # top-level nodes
+    ready = [n for n in needed if depth[n] == 0]  # top-level nodes
     ordered_stages = []
 
     while ready:
-
         n = ready.pop()
         ordered_stages.append(stages[n])
 

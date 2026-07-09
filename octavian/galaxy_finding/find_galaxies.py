@@ -9,6 +9,7 @@ If this is very slow, numba may not be jitting on your cluster. Please check whe
 # type checking (semantic)
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from octavian.data_management import ParticleStore, SimulationAttributes, OctavianConstants
 
@@ -25,48 +26,55 @@ import numpy as np
 import numba
 
 logger = get_logger()
-PTYPE_CODES = {"gas": np.int8(0), "star": np.int8(4), "bh": np.int8(5), "dm": np.int8(1)} # GIZMO number conventions
+PTYPE_CODES = {"gas": np.int8(0), "star": np.int8(4), "bh": np.int8(5), "dm": np.int8(1)}  # GIZMO number conventions
 
-# slots=True turns off unneeded dict behaviour which avoids accidental mutation & improves memory usage 
+# slots=True turns off unneeded dict behaviour which avoids accidental mutation & improves memory usage
 # frozen=True adds tiny overhead but is safe
 # see https://github.com/orgs/community/discussions/168147#discussioncomment-15464120 if curious
 
-@dataclass(slots=True, frozen=True) 
-class FOF6DData: 
+
+@dataclass(slots=True, frozen=True)
+class FOF6DData:
     """
     Dataclass to concisely store the arrays being passed into FOF6D. Ensure pos is PBC-unwrapped!
     """
-    pos: np.ndarray # these should be unwrapped
+
+    pos: np.ndarray  # these should be unwrapped
     vel: np.ndarray
     ptype_codes: np.ndarray
     write_keys: np.ndarray
     starts: np.ndarray
     ends: np.ndarray
-  
-@dataclass(slots=True, frozen=True) 
+
+
+@dataclass(slots=True, frozen=True)
 class FOF6DParameters:
     """
     Fixed simulation/runtime parameters which the algorithm needs.
     """
+
     linking_length: float
     velocity_factor: float
     boxsize: float
     minstars: int
     cores_per_rank: int
 
+
 @dataclass(slots=True, frozen=True)
 class FOF6DResult:
     """
     Assignments made by FOF6D for writing back into the ParticleStores; n_galaxies is used to flag whether galaxies were found, in which case the executor should build the GroupStore for galaxies.
     """
-    write_keys: np.ndarray # indexes back into the ParticleStores
-    galaxy_ids: np.ndarray 
-    ptype_codes: np.ndarray 
+
+    write_keys: np.ndarray  # indexes back into the ParticleStores
+    galaxy_ids: np.ndarray
+    ptype_codes: np.ndarray
     n_galaxies: int
 
+
 def find_galaxies(
-    particles: dict[str, ParticleStore], 
-    simulation: SimulationAttributes, 
+    particles: dict[str, ParticleStore],
+    simulation: SimulationAttributes,
     config: dict,
     constants: OctavianConstants,
 ) -> FOF6DResult:
@@ -75,18 +83,27 @@ def find_galaxies(
     """
     logger.info("Locating galaxies with FOF6D algorithm.")
 
-    work_data, params = prepare_fof6d_data(particles=particles, simulation=simulation, config=config, constants=constants)
+    work_data, params = prepare_fof6d_data(
+        particles=particles, simulation=simulation, config=config, constants=constants
+    )
 
     logger.debug(f"Linking length: {params.linking_length}")
 
-    numba.set_num_threads(params.cores_per_rank) # same as joblib nproc
+    numba.set_num_threads(params.cores_per_rank)  # same as joblib nproc
 
     parents = np.full(len(work_data.pos), -1, dtype=np.int32)
     dispatch_fof6d(
-        positions=work_data.pos, velocities=work_data.vel, parents=parents, 
-        ptype_codes=work_data.ptype_codes, starts=work_data.starts, ends=work_data.ends,
-        linking_length=params.linking_length, velocity_factor=params.velocity_factor, minstars=params.minstars,
-        star_ptype_code=PTYPE_CODES["star"])
+        positions=work_data.pos,
+        velocities=work_data.vel,
+        parents=parents,
+        ptype_codes=work_data.ptype_codes,
+        starts=work_data.starts,
+        ends=work_data.ends,
+        linking_length=params.linking_length,
+        velocity_factor=params.velocity_factor,
+        minstars=params.minstars,
+        star_ptype_code=PTYPE_CODES["star"],
+    )
 
     result = extract_galaxies_from_parents(work_data=work_data, parents=parents, minstars=params.minstars)
 
@@ -96,11 +113,9 @@ def find_galaxies(
 
     return result
 
+
 def prepare_fof6d_data(
-    particles: dict[str, ParticleStore], 
-    simulation: SimulationAttributes, 
-    config: dict, 
-    constants: OctavianConstants
+    particles: dict[str, ParticleStore], simulation: SimulationAttributes, config: dict, constants: OctavianConstants
 ) -> tuple[FOF6DData, FOF6DParameters]:
     """
     Extracts relevant arrays from ParticleStores and FOF6D parameters from the SimulationAttributes & user config. Returns a tuple of:
@@ -109,46 +124,51 @@ def prepare_fof6d_data(
     - params: FOF6DParameters dataclass
     """
     star_halo_ids = particles["star"]["HaloID"]
-    star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0]) # NOTE: work sentinel value into here
+    star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0])  # NOTE: work sentinel value into here
 
-    eligible_halos = np.where(star_counts >= config["MINIMUM_STARS_PER_GALAXY"])[0] # disregard halos which would have no galaxies
+    eligible_halos = np.where(star_counts >= config["MINIMUM_STARS_PER_GALAXY"])[
+        0
+    ]  # disregard halos which would have no galaxies
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
     eligible_set[eligible_halos] = True
 
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
-    temperature = gas["temperature"] 
-    nH = rho * config["XH"] / constants.PROTON_MASS_G # recomputed but trying to engineer this away is painful
+    temperature = gas["temperature"]
+    nH = rho * config["XH"] / constants.PROTON_MASS_G  # recomputed but trying to engineer this away is painful
 
-    dense_mask = (nH > config["nHlim"]) & ((temperature < config["Tlim"]) | (sfr > 0)) # NOTE: sfr > 0 overrides of the density criterion
+    dense_mask = (nH > config["nHlim"]) & (
+        (temperature < config["Tlim"]) | (sfr > 0)
+    )  # NOTE: sfr > 0 overrides of the density criterion
 
     n_dense = dense_mask.sum()
     n_cold = ((temperature < config["Tlim"]) & (nH > config["nHlim"])).sum()
     n_sfr = (sfr > 0).sum()
-    logger.debug(f"Gas criteria, cold/dense: {n_cold}, star-forming: {n_sfr}, total masked: {n_dense}/{len(dense_mask)}")
+    logger.debug(
+        f"Gas criteria, cold/dense: {n_cold}, star-forming: {n_sfr}, total masked: {n_dense}/{len(dense_mask)}"
+    )
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
 
     for ptype in ["star", "gas", "bh"]:
-
         if ptype not in particles:
             continue
 
         halo_ids = particles[ptype]["HaloID"]
         in_range = (halo_ids >= 0) & (halo_ids < len(eligible_set))
-        masked_hids = np.where(in_range, halo_ids, 0) # have to mask before & operator 
-        
+        masked_hids = np.where(in_range, halo_ids, 0)  # have to mask before & operator
+
         if ptype == "gas":
-            mask = dense_mask & in_range & eligible_set[masked_hids] # dense criterion for gas specifically
+            mask = dense_mask & in_range & eligible_set[masked_hids]  # dense criterion for gas specifically
         else:
             mask = in_range & eligible_set[masked_hids]
-        
+
         pos_list.append(particles[ptype]["pos"][mask])
         vel_list.append(particles[ptype]["vel"][mask])
         ptype_list.append(np.full(mask.sum(), PTYPE_CODES[ptype], dtype=np.int8))
         index_list.append(np.arange(particles[ptype].n_particles)[mask])
         hid_list.append(halo_ids[mask])
-    
+
     linking_length = simulation.mis * config["b"]
 
     params = FOF6DParameters(
@@ -160,22 +180,22 @@ def prepare_fof6d_data(
     )
 
     # NOTE: in-halo concatenation, could be expensive
-    all_pos, all_vel = np.concatenate(pos_list, dtype=DTYPES["pos"]), np.concatenate(vel_list, dtype=DTYPES["vel"]) 
+    all_pos, all_vel = np.concatenate(pos_list, dtype=DTYPES["pos"]), np.concatenate(vel_list, dtype=DTYPES["vel"])
     all_ptype, all_halo_ids = np.concatenate(ptype_list), np.concatenate(hid_list)
     all_write_key = np.concatenate(index_list)
 
-    order = np.argsort(all_halo_ids, stable=True) # keep stable=True on for deterministic results
+    order = np.argsort(all_halo_ids, stable=True)  # keep stable=True on for deterministic results
     all_pos, all_vel = all_pos[order], all_vel[order]
     all_ptype, all_halo_ids = all_ptype[order], all_halo_ids[order]
     all_write_key = all_write_key[order]
 
-    sorted_halo_ids = all_halo_ids # just for readability
+    sorted_halo_ids = all_halo_ids  # just for readability
     changes = np.flatnonzero(np.diff(sorted_halo_ids)) + 1
     starts = np.concatenate(([0], changes))
     ends = np.concatenate((changes, [len(sorted_halo_ids)]))
 
     sizes = ends - starts
-    size_order = np.argsort(sizes)[::-1] # largest halos first
+    size_order = np.argsort(sizes)[::-1]  # largest halos first
 
     ordered_starts = starts[size_order]
     ordered_ends = ends[size_order]
@@ -195,6 +215,7 @@ def prepare_fof6d_data(
 
     return data, params
 
+
 def extract_galaxies_from_parents(
     work_data: FOF6DData,
     parents: np.ndarray,
@@ -208,7 +229,6 @@ def extract_galaxies_from_parents(
     galaxy_id_offset = 0
 
     for halo_idx in range(n_halos):
-
         s, e = work_data.starts[halo_idx], work_data.ends[halo_idx]
 
         if parents[s] == -1:
@@ -235,26 +255,30 @@ def extract_galaxies_from_parents(
         all_ptype_codes.append(work_data.ptype_codes[s:e][assigned])
         galaxy_id_offset += len(valid_parents)
 
-    if galaxy_id_offset == 0: # guard for an empty group, needs to match type check in signature
-        result = FOF6DResult(write_keys=np.empty(0, dtype=np.int64),
-                             galaxy_ids=np.empty(0, dtype=np.int64),
-                             ptype_codes=np.empty(0, dtype=np.int8),
-                             n_galaxies=0)
+    if galaxy_id_offset == 0:  # guard for an empty group, needs to match type check in signature
+        result = FOF6DResult(
+            write_keys=np.empty(0, dtype=np.int64),
+            galaxy_ids=np.empty(0, dtype=np.int64),
+            ptype_codes=np.empty(0, dtype=np.int8),
+            n_galaxies=0,
+        )
     else:
-        result = FOF6DResult(write_keys=np.concatenate(all_keys),
-                             galaxy_ids=np.concatenate(all_gids),
-                             ptype_codes=np.concatenate(all_ptype_codes),
-                             n_galaxies=galaxy_id_offset)
-        
+        result = FOF6DResult(
+            write_keys=np.concatenate(all_keys),
+            galaxy_ids=np.concatenate(all_gids),
+            ptype_codes=np.concatenate(all_ptype_codes),
+            n_galaxies=galaxy_id_offset,
+        )
+
     return result
+
 
 def store_fof6d_results(particles: dict[str, ParticleStore], result: FOF6DResult) -> None:
     """
     Appends the galaxy-finding results to ParticleStore (and is vectorised compared to the original).
     """
     for ptype in particles:
-
-        particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64) # NOTE: sentinel value
+        particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)  # NOTE: sentinel value
 
         mask = result.ptype_codes == PTYPE_CODES[ptype]
 

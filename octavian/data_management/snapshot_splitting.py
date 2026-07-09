@@ -8,8 +8,9 @@ NOTE: this will eventually be legacy code, as we intend to move away from interm
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-  from octavian.data_management import GizmoReader, Internals
+    from octavian.data_management import GizmoReader, Internals
 
 # defaults
 from pathlib import Path
@@ -31,7 +32,9 @@ HDF5_GROUP_NAMES = {
 
 # NOTE: will likely be unnecessary after move to HDF5 MPI.
 
-def filter_snapshot(snapshot_file: Path,
+
+def filter_snapshot(
+    snapshot_file: Path,
     intermediate_directory: Path,
     reader: GizmoReader,
     n_split: int = 4,
@@ -39,7 +42,7 @@ def filter_snapshot(snapshot_file: Path,
     beta: float = 0.4,
 ) -> None:
     """
-    Divides the snapshot into n_split (where n_split should be the number of MPI ranks) intermediate HDF5 files with all particles not in a halo filtered out. Employs a weighted binning algorithm to evenly distribute computational load amongst ranks. 
+    Divides the snapshot into n_split (where n_split should be the number of MPI ranks) intermediate HDF5 files with all particles not in a halo filtered out. Employs a weighted binning algorithm to evenly distribute computational load amongst ranks.
 
     alpha: FOF6D weighting constant (default 0.6)
     beta: aggregate properties weighting constant (default 0.4)
@@ -50,42 +53,39 @@ def filter_snapshot(snapshot_file: Path,
     logger.debug(f"alpha: {alpha}, beta: {beta}")
 
     with h5py.File(snapshot_file, "r") as f:
-
         for i in range(n_split):
-
             with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as intermediate:
-                f.copy(f['Header'], intermediate, "Header")
+                f.copy(f["Header"], intermediate, "Header")
 
         # this operates on a raw snapshot which does not use Octavian internal names
-        raw_star = reader.inverse_ptype_map["star"]  
-        raw_gas = reader.inverse_ptype_map["gas"]  
-        raw_bh = reader.inverse_ptype_map["bh"]  
+        raw_star = reader.inverse_ptype_map["star"]
+        raw_gas = reader.inverse_ptype_map["gas"]
+        raw_bh = reader.inverse_ptype_map["bh"]
         raw_dm = reader.inverse_ptype_map["dm"]
 
-        ptypes = [group for group in list(f.keys()) if 'HaloID' in list(f[group].keys())] 
+        ptypes = [group for group in list(f.keys()) if "HaloID" in list(f[group].keys())]
         ptype_counts = {}
 
-        for ptype_name in [raw_star, raw_gas, raw_bh, raw_dm]: 
-
+        for ptype_name in [raw_star, raw_gas, raw_bh, raw_dm]:
             if ptype_name not in f:
                 continue
 
-            ids = f[ptype_name]['HaloID'][:]
-            ids = ids[ids != 0] # TODO: sentinel 0 vs -1
+            ids = f[ptype_name]["HaloID"][:]
+            ids = ids[ids != 0]  # TODO: sentinel 0 vs -1
             unique, counts = np.unique(ids, return_counts=True)
             ptype_counts[ptype_name] = (unique, counts)
 
         # build a unified halo ID array
         all_hids_list = []
         for ptype_name in ptypes:  # ptypes from the existing detection logic
-            ids = f[ptype_name]['HaloID'][:]
+            ids = f[ptype_name]["HaloID"][:]
             all_hids_list.append(np.unique(ids[ids != 0]))
         all_hids = np.unique(np.concatenate(all_hids_list))
 
         # guard (necessary for high-redshift snapshots with no HaloIDs)
         if len(all_hids) == 0:
             return
-        
+
         n_halos = all_hids.max() + 1  # use hid as direct index
 
         star_counts = np.zeros(shape=n_halos)
@@ -95,7 +95,6 @@ def filter_snapshot(snapshot_file: Path,
         weight_ptypes = {raw_star: star_counts, raw_gas: gas_counts, raw_dm: dm_counts}
 
         for raw_ptype_name, count_array in weight_ptypes.items():
-
             if raw_ptype_name in ptype_counts:
                 halo_ids, counts = ptype_counts[raw_ptype_name]
                 count_array[halo_ids] = counts
@@ -110,7 +109,6 @@ def filter_snapshot(snapshot_file: Path,
         rank_loads = np.zeros(n_split)
 
         for idx in weight_order:
-
             lightest = np.argmin(rank_loads)
             rank_assignments[lightest].add(all_hids[idx])
             rank_loads[lightest] += halo_weights[idx]
@@ -119,11 +117,10 @@ def filter_snapshot(snapshot_file: Path,
         rank_particle_counts: dict[int, dict[str, int]] = {i: {} for i in range(n_split)}
 
         for ptype in ptypes:
-
             datasets = list(f[ptype].keys())
             ids = f[ptype]["HaloID"][:]
             particle_index = np.arange(len(ids), dtype=np.int64)
-            in_halo = ids != 0 # TODO: sentinel value
+            in_halo = ids != 0  # TODO: sentinel value
             ids_filtered = ids[in_halo]
             order = np.argsort(ids_filtered)
             ids_sorted = ids_filtered[order]
@@ -131,9 +128,7 @@ def filter_snapshot(snapshot_file: Path,
             datasets = datasets + ["particle_index"]
 
             for i in range(n_split):
-
-                with h5py.File(intermediate_directory / f"rank_{i}.hdf5", 'a') as f_out:
-
+                with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as f_out:
                     f_out.require_group(ptype)
 
                     halo_set = np.array(list(rank_assignments[i]))
@@ -141,8 +136,7 @@ def filter_snapshot(snapshot_file: Path,
                     rank_particle_counts[i][ptype] = int(rank_mask.sum())
 
                     for dataset in datasets:
-
-                        if dataset == "particle_index":        
+                        if dataset == "particle_index":
                             data = particle_index[in_halo][order]
 
                         else:
@@ -151,9 +145,7 @@ def filter_snapshot(snapshot_file: Path,
                         f_out[ptype][dataset] = data[rank_mask]
 
         for i in range(n_split):
-
             with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as f_out:
-
                 diag = f_out.require_group("Diagnostics")
 
                 for ptype, count in rank_particle_counts[i].items():
@@ -161,8 +153,9 @@ def filter_snapshot(snapshot_file: Path,
 
                 diag.attrs["n_halos"] = len(rank_assignments[i])
                 diag.attrs["total_weight"] = rank_loads[i]
-    
+
     logger.info("Intermediate files created.")
+
 
 def merge_intermediate_catalogues(files: list[Path], output_path: Path, internals: Internals) -> None:
     """
@@ -181,9 +174,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
     for file in files:
         with h5py.File(file, "r") as f:
-
             for group_type, hdf5_name in HDF5_GROUP_NAMES.items():
-
                 if hdf5_name not in f:
                     group_lengths.setdefault(group_type, []).append(0)
                     continue
@@ -203,14 +194,13 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
     for group_type in sort_arrays:
         merged = np.concatenate(sort_arrays[group_type])
-        sort_orders[group_type] = np.argsort(-merged, kind="stable") # largest -> smallest ascending
+        sort_orders[group_type] = np.argsort(-merged, kind="stable")  # largest -> smallest ascending
 
     if "halos" in sort_orders:
         inverse_halo_order = np.argsort(sort_orders["halos"], kind="stable")
 
     # second pass: merge datasets
     with h5py.File(output_path, "w") as f_out:
-
         for group_type, hdf5_name in HDF5_GROUP_NAMES.items():
             if group_type not in sort_orders:
                 continue
@@ -229,7 +219,6 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 if length == 0:
                     continue
                 with h5py.File(file, "r") as f:
-
                     dataset_names = _discover_datasets(f[hdf5_name], csr_suffixes)
 
                 break
@@ -241,17 +230,14 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
             # concatenate and reorder each dataset
             for dataset_name in sorted(dataset_names):
-
                 chunks = []
-                source_attrs = {} # unit/description metadata
+                source_attrs = {}  # unit/description metadata
 
                 for file, length in zip(files, group_lengths[group_type]):
-
                     if length == 0:
                         continue
 
                     with h5py.File(file, "r") as f:
-
                         grp = f[hdf5_name]
 
                         if dataset_name in grp:
@@ -265,7 +251,9 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
                 merged = np.concatenate(chunks)
 
-                parent = dataset_name.rsplit("/", 1)[0] if "/" in dataset_name else None # slightly weird but this will never break under standard conventions
+                parent = (
+                    dataset_name.rsplit("/", 1)[0] if "/" in dataset_name else None
+                )  # slightly weird but this will never break under standard conventions
 
                 if parent:
                     out_grp.require_group(parent)
@@ -288,16 +276,13 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
             # CSR lists
 
             for ptype in group_config["ptypes"]:
-
                 all_indices, all_lengths = [], []
 
                 for file, length in zip(files, group_lengths[group_type]):
-
                     if length == 0:
                         continue
 
                     with h5py.File(file, "r") as f:
-                        
                         grp = f[hdf5_name]
 
                         if f"membership/{ptype}_indices" in grp:
@@ -315,15 +300,23 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
     logger.info("Created merged analysis catalogue.")
 
+
 def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
     """
     Uses h5py's visititems to go into sub-groups (e.g. properties/core) etc. and populate column fields.
     """
     datasets: set[str] = set()
-    group.visititems(lambda name, obj: datasets.add(name) if isinstance(obj, h5py.Dataset) and not name.endswith(exclude_suffixes) else None)
+    group.visititems(
+        lambda name, obj: (
+            datasets.add(name) if isinstance(obj, h5py.Dataset) and not name.endswith(exclude_suffixes) else None
+        )
+    )
     return datasets
 
-def _reorder_csr_lists(all_indices: list[np.ndarray], all_lengths: list[np.ndarray], order: np.ndarray) -> tuple[np.ndarray, ...]:
+
+def _reorder_csr_lists(
+    all_indices: list[np.ndarray], all_lengths: list[np.ndarray], order: np.ndarray
+) -> tuple[np.ndarray, ...]:
     """
     Helper to reorders CSR-format particle lists according to the group sort order (which should be largest mass descending).
     """
@@ -333,10 +326,8 @@ def _reorder_csr_lists(all_indices: list[np.ndarray], all_lengths: list[np.ndarr
 
     reordered_lengths = flat_lengths[order]
     reordered_indices = np.concatenate(
-        [flat_indices[flat_offsets[i]:flat_offsets[i] + flat_lengths[i]] for i in order]
+        [flat_indices[flat_offsets[i] : flat_offsets[i] + flat_lengths[i]] for i in order]
     )
-    reordered_offsets = np.concatenate(
-        [[0], np.cumsum(reordered_lengths[:-1])]
-    ).astype(DTYPES["csr_offsets"])
+    reordered_offsets = np.concatenate([[0], np.cumsum(reordered_lengths[:-1])]).astype(DTYPES["csr_offsets"])
 
     return reordered_indices, reordered_offsets, reordered_lengths

@@ -9,14 +9,27 @@ NOTE: this is now calling dead code as of v0.3.0, so it will need to be refactor
 # type checking (semantic, do not worry about this)
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from mpi4py import MPI
 
 from octavian.data_management import (
-    filter_snapshot, write_analysis_to_output_file, construct_particle_csr_lists,
-    merge_intermediate_catalogues, GizmoReader, GroupStore, SimulationData, Internals, OctavianConstants,
-    build_group_store, build_particle_stores, load_internals, resolve_dependencies, get_releasable_columns,
-    configure_logger, get_logger
+    filter_snapshot,
+    write_analysis_to_output_file,
+    construct_particle_csr_lists,
+    merge_intermediate_catalogues,
+    GizmoReader,
+    GroupStore,
+    SimulationData,
+    Internals,
+    OctavianConstants,
+    build_group_store,
+    build_particle_stores,
+    load_internals,
+    resolve_dependencies,
+    get_releasable_columns,
+    configure_logger,
+    get_logger,
 )
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
@@ -25,16 +38,19 @@ from octavian.aggregate_properties import run_ptype_specific_properties, run_cor
 from yaml import safe_load
 from pathlib import Path
 
+
 def get_mpi_communicator() -> MPI.Comm | None:
     """
     Checks whether MPI is enabled; if so, returns the comm object.
     """
     try:
         from mpi4py import MPI
-        return MPI.COMM_WORLD # mpiexec -n 1 will return an output with _rank_0
+
+        return MPI.COMM_WORLD  # mpiexec -n 1 will return an output with _rank_0
     except ImportError:
         pass
     return None
+
 
 def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, internals: Internals) -> None:
     """
@@ -44,7 +60,9 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, inter
 
     reader = GizmoReader(snapshot_file=snapshot_path, constants=constants)
     sim = reader.simulation_attributes
-    particles = build_particle_stores(reader=reader, internals=internals, constants=constants, process_ptypes=config["process_ptypes"])
+    particles = build_particle_stores(
+        reader=reader, internals=internals, constants=constants, process_ptypes=config["process_ptypes"]
+    )
 
     for prop in ["rho", "sfr"]:
         particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
@@ -70,8 +88,7 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, inter
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
 
-    requested = [name for name, enabled in config["stages"].items()
-                 if enabled and name != "find_galaxies"]
+    requested = [name for name, enabled in config["stages"].items() if enabled and name != "find_galaxies"]
     ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
 
     stage_dispatch = {
@@ -81,7 +98,6 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, inter
     }
 
     for stage_index, stage in enumerate(ordered_stages):
-
         stage_dispatch[stage.name](simulation_data=simulation_data, config=config)
 
         releasable = get_releasable_columns(stage_index, ordered_stages)
@@ -96,14 +112,17 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: dict, inter
 
     particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals)
     write_analysis_to_output_file(
-        data=simulation_data, particle_lists=particle_lists,
-        internals=internals, output_file=output_path,
+        data=simulation_data,
+        particle_lists=particle_lists,
+        internals=internals,
+        output_file=output_path,
     )
 
+
 def run_octavian(
-    snapshot_path: Path, 
-    output_directory: Path, 
-    config_path: Path, 
+    snapshot_path: Path,
+    output_directory: Path,
+    config_path: Path,
     internals_path: Path,
     intermediates_exist: bool = False,
 ) -> None:
@@ -123,27 +142,28 @@ def run_octavian(
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
 
     if rank == 0:
-
         if not intermediates_exist:
-
             oc = OctavianConstants()
-            reader = GizmoReader(snapshot_file=snapshot_path, constants=oc)            
+            reader = GizmoReader(snapshot_file=snapshot_path, constants=oc)
 
-            filter_snapshot(snapshot_file=snapshot_path, intermediate_directory=intermediate_directory, reader=reader,
-                            n_split=size)
+            filter_snapshot(
+                snapshot_file=snapshot_path, intermediate_directory=intermediate_directory, reader=reader, n_split=size
+            )
 
     if comm:
         comm.Barrier()
 
-    intermediate_file = intermediate_directory  / f"rank_{rank}.hdf5"
-    intermediate_output = intermediate_directory  / f"rank_{rank}_intermediate_analysis.hdf5"
+    intermediate_file = intermediate_directory / f"rank_{rank}.hdf5"
+    intermediate_output = intermediate_directory / f"rank_{rank}_intermediate_analysis.hdf5"
 
     with open(config_path, "r") as f:
         config = safe_load(f)
 
     internals = load_internals(internals_filepath=internals_path, user_config=config)
 
-    execute_pipeline(snapshot_path=intermediate_file, output_path=intermediate_output, config=config, internals=internals)
+    execute_pipeline(
+        snapshot_path=intermediate_file, output_path=intermediate_output, config=config, internals=internals
+    )
 
     if comm:
         comm.Barrier()
@@ -151,6 +171,5 @@ def run_octavian(
     output_catalogue = output_directory / "output_catalogue.hdf5"
 
     if rank == 0:
-
         files = [intermediate_directory / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
         merge_intermediate_catalogues(files=files, output_path=output_catalogue, internals=internals)

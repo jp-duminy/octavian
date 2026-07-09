@@ -58,3 +58,4 @@ filterwarnings = [
 
 [tool.ruff]
 exclude = ["octavian/external_halo_finders"]
+line-length = 120

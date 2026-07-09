@@ -1,6 +1,6 @@
 """
 
-Logger; much easier than littered than print statements. 
+Logger; much easier than littered than print statements.
 
 Lets warnings and info go through, debugging is saved for the output file. When running with MPI, only rank 0 will talk to the terminal. The other ranks will only chat to you if some sort of error or warning is flagged. However, the output files will contain everything.
 
@@ -9,7 +9,10 @@ Lets warnings and info go through, debugging is saved for the output file. When 
 import logging
 from pathlib import Path
 
-def configure_logger(rank: int = 0, output_level: str = "INFO", output_log_directory: Path | None = None) -> logging.Logger:
+
+def configure_logger(
+    rank: int = 0, output_level: str = "INFO", output_log_directory: Path | None = None
+) -> logging.Logger:
     """
     Creates a logger object for use throughout stages.
 
@@ -20,7 +23,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", output_log_direc
     if logger.handlers:
         return logger
 
-    logger.setLevel(level=logging.DEBUG) # allow all calls through, so handlers can suppress lower levels
+    logger.setLevel(level=logging.DEBUG)  # allow all calls through, so handlers can suppress lower levels
     logger.propagate = False
 
     rank_tag = f"Rank {rank}"
@@ -29,10 +32,12 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", output_log_direc
 
     # if you have todohighlights on this block might look weird (it's the console text)
     console = logging.StreamHandler()
-    console.setLevel(getattr(logging, output_level.upper()) if rank == 0 else logging.WARNING) # ranks != 0 only flag any errors
+    console.setLevel(
+        getattr(logging, output_level.upper()) if rank == 0 else logging.WARNING
+    )  # ranks != 0 only flag any errors
     console.setFormatter(logging.Formatter(terminal_format))
-    logger.addHandler(console) # from the getattr call above, this means output_level defines what you see
-    
+    logger.addHandler(console)  # from the getattr call above, this means output_level defines what you see
+
     if output_log_directory is not None:
         output_log_directory.mkdir(parents=True, exist_ok=True)
         log_path = output_log_directory / f"octavian_rank{rank}.log"
@@ -42,6 +47,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", output_log_direc
         logger.addHandler(file_handler)
 
     return logger
+
 
 def get_logger() -> logging.Logger:
     """
