@@ -245,6 +245,6 @@ def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str])
             if depth[m] == 0:
                 ready.append(m)
 
-    assert len(ordered_stages) == len(needed), f"Stage dependencies are muddled; order unresolvable."
+    assert len(ordered_stages) == len(needed), "Stage dependencies are muddled; order unresolvable."
 
     return ordered_stages

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from octavian.data_management import (
     filter_snapshot, write_analysis_to_output_file, construct_particle_csr_lists,
-    merge_intermediate_catalogues, GizmoReader, ParticleStore, GroupStore, SimulationData, Internals, OctavianConstants,
+    merge_intermediate_catalogues, GizmoReader, GroupStore, SimulationData, Internals, OctavianConstants,
     build_group_store, build_particle_stores, load_internals, resolve_dependencies, get_releasable_columns,
     configure_logger, get_logger
 )
@@ -148,7 +148,7 @@ def run_octavian(
     if comm:
         comm.Barrier()
 
-    output_catalogue = output_directory / f"output_catalogue.hdf5"
+    output_catalogue = output_directory / "output_catalogue.hdf5"
 
     if rank == 0:
 

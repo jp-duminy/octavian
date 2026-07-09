@@ -73,7 +73,7 @@ def find_galaxies(
     """
     Handles the end-to-end galaxy-finding with FOF6D pipeline; writes back to ParticleStore.
     """
-    logger.info(f"Locating galaxies with FOF6D algorithm.")
+    logger.info("Locating galaxies with FOF6D algorithm.")
 
     work_data, params = prepare_fof6d_data(particles=particles, simulation=simulation, config=config, constants=constants)
 

@@ -29,7 +29,7 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
     """
     Extracts particle lists from SimulationData (matching GroupStore & ParticleStore) and converts them to the CSR format for hdf5.
     """
-    logger.info(f"Constructing particle membership lists.")
+    logger.info("Constructing particle membership lists.")
 
     result = {group: {} for group in data.groups}
 
@@ -84,7 +84,7 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
                 "lengths": lengths,
             }
     
-    logger.info(f"Constructed membership lists.")
+    logger.info("Constructed membership lists.")
 
     return result
 
@@ -92,10 +92,10 @@ def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, in
     """
     Takes in the SimulationData object and writes it to a .hdf5 file.
     """
-    logger.info(f"Writing analysis to .hdf5 file.")
+    logger.info("Writing analysis to .hdf5 file.")
 
     if output_file.is_file(): # pathlib version of previous os logic
-        logger.debug(f"Removed old analysis file.")
+        logger.debug("Removed old analysis file.")
         output_file.unlink()
 
     with h5py.File(output_file, "w") as out:
@@ -148,4 +148,4 @@ def write_analysis_to_output_file(data: SimulationData, particle_lists: dict, in
                     dataset.attrs["unit"] = column_meta.unit
                     dataset.attrs["description"] = column_meta.description
 
-    logger.info(f"Created intermediate analysis file.")
+    logger.info("Created intermediate analysis file.")

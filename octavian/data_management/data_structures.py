@@ -26,7 +26,7 @@ from astropy.cosmology import FlatLambdaCDM
 from octavian.data_management.conventions import (
     OctavianConstants, DTYPES, SimulationAttributes, SnapshotReader,
     gizmo_unit_conversion_factor, derive_stellar_age, calculate_temperature,
-    calculate_hydrogen_number_density, calculate_mean_interparticle_separation
+    calculate_mean_interparticle_separation
 )
 
 class GizmoReader(SnapshotReader):
@@ -61,7 +61,7 @@ class GizmoReader(SnapshotReader):
 
     def __init__(self, snapshot_file: Path, constants: OctavianConstants):
 
-        logger.info(f"Using GIZMO reader.")
+        logger.info("Using GIZMO reader.")
 
         self.snapshot_file = snapshot_file
         self.constants = constants

@@ -161,7 +161,7 @@ def filter_snapshot(snapshot_file: Path,
                 diag.attrs["n_halos"] = len(rank_assignments[i])
                 diag.attrs["total_weight"] = rank_loads[i]
     
-    logger.info(f"Intermediate files created.")
+    logger.info("Intermediate files created.")
 
 def merge_intermediate_catalogues(files: list[Path], output_path: Path, internals: Internals) -> None:
     """
@@ -312,7 +312,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 membership_grp.create_dataset(f"{ptype}_offsets", data=offsets, compression=1)
                 membership_grp.create_dataset(f"{ptype}_lengths", data=lengths, compression=1)
 
-    logger.info(f"Created merged analysis catalogue.")
+    logger.info("Created merged analysis catalogue.")
 
 def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
     """

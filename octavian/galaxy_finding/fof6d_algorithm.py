@@ -13,8 +13,6 @@ Original FoF: Davis et al. 1985, doi: 10.1086/163168
 # type checking (semantic)
 from __future__ import annotations
 from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-  from octavian.galaxy_finding.find_galaxies import FOF6DParameters
 
 # workhorses
 from numba import njit, prange # NOTE: do not attach parallel=True to the individual algorithm functions, only the executor!

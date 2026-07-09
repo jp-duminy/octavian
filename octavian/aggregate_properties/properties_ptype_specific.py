@@ -12,7 +12,7 @@ Particle type-specific aggregate properties. For example:
 from __future__ import annotations
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from octavian.data_management import ParticleStore, SimulationData, OctavianConstants
+    from octavian.data_management import ParticleStore, SimulationData
 
 # others
 import numpy as np
@@ -33,7 +33,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
     particles = simulation_data.particles
     constants = simulation_data.constants
 
-    logger.info(f"Hydrogen fractions prepared.")
+    logger.info("Hydrogen fractions prepared.")
 
     for group_type in simulation_data.groups:
 

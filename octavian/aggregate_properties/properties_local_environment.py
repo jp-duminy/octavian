@@ -33,7 +33,7 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
     sim = simulation_data.simulation
 
     density_results = compute_local_densities(
-        pos=galaxies[f"com_pos_baryon"],
+        pos=galaxies["com_pos_baryon"],
         mass=galaxies["mass_baryon"],
         n_groups=galaxies.n_groups,
         boxsize=sim.boxsize,
@@ -52,7 +52,7 @@ def run_local_environment(simulation_data: SimulationData, config: dict) -> None
         )
         galaxies.write_batch(results=aperture_results)
     
-    logger.info(f"Local environment properties computed.")
+    logger.info("Local environment properties computed.")
 
 def compute_local_densities(
     pos: np.ndarray, 
@@ -138,7 +138,7 @@ def compute_galaxy_aperture_masses(
     # pre-sort galaxies by parent halo
     parent_halo_ids = halos.group_ids[galaxies["parent_halo_index"]] # 
     gal_order, halos_with_galaxies, gal_start, gal_end = sort_by_group(group_ids=parent_halo_ids) # sort galaxies by halo
-    gal_pos = galaxies[f"com_pos_baryon"]
+    gal_pos = galaxies["com_pos_baryon"]
 
     result = np.zeros(shape=(galaxies.n_groups,len(ptypes)))
     result_HI, result_H2 = np.zeros(shape=galaxies.n_groups), np.zeros(shape=galaxies.n_groups)

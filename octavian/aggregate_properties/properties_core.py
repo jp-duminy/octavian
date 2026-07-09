@@ -114,8 +114,8 @@ def run_core_ptype_pass(
         ptype_cache[ptype] = (group_idx, masses, positions, velocities, counts_and_mass)
 
     if group_type == "halos":
-        ref_pos = store[f"minpot_pos"]
-        ref_vel = store[f"minpot_vel"]
+        ref_pos = store["minpot_pos"]
+        ref_vel = store["minpot_vel"]
     else:
         available_baryonic = [pt for pt in particles if particles[pt].is_baryonic]
         baryon_com = _combine_centre_of_mass(
@@ -125,8 +125,8 @@ def run_core_ptype_pass(
             constituent_ptypes=available_baryonic,
             boxsize=sim.boxsize,
         )
-        ref_pos = baryon_com[f"com_pos_galaxy_ref"]
-        ref_vel = baryon_com[f"com_vel_galaxy_ref"]
+        ref_pos = baryon_com["com_pos_galaxy_ref"]
+        ref_vel = baryon_com["com_vel_galaxy_ref"]
     
     quantile_names = list(config["radial_quantiles"])
     quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
@@ -145,7 +145,7 @@ def run_core_ptype_pass(
 
         derived = _derive_kinematics(
             L=store[f"L_{ptype}"],
-            dispersion_sum=kinematics[f"_dispersion_sum"],
+            dispersion_sum=kinematics["_dispersion_sum"],
             counts=counts_and_mass[f"n_{ptype}"],
             group_mass=store[f"mass_{ptype}"],
         )
@@ -195,7 +195,7 @@ def run_halo_stages(
     """
     group_key = store.group_key
     n_groups = store.n_groups
-    ref_pos = store[f"minpot_pos"]
+    ref_pos = store["minpot_pos"]
 
     all_radii_list, all_masses_list, all_group_idx_list = [], [], [] # ghastly concatenation
 
@@ -250,9 +250,9 @@ def run_galaxy_stages(
     """
     group_key = galaxies.group_key
     n_groups = galaxies.n_groups
-    combined_L = galaxies[f"L_baryon"]
-    ref_pos = galaxies[f"com_pos_baryon"]
-    ref_vel = galaxies[f"com_vel_baryon"]
+    combined_L = galaxies["L_baryon"]
+    ref_pos = galaxies["com_pos_baryon"]
+    ref_vel = galaxies["com_vel_baryon"]
 
     combined_ke_rot = np.zeros(n_groups)
     combined_counter_rotating_mass = np.zeros(n_groups)
@@ -346,9 +346,9 @@ def run_combined_radial_quantiles(
     quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
 
     if group_type == "halos":
-        baryon_ref = store[f"minpot_pos"]
+        baryon_ref = store["minpot_pos"]
     else:
-        baryon_ref = store[f"com_pos_baryon"]
+        baryon_ref = store["com_pos_baryon"]
         
     baryon_quantiles = _combined_quantiles(
         particles=particles, store=store, ptypes=available_baryonic_ptypes,
@@ -359,7 +359,7 @@ def run_combined_radial_quantiles(
     if group_type == "halos":
         total_quantiles = _combined_quantiles(
             particles=particles, store=store, ptypes=available_ptypes,
-            ref_pos=store[f"minpot_pos"], sim=sim, quantiles=quantiles, 
+            ref_pos=store["minpot_pos"], sim=sim, quantiles=quantiles, 
             quantile_names=quantile_names)
         
         store.write_batch(results=total_quantiles, suffix="total")
@@ -404,8 +404,8 @@ def _prepare_global_minimum_potential(
         best_pos[better] = positions[min_idx[better]] # you get the idea
         best_vel[better] = velocities[min_idx[better]]
 
-    results[f"minpot_pos"] = best_pos
-    results[f"minpot_vel"] = best_vel
+    results["minpot_pos"] = best_pos
+    results["minpot_vel"] = best_vel
 
     return results
 
@@ -454,8 +454,8 @@ def _compute_centre_of_mass(
         positions=positions, velocities=velocities, masses=masses, group_idx=group_idx, 
         anchor_pos=anchor_positions, group_mass=group_mass, n_groups=n_groups, boxsize=boxsize)
 
-    results[f"_pos"] = com_positions
-    results[f"_vel"] = com_velocities
+    results["_pos"] = com_positions
+    results["_vel"] = com_velocities
 
     return results
 
@@ -624,10 +624,10 @@ def _derive_halo_quantities(
     for arr in [r200, v_circ, virial_temperature, spin_param]:
         arr[empty] = np.nan
 
-    results[f"r200"] = r200
-    results[f"circular_velocity"] = v_circ
-    results[f"virial_temperature"] = virial_temperature 
-    results[f"spin_param"] = spin_param
+    results["r200"] = r200
+    results["circular_velocity"] = v_circ
+    results["virial_temperature"] = virial_temperature 
+    results["spin_param"] = spin_param
 
     return results
 
