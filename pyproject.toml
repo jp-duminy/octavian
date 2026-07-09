@@ -45,3 +45,13 @@ include = ["octavian*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = ["-ra", "--tb=short", "-q"]
+strict_markers = true
+markers = [
+    "slow: long-running tests (not run in CI)",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:numba",
+    "ignore::DeprecationWarning:h5py",
+]
