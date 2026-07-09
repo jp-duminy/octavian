@@ -19,12 +19,12 @@ from dataclasses import dataclass
 from octavian.data_management import DTYPES
 from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
 from octavian.data_management import get_logger
-logger = get_logger()
 
 # other libraries
 import numpy as np
 import numba
 
+logger = get_logger()
 PTYPE_CODES = {"gas": np.int8(0), "star": np.int8(4), "bh": np.int8(5), "dm": np.int8(1)} # GIZMO number conventions
 
 # slots=True turns off unneeded dict behaviour which avoids accidental mutation & improves memory usage 

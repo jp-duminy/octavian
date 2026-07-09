@@ -12,7 +12,6 @@ Original FoF: Davis et al. 1985, doi: 10.1086/163168
 
 # type checking (semantic)
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 # workhorses
 from numba import njit, prange # NOTE: do not attach parallel=True to the individual algorithm functions, only the executor!

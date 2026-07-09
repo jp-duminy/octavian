@@ -24,6 +24,7 @@ from octavian.aggregate_properties.aggregate_helpers import (
     guarded_divide
 )
 from octavian.data_management import get_logger
+
 logger = get_logger()
 
 def run_ptype_specific_properties(simulation_data: SimulationData, config: dict) -> None:

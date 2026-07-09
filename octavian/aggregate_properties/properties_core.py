@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 import numpy as np
 from octavian.data_management.conventions import DTYPES
 from octavian.data_management import get_logger
-logger = get_logger()
 
 from octavian.aggregate_properties.aggregate_computations import (
     compute_kinematics,
@@ -35,6 +34,8 @@ from octavian.aggregate_properties.aggregate_helpers import (
     guarded_arcsin,
     guarded_divide,
 )
+
+logger = get_logger()
 
 def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
     """

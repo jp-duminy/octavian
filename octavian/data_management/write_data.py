@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 # octavian modules
 from octavian.data_management.conventions import DTYPES # NOTE: import from within-file, not module level (to avoid circular import)
 from octavian.data_management.log import get_logger
-logger = get_logger()
 
 # others
 import h5py
@@ -24,6 +23,8 @@ HDF5_GROUP_NAMES = {
     "halos": "halo_data",
     "galaxies": "galaxy_data",
 }
+
+logger = get_logger()
 
 def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> dict[str, dict[str, dict]]:
     """

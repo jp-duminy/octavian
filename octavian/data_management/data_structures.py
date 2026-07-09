@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
 from octavian.data_management.log import get_logger
-logger = get_logger()
 
 # defaults
 from pathlib import Path
@@ -28,6 +27,8 @@ from octavian.data_management.conventions import (
     gizmo_unit_conversion_factor, derive_stellar_age, calculate_temperature,
     calculate_mean_interparticle_separation
 )
+
+logger = get_logger()
 
 class GizmoReader(SnapshotReader):
     """
@@ -197,7 +198,8 @@ class ParticleStore:
 
         Internally, this is effectively the same as the del method.
         """
-        for name in names: self.columns.pop(name, None) 
+        for name in names: 
+            self.columns.pop(name, None) 
 
 def build_particle_stores(
     reader: SnapshotReader, 

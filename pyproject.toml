@@ -55,3 +55,6 @@ filterwarnings = [
     "ignore::DeprecationWarning:numba",
     "ignore::DeprecationWarning:h5py",
 ]
+
+[tool.ruff]
+exclude = ["octavian/external_halo_finders"]

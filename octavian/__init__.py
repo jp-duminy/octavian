@@ -1,2 +1,0 @@
-
-from octavian.data_management import filter_snapshot

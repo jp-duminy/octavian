@@ -18,11 +18,12 @@ if TYPE_CHECKING:
     from octavian.data_management import ParticleStore, GroupStore, SimulationData
 
 from octavian.data_management import get_logger
-logger = get_logger()
 from octavian.data_management.conventions import DTYPES
 from octavian.aggregate_properties.aggregate_helpers import (
     sort_by_group,
 )
+
+logger = get_logger()
 
 def run_local_environment(simulation_data: SimulationData, config: dict) -> None:
     """

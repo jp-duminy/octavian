@@ -21,6 +21,7 @@ import numpy as np
 # octavian
 from octavian.data_management.conventions import DTYPES
 from octavian.data_management.log import get_logger
+
 logger = get_logger()
 
 HDF5_GROUP_NAMES = {
