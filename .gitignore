@@ -46,5 +46,5 @@ htmlcov/
 # ruff
 .ruff_cache/
 
-# jp's testing file
+# jp's testing files
 test_attributes.py
