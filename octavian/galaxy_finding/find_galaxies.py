@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from dataclasses import dataclass
 
 # octavians
-from octavian.data_management import DTYPES
+from octavian.data_management import DTYPES, OctavianConfig
 from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
 from octavian.data_management import get_logger
 
@@ -75,7 +75,7 @@ class FOF6DResult:
 def find_galaxies(
     particles: dict[str, ParticleStore],
     simulation: SimulationAttributes,
-    config: dict,
+    config: OctavianConfig,
     constants: OctavianConstants,
 ) -> FOF6DResult:
     """
@@ -115,7 +115,10 @@ def find_galaxies(
 
 
 def prepare_fof6d_data(
-    particles: dict[str, ParticleStore], simulation: SimulationAttributes, config: dict, constants: OctavianConstants
+    particles: dict[str, ParticleStore],
+    simulation: SimulationAttributes,
+    config: OctavianConfig,
+    constants: OctavianConstants,
 ) -> tuple[FOF6DData, FOF6DParameters]:
     """
     Extracts relevant arrays from ParticleStores and FOF6D parameters from the SimulationAttributes & user config. Returns a tuple of:
@@ -126,7 +129,7 @@ def prepare_fof6d_data(
     star_halo_ids = particles["star"]["HaloID"]
     star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0])  # NOTE: work sentinel value into here
 
-    eligible_halos = np.where(star_counts >= config["MINIMUM_STARS_PER_GALAXY"])[
+    eligible_halos = np.where(star_counts >= config.min_stars_per_galaxy)[
         0
     ]  # disregard halos which would have no galaxies
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
@@ -135,14 +138,14 @@ def prepare_fof6d_data(
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
     temperature = gas["temperature"]
-    nH = rho * config["XH"] / constants.PROTON_MASS_G  # recomputed but trying to engineer this away is painful
+    nH = rho * config.XH / constants.PROTON_MASS_G  # recomputed but trying to engineer this away is painful
 
-    dense_mask = (nH > config["nHlim"]) & (
-        (temperature < config["Tlim"]) | (sfr > 0)
+    dense_mask = (nH > config.nH_lim) & (
+        (temperature < config.T_lim) | (sfr > 0)
     )  # NOTE: sfr > 0 overrides of the density criterion
 
     n_dense = dense_mask.sum()
-    n_cold = ((temperature < config["Tlim"]) & (nH > config["nHlim"])).sum()
+    n_cold = ((temperature < config.T_lim) & (nH > config.nH_lim)).sum()
     n_sfr = (sfr > 0).sum()
     logger.debug(
         f"Gas criteria, cold/dense: {n_cold}, star-forming: {n_sfr}, total masked: {n_dense}/{len(dense_mask)}"
@@ -169,14 +172,14 @@ def prepare_fof6d_data(
         index_list.append(np.arange(particles[ptype].n_particles)[mask])
         hid_list.append(halo_ids[mask])
 
-    linking_length = simulation.mis * config["b"]
+    linking_length = simulation.mis * config.b
 
     params = FOF6DParameters(
         linking_length=linking_length,
-        velocity_factor=config["velocity_factor"],
+        velocity_factor=config.velocity_factor,
         boxsize=simulation.boxsize,
-        minstars=config["MINIMUM_STARS_PER_GALAXY"],
-        cores_per_rank=config["cores_per_rank"],
+        minstars=config.min_stars_per_galaxy,
+        cores_per_rank=config.cores_per_rank,
     )
 
     # NOTE: in-halo concatenation, could be expensive

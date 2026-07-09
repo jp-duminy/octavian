@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         SimulationAttributes,
         SimulationData,
         OctavianConstants,
+        OctavianConfig,
     )
 
 # others
@@ -45,7 +46,7 @@ from octavian.aggregate_properties.aggregate_helpers import (
 logger = get_logger()
 
 
-def run_core_properties(simulation_data: SimulationData, config: dict) -> None:
+def run_core_properties(simulation_data: SimulationData, config: OctavianConfig) -> None:
     """
     Top-level executor for the core aggregate properties.
     """
@@ -106,7 +107,7 @@ def run_core_ptype_pass(
     store: GroupStore,
     group_type: str,
     sim: SimulationAttributes,
-    config: dict,
+    config: OctavianConfig,
 ) -> None:
     """
     Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore. Loops over ptypes twice because global minpot/com need to be computed for reference positions.
@@ -158,8 +159,8 @@ def run_core_ptype_pass(
         ref_pos = baryon_com["com_pos_galaxy_ref"]
         ref_vel = baryon_com["com_vel_galaxy_ref"]
 
-    quantile_names = list(config["radial_quantiles"])
-    quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
+    quantile_names = list(config.radial_quantiles)
+    quantiles = np.array(list(config.radial_quantiles.values()), dtype=np.float64)
 
     for ptype in particles:  # second pass does kinematics which require collective group centres
         group_idx, masses, positions, velocities, counts_and_mass = ptype_cache[ptype]
@@ -232,7 +233,7 @@ def run_halo_stages(
     store: GroupStore,
     sim: SimulationAttributes,
     constants: OctavianConstants,
-    config: dict,
+    config: OctavianConfig,
 ) -> None:
     """
     Halo-specific virial/mass profile quantities.
@@ -263,7 +264,7 @@ def run_halo_stages(
     all_masses = np.concatenate(all_masses_list)
     all_group_idx = np.concatenate(all_group_idx_list)
 
-    factors = np.array(config["virial_factors"])
+    factors = np.array(config.virial_factors)
     mass_profile = _compute_mass_profile_quantities(
         radii=all_radii,
         masses=all_masses,
@@ -400,13 +401,13 @@ def run_combined_radial_quantiles(
     available_ptypes: list[str],
     available_baryonic_ptypes: list[str],
     sim: SimulationAttributes,
-    config: dict,
+    config: OctavianConfig,
 ) -> None:
     """
     Computes radial quantiles for combined ptype sets (baryon, and total for halos).
     """
-    quantile_names = list(config["radial_quantiles"])
-    quantiles = np.array(list(config["radial_quantiles"].values()), dtype=np.float64)
+    quantile_names = list(config.radial_quantiles)
+    quantiles = np.array(list(config.radial_quantiles.values()), dtype=np.float64)
 
     if group_type == "halos":
         baryon_ref = store["minpot_pos"]

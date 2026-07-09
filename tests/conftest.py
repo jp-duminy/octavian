@@ -6,10 +6,7 @@ This is for automated CI/CD (did your commit break anything in the analysis?). P
 
 """
 
-
-
 from pathlib import Path
-from yaml import safe_load
 import h5py
 import pytest
 from collections.abc import Generator
@@ -17,10 +14,12 @@ from collections.abc import Generator
 from octavian.run_octavian import execute_pipeline, get_mpi_communicator
 from octavian.data_management.log import configure_logger
 from octavian.data_management.pipeline_management import load_internals
+from octavian.data_management.conventions import OctavianConfig
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavian" / "internals.yaml"
+
 
 @pytest.fixture(scope="session")
 def mock_catalogue(tmp_path_factory: pytest.TempPathFactory) -> Generator[h5py.File, None, None]:
@@ -34,15 +33,13 @@ def mock_catalogue(tmp_path_factory: pytest.TempPathFactory) -> Generator[h5py.F
 
     configure_logger(rank=rank, output_level="INFO", output_log_directory=tmp_dir)
 
-    with open(CONFIG_PATH, "r") as f:
-        config = safe_load(f)
-
-    internals = load_internals(internals_filepath=INTERNALS_PATH, user_config=config)
+    config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
+    internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
 
     execute_pipeline(snapshot_path=GIZMO_TEST_PATH, output_path=output_path, config=config, internals=internals)
 
     assert output_path.exists()
 
     catalogue = h5py.File(output_path, "r")
-    yield catalogue # use yield not return, otherwise you'll run into issues with closing the catalogue
+    yield catalogue  # use yield not return, otherwise you'll run into issues with closing the catalogue
     catalogue.close()

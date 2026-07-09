@@ -1,10 +1,10 @@
 # STAGES TO EXECUTE
 
 stages:
-  find_galaxies: true
-  properties_core: true
-  properties_ptype_specific: true
-  properties_local_environment: true
+  find_galaxies:                  true
+  properties_core:                true
+  properties_ptype_specific:      true
+  properties_local_environment:   true
 
 # PTYPES TO PROCESS
 
@@ -22,11 +22,11 @@ MINIMUM_DM_PER_HALO:        24
 
 # PHYSICS CRITERIA
 
-nHlim:  0.13    # density above which gas is considered dense
-Tlim:   1.0e+5  # temperature below which gas is considered cold
-XH:     0.76    # hydrogen fraction
-FRAD:   0.1     # radiative efficiency of accretion (epsilon)
-MU:     0.6     # mean mass per-particle (gas); computed directly, if not available in snapshot, uses this
+nH_lim:  0.13     # density above which gas is considered dense
+T_lim:   1.0e+5   # temperature below which gas is considered cold
+XH:     0.76      # hydrogen fraction
+FRAD:   0.1       # radiative efficiency of accretion (epsilon)
+MU:     0.6       # mean mass per-particle (gas); computed directly, if not available in snapshot, uses this
 
 # FOF6D ALGORITHM
 

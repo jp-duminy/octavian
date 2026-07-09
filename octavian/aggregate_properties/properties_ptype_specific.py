@@ -13,7 +13,7 @@ Particle type-specific aggregate properties. For example:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import ParticleStore, SimulationData
+    from octavian.data_management import ParticleStore, SimulationData, OctavianConfig
 
 # others
 import numpy as np
@@ -29,7 +29,7 @@ from octavian.data_management import get_logger
 logger = get_logger()
 
 
-def run_ptype_specific_properties(simulation_data: SimulationData, config: dict) -> None:
+def run_ptype_specific_properties(simulation_data: SimulationData, config: OctavianConfig) -> None:
     """
     Top-level executor for the ptype-specific aggregate properties.
     """
@@ -53,7 +53,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
             gas_group_idx = group_store.get_indexer(group_id=gas[group_key])
 
             nH, fHI, fH2 = _prepare_hydrogen_fractions(
-                rho=gas["rho"], fHI=gas["fHI"], fH2=gas["fH2"], XH=config["XH"], proton_mass=constants.PROTON_MASS_G
+                rho=gas["rho"], fHI=gas["fHI"], fH2=gas["fH2"], XH=config.XH, proton_mass=constants.PROTON_MASS_G
             )
 
             gas_results = compute_gas_properties(
@@ -63,7 +63,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: dict)
 
             if group_type == "halos":
                 cgm_results = compute_cgm_properties(
-                    gas=gas, nH=nH, group_idx=gas_group_idx, n_groups=n_groups, nHlim=config["nHlim"]
+                    gas=gas, nH=nH, group_idx=gas_group_idx, n_groups=n_groups, nHlim=config.nH_lim
                 )
                 group_store.write_batch(results=cgm_results)
 

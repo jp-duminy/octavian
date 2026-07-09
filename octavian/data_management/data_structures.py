@@ -6,7 +6,6 @@ This is a modularised version of the old DataManager, its functionality divided 
 """
 
 # semantic
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
