@@ -136,8 +136,16 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
             n_split=n_ranks,
         )
 
-    with h5py.File(args.snapshot, "r") as f:
-        n_original = sum(np.sum(f[pt]["HaloID"][:] != 0) for pt in RAW_PTYPES)  # particles in unfiltered snapshot
+    dm_ids = reader.read_halo_ids(ptype="dm")
+    dm_ids_valid = dm_ids[dm_ids != -1]
+    unique, counts = np.unique(dm_ids_valid, return_counts=True)
+    valid_halos = unique[counts >= config.min_dm_per_halo]
+
+    halo_count = sum(np.sum(reader.read_halo_ids(ptype=pt) != -1) for pt in PTYPES)
+    resolved_halo_count = sum(np.sum(np.isin(reader.read_halo_ids(ptype=pt), valid_halos)) for pt in PTYPES)
+
+    logger.info(f"Total in-halo particles: {halo_count}")
+    logger.info(f"Discarded by min_dm_per_halo: {halo_count - resolved_halo_count}")
 
     split_files = [args.work_dir / f"rank_{i}.hdf5" for i in range(n_ranks)]
     n_filtered = 0
@@ -146,11 +154,10 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
         with h5py.File(path, "r") as f:
             n_filtered += sum(len(f[pt]["HaloID"]) for pt in RAW_PTYPES)  # number of particles with an assigned HaloID
 
-    logger.info(f"In-halo particles pre-filter: {n_original}")
     logger.info(f"In-halo particles post-filter: {n_filtered}")
 
-    assert n_filtered == n_original, (
-        f"Difference: {n_original - n_filtered}"
+    assert n_filtered == resolved_halo_count, (
+        f"Difference: {n_filtered - resolved_halo_count}"
     )  # no helper function here since that says 'merge'
 
     logger.info("filter_snapshot passes tests.")

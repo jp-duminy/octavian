@@ -60,9 +60,19 @@ def filter_snapshot(
 
         for pt in available_ptypes:
             halo_ids = reader.read_halo_ids(ptype=pt)  # autoconverts to raw snapshot convention
-            halo_ids = halo_ids[halo_ids != -1]
+            halo_ids = halo_ids[halo_ids != -1]  # masks sentinel value here
             unique, counts = np.unique(halo_ids, return_counts=True)
             ptype_counts[pt] = (unique, counts)
+
+        if "dm" in ptype_counts:
+            dm_unique, dm_per_halo = ptype_counts["dm"]
+            valid_mask = dm_per_halo >= config.min_dm_per_halo
+            valid_halo_set = set(dm_unique[valid_mask])  # masks min_dm_per_halo here
+        else:
+            valid_halo_set = set()
+
+        all_hids_raw = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
+        all_hids = all_hids_raw[np.isin(all_hids_raw, np.array(list(valid_halo_set)))]
 
         all_hids = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
 
@@ -105,7 +115,7 @@ def filter_snapshot(
             datasets = list(f[raw_ptype].keys())
             halo_ids = reader.read_halo_ids(ptype=pt)
             particle_index = np.arange(len(halo_ids), dtype=np.int64)
-            in_halo = halo_ids != -1
+            in_halo = np.isin(halo_ids, np.array(list(valid_halo_set)))
             ids_filtered = halo_ids[in_halo]
             order = np.argsort(ids_filtered)
             ids_sorted = ids_filtered[order]
