@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from octavian.data_management.conventions import OctavianConstants
 
 import numpy as np
+import astropy.units as u
+from octavian.data_management.data_structures import SimulationAttributes
 from octavian.log import get_logger
 
 logger = get_logger()
@@ -65,3 +67,49 @@ def calculate_mean_interparticle_separation(
     logger.debug(f"Mean baryonic interparticle separation: {mis:.2f}")
 
     return mis
+
+
+def derive_simulation_attributes(
+    cosmology: FLRW,
+    h: float,
+    a: float,
+    redshift: float,
+    omega_matter: float,
+    omega_lambda: float,
+    boxsize: float,
+    n_star: int,
+    n_gas: int,
+    constants: OctavianConstants,
+) -> SimulationAttributes:
+    """
+    Derives cosmology and calculates mean interparticle separation.
+
+    Returns a SimulationAttributes dataclass.
+    """
+    time_gyr = cosmology.age(redshift).value
+    Hz = cosmology.H(redshift).to(1 / u.s).value
+    E_z = cosmology.efunc(redshift)
+    rhocrit = cosmology.critical_density(redshift).to(u.M_sun / u.kpc**3).value
+    omega_matter_z = cosmology.Om(redshift)
+
+    r200_factor = (200 * 4.0 / 3.0 * np.pi * omega_matter_z * rhocrit * a**3) ** (-1.0 / 3.0)
+    mis = calculate_mean_interparticle_separation(n_star=n_star, n_gas=n_gas, boxsize=boxsize)
+
+    return SimulationAttributes(
+        h=h,
+        boxsize=boxsize,
+        a=a,
+        redshift=redshift,
+        omega_matter=omega_matter,
+        omega_lambda=omega_lambda,
+        mis=mis,
+        cosmology=cosmology,
+        time_gyr=time_gyr,
+        time=time_gyr * constants.GYR_S,
+        Hz=Hz,
+        rhocrit=rhocrit,
+        rhocrit_comoving=rhocrit * a**3,
+        E_z=E_z,
+        omega_matter_z=omega_matter_z,
+        r200_factor=r200_factor,
+    )
