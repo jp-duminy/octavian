@@ -285,19 +285,19 @@ class SnapshotReader:
     Base reader class (for inheritance). I tucked it away here.
     """
 
-    def read_header(self, snapfile: str) -> SimulationAttributes:
+    def read_header(self, snapshot_path: Path) -> SimulationAttributes:
         """
         Read header attributes and, where necessary, convert units.
         """
         raise NotImplementedError
 
-    def read_dataset(self, snapfile: str, ptype: str, dataset: str) -> np.ndarray:
+    def read_dataset(self, snapshot_path: Path, ptype: str, dataset: str) -> np.ndarray:
         """
         Returns array in Octavian code units with the correct dtype.
         """
         raise NotImplementedError
 
-    def available_ptypes(self, snapfile: str) -> list[str]:
+    def available_ptypes(self, snapshot_path: Path) -> list[str]:
         """
         List of available ptypes in Octavian convention (gas, star, etc.)
         """
