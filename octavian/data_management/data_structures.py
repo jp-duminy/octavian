@@ -177,6 +177,12 @@ class GizmoReader(SnapshotReader):
         return halo_ids
 
 
+class SwiftReader(SnapshotReader):
+    """
+    Swift (SWIMBA/KIARA) snapshot reader.
+    """
+
+
 class ParticleStore:
     """
     Stores dictionaries of properties for one particle type.

@@ -49,6 +49,8 @@ class OctavianConfig:
     density_radii: list[int]
 
     cores_per_rank: int
+    fof6d_weight: float
+    properties_weight: float
 
     terminal_output_level: str
 
@@ -77,6 +79,8 @@ class OctavianConfig:
             virial_factors=raw["virial_factors"],
             density_radii=raw["density_radii"],
             cores_per_rank=raw["cores_per_rank"],
+            fof6d_weight=raw["fof6d_weight"],
+            properties_weight=raw["properties_weight"],
             terminal_output_level=raw["terminal_output_level"],
         )
 

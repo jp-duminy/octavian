@@ -46,7 +46,9 @@ density_radii:    [300, 1000, 3000]   # kpc
 
 # PARALLELISM
 
-cores_per_rank: 4 # number of VPU cores assigned to each MPI rank
+cores_per_rank:     4 # number of VPU cores assigned to each MPI rank
+fof6d_weight:       0.6 # fraction of computational cost fof6d counts for when balancing computational load
+properties_weight:  0.4 # fraction of computational cost aggregate properties counts for when balancing computational load
 
 # LOGGING
 

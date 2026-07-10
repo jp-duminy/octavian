@@ -141,13 +141,20 @@ def run_octavian(
 
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
 
+    config = OctavianConfig.from_yaml(config_path=config_path)
+    internals = load_internals(internals_filepath=internals_path, config=config)
+
     if rank == 0:
         if not intermediates_exist:
             oc = OctavianConstants()
             reader = GizmoReader(snapshot_path=snapshot_path, constants=oc)
 
             filter_snapshot(
-                snapshot_file=snapshot_path, intermediate_directory=intermediate_directory, reader=reader, n_split=size
+                snapshot_file=snapshot_path,
+                intermediate_directory=intermediate_directory,
+                reader=reader,
+                config=config,
+                n_split=size,
             )
 
     if comm:
@@ -155,9 +162,6 @@ def run_octavian(
 
     intermediate_file = intermediate_directory / f"rank_{rank}.hdf5"
     intermediate_output = intermediate_directory / f"rank_{rank}_intermediate_analysis.hdf5"
-
-    config = OctavianConfig.from_yaml(config_path=config_path)
-    internals = load_internals(internals_filepath=internals_path, config=config)
 
     execute_pipeline(
         snapshot_path=intermediate_file, output_path=intermediate_output, config=config, internals=internals
