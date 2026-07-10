@@ -63,7 +63,6 @@ class GizmoReader(SnapshotReader):
         "fH2": "FractionH2",
         "bhmass": "BH_Mass",
         "bhmdot": "BH_Mdot",
-        "HaloID": "HaloID",  # TODO: come back to this when doing external halo finders
         "particle_index": "particle_index",
     }
 
@@ -162,6 +161,17 @@ class GizmoReader(SnapshotReader):
 
         return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
 
+    def read_halo_ids(self, ptype: str) -> np.ndarray:
+        """
+        Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavian's -1.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            halo_ids = f[hdf5_group]["HaloID"][:]
+
+        return halo_ids.astype(DTYPES.get("HaloID", np.int64))
+
 
 class ParticleStore:
     """
@@ -227,7 +237,7 @@ def build_particle_stores(
     particles: dict[str, ParticleStore] = {}
 
     for ptype in requested:
-        halo_ids = reader.read_dataset(ptype, "HaloID")
+        halo_ids = reader.read_halo_ids(ptype=ptype)
         store = ParticleStore(ptype=ptype, n_particles=len(halo_ids), is_baryonic=ptype in internals.baryonic_ptypes)
         store["HaloID"] = halo_ids
 
