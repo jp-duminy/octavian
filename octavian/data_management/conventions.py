@@ -302,3 +302,9 @@ class SnapshotReader:
         List of available ptypes in Octavian convention (gas, star, etc.)
         """
         raise NotImplementedError
+
+    def read_halo_ids(self, ptype: str) -> np.ndarray:
+        """
+        Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
+        """
+        raise NotImplementedError
