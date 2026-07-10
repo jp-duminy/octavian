@@ -28,6 +28,9 @@ from octavian.data_management.conventions import (
     SimulationAttributes,
     SnapshotReader,
     gizmo_unit_conversion_factor,
+)
+
+from octavian.data_management.physics import (
     derive_stellar_age,
     calculate_temperature,
     calculate_mean_interparticle_separation,
