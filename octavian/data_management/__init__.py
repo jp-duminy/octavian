@@ -27,7 +27,7 @@ from octavian.data_management.conventions import (
     OctavianConstants as OctavianConstants,
     OctavianConfig as OctavianConfig,
 )
-from octavian.data_management.log import (
+from octavian.log import (
     configure_logger as configure_logger,
     get_logger as get_logger,
 )

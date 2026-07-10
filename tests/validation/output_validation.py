@@ -9,7 +9,7 @@ import numpy as np
 
 # data
 from tests.validation.validation_columns import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
-from octavian.data_management.log import get_logger
+from octavian.log import get_logger
 
 PTYPES = ["gas", "star", "bh", "dm"]
 BARYON_PTYPES = ["gas", "star", "bh"]

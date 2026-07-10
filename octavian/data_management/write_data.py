@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 from octavian.data_management.conventions import (
     DTYPES,
 )  # NOTE: import from within-file, not module level (to avoid circular import)
-from octavian.data_management.log import get_logger
+from octavian.log import get_logger
 
 # others
 import h5py

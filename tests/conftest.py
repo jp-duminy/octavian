@@ -12,7 +12,7 @@ import pytest
 from collections.abc import Generator
 
 from octavian.run_octavian import execute_pipeline, get_mpi_communicator
-from octavian.data_management.log import configure_logger
+from octavian.log import configure_logger
 from octavian.data_management.pipeline_management import load_internals
 from octavian.data_management.conventions import OctavianConfig
 

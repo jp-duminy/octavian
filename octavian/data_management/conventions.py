@@ -17,7 +17,7 @@ import astropy.units as u
 from astropy.cosmology import FLRW
 import numpy as np
 
-from octavian.data_management.log import get_logger
+from octavian.log import get_logger
 
 logger = get_logger()
 
