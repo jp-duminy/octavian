@@ -106,7 +106,7 @@ memories = {}
 results = []
 
 
-def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, sentinel_value: int = 0) -> list[Path]:
+def test_filter_snapshot(n_ranks: int, args: argparse.Namespace) -> list[Path]:
     """
     Tests whether the snapshot filter keeps all the right particles and distributes load equally.
     The sentinel value is usually 0.
@@ -136,9 +136,7 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, sentinel_value:
         )
 
     with h5py.File(args.snapshot, "r") as f:
-        n_original = sum(
-            np.sum(f[pt]["HaloID"][:] != sentinel_value) for pt in RAW_PTYPES
-        )  # particles in unfiltered snapshot
+        n_original = sum(np.sum(f[pt]["HaloID"][:] != 0) for pt in RAW_PTYPES)  # particles in unfiltered snapshot
 
     split_files = [args.work_dir / f"rank_{i}.hdf5" for i in range(n_ranks)]
     n_filtered = 0
@@ -236,12 +234,7 @@ def _profiled_pipeline(
         )
 
 
-def test_remerge(
-    files: list[Path],
-    output_path: Path,
-    internals: Internals,
-    sentinel_value: int = 0,
-) -> None:
+def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> None:
     """
     Tests the remerging of the snapshot.
     """

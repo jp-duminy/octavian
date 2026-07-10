@@ -6,7 +6,6 @@ NOTE: this will eventually be legacy code, as we intend to move away from interm
 
 """
 
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -57,30 +56,16 @@ def filter_snapshot(
             with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as intermediate:
                 f.copy(f["Header"], intermediate, "Header")
 
-        # this operates on a raw snapshot which does not use Octavian internal names
-        raw_star = reader.inverse_ptype_map["star"]
-        raw_gas = reader.inverse_ptype_map["gas"]
-        raw_bh = reader.inverse_ptype_map["bh"]
-        raw_dm = reader.inverse_ptype_map["dm"]
-
-        ptypes = [group for group in list(f.keys()) if "HaloID" in list(f[group].keys())]
+        available_ptypes = reader.available_ptypes()
         ptype_counts = {}
 
-        for ptype_name in [raw_star, raw_gas, raw_bh, raw_dm]:
-            if ptype_name not in f:
-                continue
+        for pt in available_ptypes:
+            halo_ids = reader.read_halo_ids(ptype=pt)  # autoconverts to raw snapshot convention
+            halo_ids = halo_ids[halo_ids != -1]
+            unique, counts = np.unique(halo_ids, return_counts=True)
+            ptype_counts[pt] = (unique, counts)
 
-            ids = f[ptype_name]["HaloID"][:]
-            ids = ids[ids != 0]  # TODO: sentinel 0 vs -1
-            unique, counts = np.unique(ids, return_counts=True)
-            ptype_counts[ptype_name] = (unique, counts)
-
-        # build a unified halo ID array
-        all_hids_list = []
-        for ptype_name in ptypes:  # ptypes from the existing detection logic
-            ids = f[ptype_name]["HaloID"][:]
-            all_hids_list.append(np.unique(ids[ids != 0]))
-        all_hids = np.unique(np.concatenate(all_hids_list))
+        all_hids = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
 
         # guard (necessary for high-redshift snapshots with no HaloIDs)
         if len(all_hids) == 0:
@@ -92,7 +77,7 @@ def filter_snapshot(
         gas_counts = np.zeros(shape=n_halos)
         dm_counts = np.zeros(shape=n_halos)
 
-        weight_ptypes = {raw_star: star_counts, raw_gas: gas_counts, raw_dm: dm_counts}
+        weight_ptypes = {"star": star_counts, "gas": gas_counts, "dm": dm_counts}
 
         for raw_ptype_name, count_array in weight_ptypes.items():
             if raw_ptype_name in ptype_counts:
@@ -116,12 +101,13 @@ def filter_snapshot(
         # filter, tosses particles not in halos
         rank_particle_counts: dict[int, dict[str, int]] = {i: {} for i in range(n_split)}
 
-        for ptype in ptypes:
-            datasets = list(f[ptype].keys())
-            ids = f[ptype]["HaloID"][:]
-            particle_index = np.arange(len(ids), dtype=np.int64)
-            in_halo = ids != 0  # TODO: sentinel value
-            ids_filtered = ids[in_halo]
+        for pt in available_ptypes:
+            raw_ptype = reader.inverse_ptype_map[pt]
+            datasets = list(f[raw_ptype].keys())
+            halo_ids = reader.read_halo_ids(ptype=pt)
+            particle_index = np.arange(len(halo_ids), dtype=np.int64)
+            in_halo = halo_ids != -1
+            ids_filtered = halo_ids[in_halo]
             order = np.argsort(ids_filtered)
             ids_sorted = ids_filtered[order]
 
@@ -129,20 +115,20 @@ def filter_snapshot(
 
             for i in range(n_split):
                 with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as f_out:
-                    f_out.require_group(ptype)
+                    f_out.require_group(raw_ptype)
 
                     halo_set = np.array(list(rank_assignments[i]))
                     rank_mask = np.isin(ids_sorted, halo_set)
-                    rank_particle_counts[i][ptype] = int(rank_mask.sum())
+                    rank_particle_counts[i][pt] = int(rank_mask.sum())
 
                     for dataset in datasets:
                         if dataset == "particle_index":
                             data = particle_index[in_halo][order]
 
                         else:
-                            data = f[ptype][dataset][:][in_halo][order]
+                            data = f[raw_ptype][dataset][:][in_halo][order]
 
-                        f_out[ptype][dataset] = data[rank_mask]
+                        f_out[raw_ptype][dataset] = data[rank_mask]
 
         for i in range(n_split):
             with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as f_out:
