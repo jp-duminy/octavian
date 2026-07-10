@@ -52,7 +52,7 @@ class GizmoReader(SnapshotReader):
         "vel": "Velocities",
         "mass": "Masses",
         "potential": "Potential",
-        "internal_energy": "InternalEnergy",  # FIXME: should map properly
+        "internal_energy": "InternalEnergy",
         "electron_abundance": "ElectronAbundance",
         "rho": "Density",
         "fHI": "NeutralHydrogenAbundance",
@@ -270,9 +270,8 @@ class GroupStore:
         self.columns: dict[str, np.ndarray] = {}
         self.group_key = group_key
 
-        max_id = (
-            group_ids.max() if self.n_groups > 0 else 0
-        )  # TODO: add this to logger since guard should not be hit in principle
+        max_id = group_ids.max() if self.n_groups > 0 else 0
+        logger.debug(f"Max ID guard hit in group store for {group_key}")
         self.id_to_idx = np.full(shape=max_id + 1, fill_value=-1, dtype=DTYPES["pid"])
         self.id_to_idx[group_ids] = np.arange(self.n_groups, dtype=DTYPES["csr_offsets"])
 
