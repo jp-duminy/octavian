@@ -32,7 +32,7 @@ from octavian.data_management.conventions import (
 
 from octavian.data_management.physics import (
     derive_stellar_age,
-    calculate_temperature,
+    gizmo_temperature,
     derive_simulation_attributes,
 )
 
@@ -168,11 +168,61 @@ class GizmoReader(SnapshotReader):
 
         return halo_ids
 
+    def read_temperature(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Reads data to calculate temperature according to method in http://www.tapir.caltech.edu/~phopkins/Site/GIZMO_files/gizmo_documentation.html
+        """
+        assert ptype == "gas", f"Temperature is configured to be computed from gas, not {ptype}."
+
+        internal_energy = self.read_dataset(ptype, "internal_energy")
+
+        try:
+            electron_abundance = self.read_dataset(ptype, "electron_abundance")
+        except KeyError:
+            electron_abundance = np.ones(shape=len(internal_energy))
+
+        helium_fraction = self.read_dataset(ptype, "helium_fraction")
+        temperature = gizmo_temperature(
+            internal_energy=internal_energy,
+            electron_abundance=electron_abundance,
+            helium_fraction=helium_fraction,
+            constants=self.constants,
+        )
+
+        return temperature
+
 
 class SwiftReader(SnapshotReader):
     """
     Swift (SWIMBA/KIARA) snapshot reader.
     """
+
+    ptype_map = {
+        "PartType0": "gas",
+        "PartType1": "dm",
+        "PartType4": "star",
+        "PartType5": "bh",
+    }
+    dataset_map = {
+        "pos": "Coordinates",
+        "vel": "Velocities",
+        "mass": "Masses",
+        "potential": "Potentials",
+        "internal_energy": "InternalEnergies",
+        "electron_abundance": "ElectronNumberDensities",
+        "rho": "Densities",
+        "fHI": "AtomicHydrogenFractions",
+        "sfr": "StarFormationRates",
+        "age": "BirthScaleFactors",
+        "metallicity": "MetalMassFractions",
+        "helium_fraction": "ElementMassFractions",  # assuming [Z, He...] GIZMO convention
+        "fH2": "MolecularHydrogenFractions",
+        "bhmass": "DynamicalMasses",
+        "bhmdot": "AccretionRates",
+        "particle_index": "particle_index",
+    }
+
+    inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
 
 class ParticleStore:
@@ -228,7 +278,6 @@ def build_particle_stores(
     reader: SnapshotReader,
     internals: Internals,
     process_ptypes: dict[str, bool],
-    constants: OctavianConstants,
 ) -> dict[str, ParticleStore]:
     """
     Constructs basic particle stores using information from what is available in the snapshot, and what the config specifies to process.
@@ -247,20 +296,7 @@ def build_particle_stores(
             store[dataset] = reader.read_dataset(ptype, dataset)
 
         if ptype == "gas":
-            internal_energy = reader.read_dataset(ptype, "internal_energy")
-
-            try:
-                electron_abundance = reader.read_dataset(ptype, "electron_abundance")
-            except KeyError:
-                electron_abundance = np.ones(store.n_particles)
-
-            helium_fraction = reader.read_dataset(ptype, "helium_fraction")
-            store["temperature"] = calculate_temperature(
-                internal_energy=internal_energy,
-                electron_abundance=electron_abundance,
-                helium_fraction=helium_fraction,
-                constants=constants,
-            )
+            store["temperature"] = reader.read_temperature(ptype=ptype)
 
         store["ptype"] = np.full(len(store), ptype)
         particles[ptype] = store

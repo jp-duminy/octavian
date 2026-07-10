@@ -33,7 +33,7 @@ def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctavianCo
     return rho_cgs * XH / constants.PROTON_MASS_G
 
 
-def calculate_temperature(
+def gizmo_temperature(
     internal_energy: np.ndarray,
     electron_abundance: np.ndarray,
     helium_fraction: np.ndarray,
