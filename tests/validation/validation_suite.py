@@ -26,6 +26,8 @@ import psutil
 # maths
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib as mpl
+from cycler import cycler
 
 # octavian pipeline stages
 from octavian.data_management import (
@@ -59,9 +61,38 @@ from .output_validation import (
     check_for_nans,
 )
 
+mpl.rcParams.update(
+    {
+        "axes.prop_cycle": cycler(
+            "color", ["#0C5DA5", "#00B945", "#FF9500", "#FF2C00", "#845B97", "#474747", "#9e9e9e"]
+        ),
+        "figure.figsize": (3.5, 2.625),
+        "xtick.direction": "in",
+        "xtick.major.size": 3,
+        "xtick.major.width": 0.5,
+        "xtick.minor.size": 1.5,
+        "xtick.minor.width": 0.5,
+        "xtick.minor.visible": True,
+        "xtick.top": True,
+        "ytick.direction": "in",
+        "ytick.major.size": 3,
+        "ytick.major.width": 0.5,
+        "ytick.minor.size": 1.5,
+        "ytick.minor.width": 0.5,
+        "ytick.minor.visible": True,
+        "ytick.right": True,
+        "axes.linewidth": 0.5,
+        "grid.linewidth": 0.5,
+        "lines.linewidth": 1.0,
+        "legend.frameon": False,
+        "savefig.bbox": "tight",
+        "savefig.pad_inches": 0.05,
+        "font.family": "serif",
+        "mathtext.fontset": "dejavuserif",
+        "text.usetex": False,
+    }
+)
 
-plt.style.use(["science"])
-plt.rcParams["text.usetex"] = False
 _PROCESS = psutil.Process()
 
 RAW_PTYPES = ["PartType0", "PartType1", "PartType4", "PartType5"]  # all particle types should be present
@@ -138,7 +169,7 @@ def _profiled_pipeline(
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
     with time_and_memory("Read-in Data"):
-        reader = GizmoReader(snapshot_file=snapshot_file, constants=constants)
+        reader = GizmoReader(snapshot_path=snapshot_file, constants=constants)
         sim = reader.simulation_attributes
         particles = build_particle_stores(
             reader=reader, internals=internals, constants=constants, process_ptypes=config.process_ptypes

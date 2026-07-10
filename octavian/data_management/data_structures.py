@@ -69,11 +69,11 @@ class GizmoReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_file: Path, constants: OctavianConstants):
+    def __init__(self, snapshot_path: Path, constants: OctavianConstants):
 
         logger.info("Using GIZMO reader.")
 
-        self.snapshot_file = snapshot_file
+        self.snapshot_path = snapshot_path
         self.constants = constants
 
         self.read_header()
@@ -87,7 +87,7 @@ class GizmoReader(SnapshotReader):
         """
         Parses header attributes into a dataclass (does derived quantities too); assumes FlatLambdaCDM
         """
-        with h5py.File(self.snapshot_file, "r") as f:
+        with h5py.File(self.snapshot_path, "r") as f:
             header = f["Header"].attrs
 
             h = header["HubbleParam"]
@@ -130,7 +130,7 @@ class GizmoReader(SnapshotReader):
         """
         Finds which Octavia-compatible ptypes are available in the snapshot.
         """
-        with h5py.File(self.snapshot_file) as f:
+        with h5py.File(self.snapshot_path) as f:
             return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
@@ -140,7 +140,7 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map[dataset]
 
-        with h5py.File(self.snapshot_file, "r") as f:
+        with h5py.File(self.snapshot_path, "r") as f:
             raw_hdf5_array = f[hdf5_group][hdf5_name][:]
 
         if dataset == "metallicity":  # I think it's okay to have these as conditionals by way of being explicit

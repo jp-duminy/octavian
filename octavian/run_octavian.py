@@ -58,7 +58,7 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: OctavianCon
     """
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
-    reader = GizmoReader(snapshot_file=snapshot_path, constants=constants)
+    reader = GizmoReader(snapshot_path=snapshot_path, constants=constants)
     sim = reader.simulation_attributes
     particles = build_particle_stores(
         reader=reader, internals=internals, constants=constants, process_ptypes=config.process_ptypes
@@ -144,7 +144,7 @@ def run_octavian(
     if rank == 0:
         if not intermediates_exist:
             oc = OctavianConstants()
-            reader = GizmoReader(snapshot_file=snapshot_path, constants=oc)
+            reader = GizmoReader(snapshot_path=snapshot_path, constants=oc)
 
             filter_snapshot(
                 snapshot_file=snapshot_path, intermediate_directory=intermediate_directory, reader=reader, n_split=size
