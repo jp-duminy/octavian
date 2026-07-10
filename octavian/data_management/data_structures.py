@@ -140,12 +140,13 @@ class GizmoReader(SnapshotReader):
         if dataset == "helium_fraction":
             raw_hdf5_array = raw_hdf5_array[:, 1]
 
-        if dataset == "age":
+        if dataset == "formation_time":
             raw_hdf5_array = derive_stellar_age(
                 formation_time=raw_hdf5_array,
                 time_gyr=self.simulation_attributes.time_gyr,
                 cosmology=self.simulation_attributes.cosmology,
             )
+            return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
 
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
         if conversion_factor != 1.0:  # skip unnecessary multiplication on (potentially giant) arrays
@@ -217,12 +218,21 @@ class SwiftReader(SnapshotReader):
         "metallicity": "MetalMassFractions",
         "helium_fraction": "ElementMassFractions",  # assuming [Z, He...] GIZMO convention
         "fH2": "MolecularHydrogenFractions",
-        "bhmass": "DynamicalMasses",
+        "bhmass": "SubgridMasses",
         "bhmdot": "AccretionRates",
         "particle_index": "particle_index",
     }
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
+
+    def __init__(self, snapshot_path: Path, constants: OctavianConstants):
+
+        logger.info("Using SWIFT reader.")
+
+        self.snapshot_path = snapshot_path
+        self.constants = constants
+
+        self.read_header()
 
 
 class ParticleStore:

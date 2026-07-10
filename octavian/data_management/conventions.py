@@ -157,16 +157,35 @@ class SimulationAttributes:
     r200_factor: float
 
 
+@dataclass(frozen=True, slots=True)
+class DatasetUnits:
+    """
+    Astropy unit with the a_exponent baked in; SWIFT cares not for h factors and we divide them out in GIZMO, so we omit it.
+    """
+
+    unit: u.UnitBase
+    a_exponent: int = 0
+
+
 CODE_UNITS = {
-    "pos": "kpc * a",  # comoving
-    "vel": "km/s",  # peculiar
-    "mass": "Msun",
-    "temperature": "K",
-    "rho": "g/cm**3",
-    "rhocrit": "Msun/kpc**3",
-    "sfr": "Msun/yr",
-    "bhmass": "Msun",
-    "bhmdot": "Msun/yr",
+    "pos": DatasetUnits(unit=u.kpc, a_exponent=1),  # kpc * a
+    "vel": DatasetUnits(unit=(u.km / u.s)),  # peculiar
+    "potential": DatasetUnits(unit=u.km**2 / u.s**2),  # (km/s)**2
+    "mass": DatasetUnits(unit=u.M_sun),  # solar masses
+    "internal_energy": DatasetUnits(unit=(u.cm**2 / u.s**2)),  # CGS
+    "temperature": DatasetUnits(unit=u.K),  # kelvin
+    "metallicity": DatasetUnits(unit=u.dimensionless_unscaled),  # dimensionless
+    "age": DatasetUnits(unit=u.Gyr),
+    "rho": DatasetUnits(unit=(u.g / u.cm**3)),  # CGS
+    "rhocrit": DatasetUnits(unit=(u.M_sun / u.kpc**3)),
+    "helium_fraction": DatasetUnits(unit=u.dimensionless_unscaled),
+    "electron_abundance": DatasetUnits(unit=u.dimensionless_unscaled),
+    "fHI": DatasetUnits(unit=u.dimensionless_unscaled),
+    "fH2": DatasetUnits(unit=u.dimensionless_unscaled),
+    "sfr": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
+    "bhmass": DatasetUnits(unit=u.M_sun),  # solar masses
+    "bhmdot": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
+    "particle_index": DatasetUnits(unit=u.dimensionless_unscaled),  # TODO: move this, not a dataset
 }
 
 DTYPES = {
@@ -207,28 +226,34 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     Astropy for automatic dimensional analysis.
     """
     conversions = {
-        "pos": (u.kpc * a / h, u.kpc * a),
-        "vel": (u.km / u.s * np.sqrt(a), u.km / u.s),
-        "mass": (1e10 * u.M_sun / h, u.M_sun),  # 1e10 factor is just a Gizmo scaling convention
-        "rho": (1e10 * u.M_sun * h**2 / (u.kpc**3 * a**3), u.g / u.cm**3),
-        "internal_energy": (u.km**2 / u.s**2, u.cm**2 / u.s**2),
-        "sfr": (u.M_sun / u.yr, u.M_sun / u.yr),
-        "metallicity": (u.dimensionless_unscaled, u.dimensionless_unscaled),
-        "fHI": (u.dimensionless_unscaled, u.dimensionless_unscaled),
-        "fH2": (u.dimensionless_unscaled, u.dimensionless_unscaled),
-        "potential": (u.km**2 / u.s**2, u.km**2 / u.s**2),
-        "formation_time": (u.dimensionless_unscaled, u.dimensionless_unscaled),
-        "bhmass": (1e10 * u.M_sun / h, u.M_sun),
-        "bhmdot": (1e10 * u.M_sun / (h * u.kpc / (u.km / u.s)), u.M_sun / u.yr),
+        "pos": (u.kpc * a / h),
+        "vel": (u.km / u.s * np.sqrt(a)),
+        "potential": (u.km**2 / u.s**2),
+        "mass": (1e10 * u.M_sun / h),  # 1e10 factor is just a Gizmo scaling convention
+        "rho": (1e10 * u.M_sun * h**2 / (u.kpc**3 * a**3)),
+        "internal_energy": (u.km**2 / u.s**2),
+        "sfr": (u.M_sun / u.yr),
+        "metallicity": (u.dimensionless_unscaled),
+        "fHI": (u.dimensionless_unscaled),
+        "fH2": (u.dimensionless_unscaled),
+        "age": (u.Gyr),
+        "bhmass": (1e10 * u.M_sun / h),
+        "bhmdot": (1e10 * u.M_sun / (h * u.kpc / (u.km / u.s))),
+        "helium_fraction": (u.dimensionless_unscaled),
+        "electron_abundance": (u.dimensionless_unscaled),
+        "particle_index": (u.dimensionless_unscaled),
     }
 
-    if dataset not in conversions:
-        logger.warning(f"{dataset} not found in GIZMO conversions list.")
-        return 1.0
+    snap_unit = conversions[dataset]
+    target = CODE_UNITS[dataset]
+    target_quantity = a**target.a_exponent * target.unit
 
-    snap_unit, internal_unit = conversions[dataset]
+    factor = (
+        (1 * snap_unit) / target_quantity
+    ).decompose()  # 1 * snap_unit is needed to convert to an astropy Quantity
+    assert factor.unit == u.dimensionless_unscaled, f"Unit mismatch for {dataset}"
 
-    return (1 * snap_unit).to(internal_unit).value  # 1 * snap_unit is needed to convert to an astropy Quantity
+    return factor.value
 
 
 class SnapshotReader:
