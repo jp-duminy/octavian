@@ -106,7 +106,7 @@ memories = {}
 results = []
 
 
-def test_filter_snapshot(n_ranks: int, args: argparse.Namespace) -> list[Path]:
+def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: OctavianConfig) -> list[Path]:
     """
     Tests whether the snapshot filter keeps all the right particles and distributes load equally.
     The sentinel value is usually 0.
@@ -132,6 +132,7 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace) -> list[Path]:
             snapshot_file=args.snapshot,
             intermediate_directory=args.work_dir,
             reader=reader,
+            config=config,
             n_split=n_ranks,
         )
 
@@ -516,7 +517,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             logger.info(f"Testing Octavian with {size} ranks.")
-            test_filter_snapshot(n_ranks=size, args=args)
+            test_filter_snapshot(n_ranks=size, config=config, args=args)
             logger.info("Filtering complete.")
 
         if comm:

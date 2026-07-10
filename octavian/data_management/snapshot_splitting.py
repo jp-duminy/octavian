@@ -9,7 +9,7 @@ NOTE: this will eventually be legacy code, as we intend to move away from interm
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import GizmoReader, Internals
+    from octavian.data_management import GizmoReader, Internals, OctavianConfig
 
 # defaults
 from pathlib import Path
@@ -36,9 +36,8 @@ def filter_snapshot(
     snapshot_file: Path,
     intermediate_directory: Path,
     reader: GizmoReader,
+    config: OctavianConfig,
     n_split: int = 4,
-    alpha: float = 0.6,
-    beta: float = 0.4,
 ) -> None:
     """
     Divides the snapshot into n_split (where n_split should be the number of MPI ranks) intermediate HDF5 files with all particles not in a halo filtered out. Employs a weighted binning algorithm to evenly distribute computational load amongst ranks.
@@ -49,7 +48,7 @@ def filter_snapshot(
     Constant defaults are empirically chosen but work well, only change with good reason.
     """
     logger.info(f"Splitting snapshot into {n_split} intermediate files.")
-    logger.debug(f"alpha: {alpha}, beta: {beta}")
+    logger.debug(f"FOF6d weight: {config.fof6d_weight}, Aggregate Properties weight: {config.properties_weight}")
 
     with h5py.File(snapshot_file, "r") as f:
         for i in range(n_split):
@@ -86,7 +85,7 @@ def filter_snapshot(
 
         fof6d_cost = star_counts[all_hids] ** 1.2 + gas_counts[all_hids]
         aggregates_cost = star_counts[all_hids] + gas_counts[all_hids] + dm_counts[all_hids]
-        halo_weights = alpha * fof6d_cost + beta * aggregates_cost
+        halo_weights = config.fof6d_weight * fof6d_cost + config.properties_weight * aggregates_cost
 
         # greedy binning according to halo weight
         weight_order = np.argsort(halo_weights)[::-1]
