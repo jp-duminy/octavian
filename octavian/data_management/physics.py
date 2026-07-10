@@ -20,10 +20,10 @@ logger = get_logger()
 
 def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: FLRW) -> np.ndarray:
     """
-    Converts GIZMO stellar formation time into stellar age in GYr.
+    Converts stellar formation time (stored as a scale factor by gizmo/swift) into stellar age in GYr.
     """
     redshifts = 1.0 / formation_time - 1.0
-    return time_gyr - cosmology.age(redshifts).value  # see astropy for integration details
+    return time_gyr - cosmology.age(redshifts).to_value(u.Gyr)  # see astropy for integration details
 
 
 def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctavianConstants, XH: float) -> np.ndarray:
