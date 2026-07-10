@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
-from octavian.data_management.log import get_logger
+from octavian.log import get_logger
 
 # defaults
 from pathlib import Path
