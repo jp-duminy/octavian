@@ -259,3 +259,9 @@ class SnapshotReader:
         Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
         """
         raise NotImplementedError
+
+    def read_temperature(self, ptype: str) -> np.ndarray:
+        """
+        Temperature is usually computed from multiple datasets, and how it can be computed differs between readers.
+        """
+        raise NotImplementedError

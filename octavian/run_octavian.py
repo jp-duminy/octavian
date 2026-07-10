@@ -60,9 +60,7 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: OctavianCon
 
     reader = GizmoReader(snapshot_path=snapshot_path, constants=constants)
     sim = reader.simulation_attributes
-    particles = build_particle_stores(
-        reader=reader, internals=internals, constants=constants, process_ptypes=config.process_ptypes
-    )
+    particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
 
     for prop in ["rho", "sfr"]:
         particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)

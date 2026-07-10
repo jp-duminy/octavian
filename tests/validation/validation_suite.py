@@ -177,9 +177,7 @@ def _profiled_pipeline(
     with time_and_memory("Read-in Data"):
         reader = GizmoReader(snapshot_path=snapshot_file, constants=constants)
         sim = reader.simulation_attributes
-        particles = build_particle_stores(
-            reader=reader, internals=internals, constants=constants, process_ptypes=config.process_ptypes
-        )
+        particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
 
     with time_and_memory("FOF6D"):
         for prop in ["rho", "sfr"]:
