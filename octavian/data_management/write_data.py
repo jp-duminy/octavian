@@ -41,7 +41,6 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
     for (
         group_name
     ) in data.groups:  # NOTE: sorts both halos & galaxies as opposed to previous function which took group_name
-        sentinel = -1 if group_name == "galaxies" else 0  # REVIEW: fix this ideally?
         group_store = data.groups[group_name]
         group_key = group_store.group_key
         particles = data.particles
@@ -54,7 +53,7 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
             particle_indices = particles[ptype]["particle_index"]  # positional index of particles in original snapshot
 
             # mask out non-group particles (technically redundant for halos) // sort
-            mask = particle_group_ids != sentinel
+            mask = particle_group_ids != -1
             particle_group_ids = particle_group_ids[mask]
             particle_indices = particle_indices[mask]
             order = np.argsort(particle_group_ids)

@@ -168,9 +168,13 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            halo_ids = f[hdf5_group]["HaloID"][:]
+            halo_ids = f[hdf5_group]["HaloID"][:].astype(
+                DTYPES.get("HaloID", np.int64)
+            )  # change dtype here otherwise you get int overflow
 
-        return halo_ids.astype(DTYPES.get("HaloID", np.int64))
+        halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
+
+        return halo_ids
 
 
 class ParticleStore:
