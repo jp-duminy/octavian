@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
+    from octavian.data_management.conventions import OctavianConstants
 from octavian.log import get_logger
 
 # defaults
@@ -23,7 +24,6 @@ from astropy.cosmology import FlatLambdaCDM
 
 # from the backend
 from octavian.data_management.conventions import (
-    OctavianConstants,
     DTYPES,
     SimulationAttributes,
     SnapshotReader,
@@ -33,7 +33,7 @@ from octavian.data_management.conventions import (
 from octavian.data_management.physics import (
     derive_stellar_age,
     calculate_temperature,
-    calculate_mean_interparticle_separation,
+    derive_simulation_attributes,
 )
 
 logger = get_logger()
@@ -100,31 +100,20 @@ class GizmoReader(SnapshotReader):
             redshift = header["Redshift"]
             n_star, n_gas = header["NumPart_Total"][4], header["NumPart_Total"][0]
 
-            cosmology = FlatLambdaCDM(H0=100 * h, Om0=omega_matter)
-            time_gyr = cosmology.age(redshift).value
-            Hz = 100 * h * np.sqrt(omega_lambda + omega_matter * a**-3) * self.constants.HUBBLE_UNIT
-            E_z = np.sqrt(omega_lambda + omega_matter * a**-3)
-            rhocrit = (3.0 * Hz**2 / (8 * np.pi * self.constants.G_CGS)) * self.constants.RHO_CGS_TO_MSUN_KPC3
-            omega_matter_z = (omega_matter * a**-3) / E_z**2
+        flat_lambda_cdm = FlatLambdaCDM(H0=100 * h, Om0=omega_matter)  # always flatlambdacdm for gizmo
 
-            self.simulation_attributes = SimulationAttributes(
-                h=h,
-                boxsize=boxsize,
-                a=a,
-                redshift=redshift,
-                omega_matter=omega_matter,
-                omega_lambda=omega_lambda,
-                mis=calculate_mean_interparticle_separation(n_star=n_star, n_gas=n_gas, boxsize=boxsize),
-                cosmology=cosmology,  # perhaps slightly hacky but astropy builds all its cosmo classes on FLRW
-                time_gyr=time_gyr,
-                time=time_gyr * self.constants.GYR_S,
-                Hz=Hz,
-                rhocrit=rhocrit,
-                rhocrit_comoving=rhocrit * a**3,
-                E_z=E_z,
-                omega_matter_z=omega_matter_z,
-                r200_factor=(200 * 4.0 / 3.0 * np.pi * omega_matter_z * rhocrit * a**3) ** (-1.0 / 3.0),
-            )
+        self.simulation_attributes = derive_simulation_attributes(
+            cosmology=flat_lambda_cdm,
+            h=h,
+            a=a,
+            redshift=redshift,
+            omega_matter=omega_matter,
+            omega_lambda=omega_lambda,
+            boxsize=boxsize,
+            n_star=n_star,
+            n_gas=n_gas,
+            constants=self.constants,
+        )
 
         return self.simulation_attributes
 
