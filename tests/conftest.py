@@ -10,6 +10,7 @@ from pathlib import Path
 import h5py
 import pytest
 from collections.abc import Generator
+from dataclasses import replace
 
 from octavian.run_octavian import execute_pipeline, get_mpi_communicator
 from octavian.log import configure_logger
@@ -17,12 +18,15 @@ from octavian.data_management.pipeline_management import load_internals
 from octavian.data_management.conventions import OctavianConfig
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
+SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavian" / "internals.yaml"
 
 
-@pytest.fixture(scope="session")
-def mock_catalogue(tmp_path_factory: pytest.TempPathFactory) -> Generator[h5py.File, None, None]:
+@pytest.fixture(scope="session", params=["GIZMO", "SWIFT"])
+def mock_catalogue(
+    request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
+) -> Generator[h5py.File, None, None]:
     """
     Generates the mock catalogue for testing (uses a tiny test snapshot of size ~10MB).
     """
@@ -33,10 +37,15 @@ def mock_catalogue(tmp_path_factory: pytest.TempPathFactory) -> Generator[h5py.F
 
     configure_logger(rank=rank, output_level="INFO", output_log_directory=tmp_dir)
 
+    sim_type = request.param
+    snapshot_path = GIZMO_TEST_PATH if sim_type == "GIZMO" else SWIFT_TEST_PATH
     config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
+    config = replace(
+        config, simulation_type=sim_type
+    )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
 
-    execute_pipeline(snapshot_path=GIZMO_TEST_PATH, output_path=output_path, config=config, internals=internals)
+    execute_pipeline(snapshot_path=snapshot_path, output_path=output_path, config=config, internals=internals)
 
     assert output_path.exists()
 
