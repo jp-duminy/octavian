@@ -1,3 +1,7 @@
+# SNAPSHOT FORMAT
+
+simulation_type: SWIFT # SWIFT/GIZMO
+
 # STAGES TO EXECUTE
 
 stages:
@@ -18,7 +22,7 @@ process_ptypes:
 # GROUP THRESHOLDS
 
 MINIMUM_STARS_PER_GALAXY:   16
-MINIMUM_DM_PER_HALO:        24
+MINIMUM_DM_PER_HALO:        0
 
 # PHYSICS CRITERIA
 

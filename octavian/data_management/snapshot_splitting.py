@@ -9,7 +9,9 @@ NOTE: this will eventually be legacy code, as we intend to move away from interm
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import GizmoReader, Internals, OctavianConfig
+    from octavian.data_management.data_structures import SnapshotReader
+    from octavian.data_management.conventions import OctavianConfig
+    from octavian.data_management.pipeline_management import Internals
 
 # defaults
 from pathlib import Path
@@ -35,7 +37,7 @@ HDF5_GROUP_NAMES = {
 def filter_snapshot(
     snapshot_file: Path,
     intermediate_directory: Path,
-    reader: GizmoReader,
+    reader: SnapshotReader,
     config: OctavianConfig,
     n_split: int = 4,
 ) -> None:
@@ -53,7 +55,9 @@ def filter_snapshot(
     with h5py.File(snapshot_file, "r") as f:
         for i in range(n_split):
             with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as intermediate:
-                f.copy(f["Header"], intermediate, "Header")
+                to_copy = ["Header", "Cosmology", "Units"] if config.simulation_type == "SWIFT" else ["Header"]
+                for h in to_copy:
+                    f.copy(f[h], intermediate, h)
 
         available_ptypes = reader.available_ptypes()
         ptype_counts = {}
@@ -64,17 +68,19 @@ def filter_snapshot(
             unique, counts = np.unique(halo_ids, return_counts=True)
             ptype_counts[pt] = (unique, counts)
 
-        if "dm" in ptype_counts:
+        if "dm" in ptype_counts and len(ptype_counts["dm"][0]) > 0:
             dm_unique, dm_per_halo = ptype_counts["dm"]
             valid_mask = dm_per_halo >= config.min_dm_per_halo
             valid_halo_set = set(dm_unique[valid_mask])  # masks min_dm_per_halo here
         else:
-            valid_halo_set = set()
+            valid_halo_set = None
 
         all_hids_raw = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
-        all_hids = all_hids_raw[np.isin(all_hids_raw, np.array(list(valid_halo_set)))]
-
-        all_hids = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
+        all_hids = (
+            all_hids_raw
+            if valid_halo_set is None
+            else all_hids_raw[np.isin(all_hids_raw, np.array(list(valid_halo_set)))]
+        )
 
         # guard (necessary for high-redshift snapshots with no HaloIDs)
         if len(all_hids) == 0:
@@ -115,7 +121,7 @@ def filter_snapshot(
             datasets = list(f[raw_ptype].keys())
             halo_ids = reader.read_halo_ids(ptype=pt)
             particle_index = np.arange(len(halo_ids), dtype=np.int64)
-            in_halo = np.isin(halo_ids, np.array(list(valid_halo_set)))
+            in_halo = halo_ids != -1 if valid_halo_set is None else np.isin(halo_ids, np.array(list(valid_halo_set)))
             ids_filtered = halo_ids[in_halo]
             order = np.argsort(ids_filtered)
             ids_sorted = ids_filtered[order]
@@ -138,6 +144,10 @@ def filter_snapshot(
                             data = f[raw_ptype][dataset][:][in_halo][order]
 
                         f_out[raw_ptype][dataset] = data[rank_mask]
+
+                        if dataset != "particle_index" and dataset in f[raw_ptype]:
+                            for attr_name, attr_val in f[raw_ptype][dataset].attrs.items():
+                                f_out[raw_ptype][dataset].attrs[attr_name] = attr_val
 
         for i in range(n_split):
             with h5py.File(intermediate_directory / f"rank_{i}.hdf5", "a") as f_out:

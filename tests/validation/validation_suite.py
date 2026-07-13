@@ -35,12 +35,12 @@ from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
-    GizmoReader,
     GroupStore,
     SimulationData,
     Internals,
     OctavianConstants,
     OctavianConfig,
+    build_reader,
     build_group_store,
     build_particle_stores,
     load_internals,
@@ -109,7 +109,6 @@ results = []
 def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: OctavianConfig) -> list[Path]:
     """
     Tests whether the snapshot filter keeps all the right particles and distributes load equally.
-    The sentinel value is usually 0.
     """
     logger = get_logger()
 
@@ -117,6 +116,8 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
         (args.work_dir / f"rank_{i}.hdf5").unlink(missing_ok=True)  # clears previous intermediates
 
     oc = OctavianConstants()
+
+    halo_id_key = "FOFGroupIDs" if config.simulation_type == "SWIFT" else "HaloID"
 
     with time_and_memory("Filter Snapshot"):
         with h5py.File(args.snapshot, "r") as f:
@@ -126,7 +127,7 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
             logger.info(f"Gas: {numpart[0]}, Dark Matter: {numpart[1]}")
             logger.info(f"Stars: {numpart[4]}, Black Holes: {numpart[5]}")
 
-        reader = GizmoReader(args.snapshot, constants=oc)
+        reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
 
         filter_snapshot(
             snapshot_file=args.snapshot,
@@ -142,7 +143,10 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
     valid_halos = unique[counts >= config.min_dm_per_halo]
 
     halo_count = sum(np.sum(reader.read_halo_ids(ptype=pt) != -1) for pt in PTYPES)
-    resolved_halo_count = sum(np.sum(np.isin(reader.read_halo_ids(ptype=pt), valid_halos)) for pt in PTYPES)
+    if len(valid_halos) > 0:
+        resolved_halo_count = sum(np.sum(np.isin(reader.read_halo_ids(ptype=pt), valid_halos)) for pt in PTYPES)
+    else:
+        resolved_halo_count = halo_count
 
     logger.info(f"Total in-halo particles: {halo_count}")
     logger.info(f"Discarded by min_dm_per_halo: {halo_count - resolved_halo_count}")
@@ -152,7 +156,9 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
 
     for path in split_files:
         with h5py.File(path, "r") as f:
-            n_filtered += sum(len(f[pt]["HaloID"]) for pt in RAW_PTYPES)  # number of particles with an assigned HaloID
+            n_filtered += sum(
+                len(f[pt][halo_id_key]) for pt in RAW_PTYPES if pt in f and halo_id_key in f[pt]
+            )  # number of particles with an assigned HaloID
 
     logger.info(f"In-halo particles post-filter: {n_filtered}")
 
@@ -164,8 +170,8 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
 
 
 def _profiled_pipeline(
-    snapshot_file: Path,
-    output_file: Path,
+    snapshot_path: Path,
+    output_path: Path,
     config: OctavianConfig,
     internals: Internals,
 ) -> None:
@@ -175,7 +181,7 @@ def _profiled_pipeline(
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
     with time_and_memory("Read-in Data"):
-        reader = GizmoReader(snapshot_path=snapshot_file, constants=constants)
+        reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
         sim = reader.simulation_attributes
         particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
 
@@ -236,11 +242,11 @@ def _profiled_pipeline(
             data=simulation_data,
             particle_lists=particle_lists,
             internals=internals,
-            output_file=output_file,
+            output_file=output_path,
         )
 
 
-def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> None:
+def test_remerge(files: list[Path], output_path: Path, config: OctavianConfig, internals: Internals) -> None:
     """
     Tests the remerging of the snapshot.
     """
@@ -528,10 +534,10 @@ def test_run(args: argparse.Namespace) -> None:
         if comm:
             comm.Barrier()
 
-        snapshot_file = args.work_dir / f"rank_{rank}.hdf5"
-        intermediate_file = args.work_dir / f"rank_{rank}_intermediate_analysis.hdf5"
+        snapshot_path = args.work_dir / f"rank_{rank}.hdf5"
+        intermediate_path = args.work_dir / f"rank_{rank}_intermediate_analysis.hdf5"
         _profiled_pipeline(
-            snapshot_file=snapshot_file, output_file=intermediate_file, config=config, internals=internals
+            snapshot_path=snapshot_path, output_path=intermediate_path, config=config, internals=internals
         )
 
         if comm:
@@ -541,7 +547,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             files = [args.work_dir / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
-            test_remerge(files=files, output_path=output_catalogue, internals=internals)
+            test_remerge(files=files, output_path=output_catalogue, config=config, internals=internals)
             conduct_output_catalogue_validation(catalogue=output_catalogue)
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]
