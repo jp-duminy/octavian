@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
-    from octavian.data_management.conventions import OctavianConstants
+    from octavian.data_management.conventions import OctavianConstants, OctavianConfig
 from octavian.log import get_logger
 
 # defaults
@@ -20,11 +20,13 @@ from dataclasses import dataclass
 # others
 import numpy as np
 import h5py
-from astropy.cosmology import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM, Flatw0waCDM
+import astropy.units as u
 
 # from the backend
 from octavian.data_management.conventions import (
     DTYPES,
+    CODE_UNITS,
     SimulationAttributes,
     SnapshotReader,
     gizmo_unit_conversion_factor,
@@ -32,7 +34,7 @@ from octavian.data_management.conventions import (
 
 from octavian.data_management.physics import (
     derive_stellar_age,
-    gizmo_temperature,
+    calculate_temperature,
     derive_simulation_attributes,
 )
 
@@ -140,7 +142,7 @@ class GizmoReader(SnapshotReader):
         if dataset == "helium_fraction":
             raw_hdf5_array = raw_hdf5_array[:, 1]
 
-        if dataset == "formation_time":
+        if dataset == "age":
             raw_hdf5_array = derive_stellar_age(
                 formation_time=raw_hdf5_array,
                 time_gyr=self.simulation_attributes.time_gyr,
@@ -183,7 +185,7 @@ class GizmoReader(SnapshotReader):
             electron_abundance = np.ones(shape=len(internal_energy))
 
         helium_fraction = self.read_dataset(ptype, "helium_fraction")
-        temperature = gizmo_temperature(
+        temperature = calculate_temperature(
             internal_energy=internal_energy,
             electron_abundance=electron_abundance,
             helium_fraction=helium_fraction,
@@ -210,9 +212,8 @@ class SwiftReader(SnapshotReader):
         "mass": "Masses",
         "potential": "Potentials",
         "internal_energy": "InternalEnergies",
-        "electron_abundance": "ElectronNumberDensities",
         "rho": "Densities",
-        "fHI": "AtomicHydrogenFractions",
+        "fHI": "AtomicHydrogenMasses",  # placeholder since not stored
         "sfr": "StarFormationRates",
         "age": "BirthScaleFactors",
         "metallicity": "MetalMassFractions",
@@ -233,6 +234,147 @@ class SwiftReader(SnapshotReader):
         self.constants = constants
 
         self.read_header()
+
+    def available_ptypes(self) -> list[str]:
+        """
+        Finds which Octavia-compatible ptypes are available in the snapshot.
+        """
+        with h5py.File(self.snapshot_path) as f:
+            return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
+
+    def read_header(self) -> SimulationAttributes:
+        """
+        Parses header attributes into a dataclass (does derived quantities too). SWIFT can do simulations with evolving dark energy, so we use flat w0wa cdm cosmology, which reduces to flat lambda cdm when wa = 0; SWIFT also splits the header into cosmology and header fields.
+        """
+        with h5py.File(self.snapshot_path, "r") as f:
+            cosmo = f["Cosmology"].attrs
+            header = f["Header"].attrs
+
+            boxsize_vec = header["BoxSize"]  # usually stored as (x, y, z) in Mpc comoving
+            boxsize_raw = boxsize_vec[0]
+            assert np.allclose(boxsize_vec, boxsize_raw), "Octavian does not presently support non-cubic boxes."
+
+            unit_length_cgs = f["Units"].attrs["Unit length in cgs (U_L)"]
+            boxsize_cgs = boxsize_raw * unit_length_cgs
+            boxsize_kpc = boxsize_cgs / u.kpc.to(u.cm)
+
+            n_star = header["NumPart_Total"][4]
+            n_gas = header["NumPart_Total"][0]
+
+            h = cosmo["h"]
+            a = cosmo["Scale-factor"]
+            w_0 = cosmo["w_0"]
+            w_a = cosmo["w_a"]
+            T_cmb_0 = cosmo["T_CMB_0 [K]"]  # I am not sure if this is strictly necessary but I put it in anyway
+            redshift = cosmo["Redshift"]
+            omega_matter = cosmo["Omega_m"]
+            omega_lambda = cosmo["Omega_lambda"]
+
+        flat_w0wa_cdm = Flatw0waCDM(
+            H0=100 * h, Om0=omega_matter, Tcmb0=T_cmb_0, w0=w_0, wa=w_a
+        )  # reduces to lambdacdm if wa=0
+
+        self.simulation_attributes = derive_simulation_attributes(
+            cosmology=flat_w0wa_cdm,
+            h=h,
+            a=a,
+            redshift=redshift,
+            omega_matter=omega_matter,
+            omega_lambda=omega_lambda,
+            boxsize=boxsize_kpc,
+            n_star=n_star,
+            n_gas=n_gas,
+            constants=self.constants,
+        )
+
+        return self.simulation_attributes
+
+    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision); auto-applies SWIFT attribute conversions to Octavian code units.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        hdf5_name = self.dataset_map[dataset]
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            hdf5_dataset = f[hdf5_group][hdf5_name]
+
+            if dataset == "fHI":
+                masses = f[hdf5_group]["Masses"][:]
+                HI_masses = f[hdf5_group]["AtomicHydrogenMasses"][:]
+                raw_hdf5_array = HI_masses / masses
+                return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+            else:
+                raw_hdf5_array = hdf5_dataset[:]
+                a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
+                cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
+
+        if dataset == "helium_fraction":
+            raw_hdf5_array = raw_hdf5_array[:, 1]
+
+        if dataset == "age":
+            raw_hdf5_array = derive_stellar_age(
+                formation_time=raw_hdf5_array,
+                time_gyr=self.simulation_attributes.time_gyr,
+                cosmology=self.simulation_attributes.cosmology,
+            )
+            return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+
+        target_units = CODE_UNITS[dataset]
+        target_cgs_units = (1.0 * target_units.unit).cgs.value
+        a_correction = self.simulation_attributes.a ** (a_exp - target_units.a_exponent)
+        h_correction = self.simulation_attributes.h**h_exp  # code units do not carry h
+
+        unit_factor = (a_correction * h_correction) * (cgs_factor / target_cgs_units)
+
+        result = raw_hdf5_array * unit_factor
+
+        return result.astype(DTYPES.get(dataset, np.float64))
+
+    def read_halo_ids(self, ptype: str):
+        """
+        Reads (placeholder) FOFGroupIDs as HaloIDs if the external doesn't exist. SWIFT sentinel value is the uint32 max.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            halo_ids = f[hdf5_group]["FOFGroupIDs"][:].astype(DTYPES.get("HaloID", np.int64))
+
+        sentinel_mask = halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
+        halo_ids -= 1  # SWIFT is also 1-indexed
+        halo_ids[sentinel_mask] = -1
+
+        return halo_ids
+
+    def read_temperature(self, ptype: str = "gas"):
+        """
+        Computes the per-particle temperatures from composition & internal energy (method described in GIZMO docs). SWIFT does not directly store electron abundance but this is trivial to compute.
+        """
+        internal_energy = self.read_dataset(ptype=ptype, dataset="internal_energy")
+        helium_frac = self.read_dataset(ptype=ptype, dataset="helium_fraction")
+        y_helium = helium_frac / (4 * (1 - helium_frac))
+        electron_abundance = (1 + 2 * y_helium) / (1 + 4 * y_helium)
+
+        temperature = calculate_temperature(
+            internal_energy=internal_energy,
+            electron_abundance=electron_abundance,
+            helium_fraction=helium_frac,
+            constants=self.constants,
+        )
+
+        return temperature
+
+
+def build_reader(snapshot_file: Path, config: OctavianConfig) -> SnapshotReader:
+    """
+    Builds a GIZMO/SWIFT reader class depending on what was specified in the config.
+    """
+    if config.simulation_format == "gizmo":
+        return GizmoReader(snapshot_file)
+    elif config.simulation_format == "swift":
+        return SwiftReader(snapshot_file)
+    else:
+        raise ValueError(f"Unknown simulation format: {config.simulation_format}")
 
 
 class ParticleStore:
