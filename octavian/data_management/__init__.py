@@ -11,7 +11,10 @@ from octavian.data_management.data_structures import (
     ParticleStore as ParticleStore,
     GroupStore as GroupStore,
     SimulationAttributes as SimulationAttributes,
+    SnapshotReader as SnapshotReader,
     GizmoReader as GizmoReader,
+    SwiftReader as SwiftReader,
+    build_reader as build_reader,
     build_group_store as build_group_store,
     build_particle_stores as build_particle_stores,
 )

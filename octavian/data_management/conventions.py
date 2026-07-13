@@ -28,6 +28,8 @@ class OctavianConfig:
     User-configured parameters as specified in config.yaml.
     """
 
+    simulation_type: str
+
     stages: dict[str, bool]
     process_ptypes: dict[str, bool]
 
@@ -63,6 +65,7 @@ class OctavianConfig:
             raw = safe_load(f)
 
         return cls(
+            simulation_type=raw["simulation_type"],
             stages=raw["stages"],
             process_ptypes=raw["process_ptypes"],
             min_stars_per_galaxy=raw["MINIMUM_STARS_PER_GALAXY"],
@@ -202,7 +205,7 @@ DTYPES = {
     "fHI": np.float64,
     "fH2": np.float64,
     "potential": np.float64,
-    "formation_time": np.float64,
+    "age": np.float64,
     "bhmass": np.float64,
     "bhmdot": np.float64,
     # NOTE: external halo readers (AHF) sometimes store absurdly large integers for HIDs
@@ -261,19 +264,23 @@ class SnapshotReader:
     Base reader class (for inheritance). I tucked it away here.
     """
 
-    def read_header(self, snapshot_path: Path) -> SimulationAttributes:
+    inverse_ptype_map: dict[str, str] = NotImplemented
+    dataset_map: dict[str, dict[str, str]] = NotImplemented
+    simulation_attributes: SimulationAttributes = NotImplemented
+
+    def read_header(self) -> SimulationAttributes:
         """
         Read header attributes and, where necessary, convert units.
         """
         raise NotImplementedError
 
-    def read_dataset(self, snapshot_path: Path, ptype: str, dataset: str) -> np.ndarray:
+    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
         Returns array in Octavian code units with the correct dtype.
         """
         raise NotImplementedError
 
-    def available_ptypes(self, snapshot_path: Path) -> list[str]:
+    def available_ptypes(self) -> list[str]:
         """
         List of available ptypes in Octavian convention (gas, star, etc.)
         """

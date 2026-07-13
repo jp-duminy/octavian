@@ -18,12 +18,12 @@ from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
-    GizmoReader,
     GroupStore,
     SimulationData,
     Internals,
     OctavianConstants,
     OctavianConfig,
+    build_reader,
     build_group_store,
     build_particle_stores,
     load_internals,
@@ -58,7 +58,7 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: OctavianCon
     """
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
-    reader = GizmoReader(snapshot_path=snapshot_path, constants=constants)
+    reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
     sim = reader.simulation_attributes
     particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
 
@@ -145,7 +145,7 @@ def run_octavian(
     if rank == 0:
         if not intermediates_exist:
             oc = OctavianConstants()
-            reader = GizmoReader(snapshot_path=snapshot_path, constants=oc)
+            reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
 
             filter_snapshot(
                 snapshot_file=snapshot_path,

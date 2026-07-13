@@ -224,6 +224,10 @@ class SwiftReader(SnapshotReader):
         "particle_index": "particle_index",
     }
 
+    dataset_map_overrides: dict[tuple[str, str], str] = {  # this is for the dynamical vs subgrid bh mass
+        ("bh", "mass"): "DynamicalMasses",
+    }
+
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
     def __init__(self, snapshot_path: Path, constants: OctavianConstants):
@@ -239,8 +243,8 @@ class SwiftReader(SnapshotReader):
         """
         Finds which Octavia-compatible ptypes are available in the snapshot.
         """
-        with h5py.File(self.snapshot_path) as f:
-            return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
+        with h5py.File(self.snapshot_path, "r") as f:
+            return [pt for raw, pt in self.ptype_map.items() if raw in f and len(f[raw]) > 0]
 
     def read_header(self) -> SimulationAttributes:
         """
@@ -254,21 +258,21 @@ class SwiftReader(SnapshotReader):
             boxsize_raw = boxsize_vec[0]
             assert np.allclose(boxsize_vec, boxsize_raw), "Octavian does not presently support non-cubic boxes."
 
-            unit_length_cgs = f["Units"].attrs["Unit length in cgs (U_L)"]
+            unit_length_cgs = f["Units"].attrs["Unit length in cgs (U_L)"].item()
             boxsize_cgs = boxsize_raw * unit_length_cgs
             boxsize_kpc = boxsize_cgs / u.kpc.to(u.cm)
 
             n_star = header["NumPart_Total"][4]
             n_gas = header["NumPart_Total"][0]
 
-            h = cosmo["h"]
-            a = cosmo["Scale-factor"]
-            w_0 = cosmo["w_0"]
-            w_a = cosmo["w_a"]
-            T_cmb_0 = cosmo["T_CMB_0 [K]"]  # I am not sure if this is strictly necessary but I put it in anyway
-            redshift = cosmo["Redshift"]
-            omega_matter = cosmo["Omega_m"]
-            omega_lambda = cosmo["Omega_lambda"]
+            h = cosmo["h"].item()
+            a = cosmo["Scale-factor"].item()
+            w_0 = cosmo["w_0"].item()
+            w_a = cosmo["w_a"].item()
+            T_cmb_0 = cosmo["T_CMB_0 [K]"].item()  # I am not sure if this is strictly necessary but I put it in anyway
+            redshift = cosmo["Redshift"].item()
+            omega_matter = cosmo["Omega_m"].item()
+            omega_lambda = cosmo["Omega_lambda"].item()
 
         flat_w0wa_cdm = Flatw0waCDM(
             H0=100 * h, Om0=omega_matter, Tcmb0=T_cmb_0, w0=w_0, wa=w_a
@@ -294,7 +298,7 @@ class SwiftReader(SnapshotReader):
         Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision); auto-applies SWIFT attribute conversions to Octavian code units.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
-        hdf5_name = self.dataset_map[dataset]
+        hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map[dataset])
 
         with h5py.File(self.snapshot_path, "r") as f:
             hdf5_dataset = f[hdf5_group][hdf5_name]
@@ -304,6 +308,9 @@ class SwiftReader(SnapshotReader):
                 HI_masses = f[hdf5_group]["AtomicHydrogenMasses"][:]
                 raw_hdf5_array = HI_masses / masses
                 return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+            elif dataset == "particle_index":
+                raw_hdf5_array = hdf5_dataset[:]
+                return raw_hdf5_array.astype(DTYPES.get(dataset, np.int64))
             else:
                 raw_hdf5_array = hdf5_dataset[:]
                 a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
@@ -365,16 +372,16 @@ class SwiftReader(SnapshotReader):
         return temperature
 
 
-def build_reader(snapshot_file: Path, config: OctavianConfig) -> SnapshotReader:
+def build_reader(snapshot_path: Path, constants: OctavianConstants, config: OctavianConfig) -> SnapshotReader:
     """
     Builds a GIZMO/SWIFT reader class depending on what was specified in the config.
     """
-    if config.simulation_format == "gizmo":
-        return GizmoReader(snapshot_file)
-    elif config.simulation_format == "swift":
-        return SwiftReader(snapshot_file)
+    if config.simulation_type == "GIZMO":
+        return GizmoReader(snapshot_path=snapshot_path, constants=constants)
+    elif config.simulation_type == "SWIFT":
+        return SwiftReader(snapshot_path=snapshot_path, constants=constants)
     else:
-        raise ValueError(f"Unknown simulation format: {config.simulation_format}")
+        raise ValueError(f"Unknown simulation ({config.simulation_type}), please put GIZMO/SWIFT!")
 
 
 class ParticleStore:
