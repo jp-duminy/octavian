@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Octavian"
-version = "0.5.2"
+version = ["version"]
 description = "Simulation analysis toolkit for SPH codes with built-in galaxy finding."
 requires-python = ">=3.14"
 authors = [
