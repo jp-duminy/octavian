@@ -47,14 +47,12 @@ def compute_rank_assignments(
     if "dm" in ptype_counts and len(ptype_counts["dm"][0]) > 0:
         dm_unique, dm_per_halo = ptype_counts["dm"]
         valid_mask = dm_per_halo >= config.min_dm_per_halo
-        valid_halo_set = set(dm_unique[valid_mask])  # masks min_dm_per_halo here
+        valid_halos = dm_unique[valid_mask]  # masks min_dm_per_halo here
     else:
-        valid_halo_set = None
+        valid_halos = None
 
     all_hids_raw = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
-    all_hids = (
-        all_hids_raw if valid_halo_set is None else all_hids_raw[np.isin(all_hids_raw, np.array(list(valid_halo_set)))]
-    )
+    all_hids = all_hids_raw if valid_halos is None else all_hids_raw[np.isin(all_hids_raw, valid_halos)]
 
     if len(all_hids) == 0:  # prudent guard for a no-halo snapshot
         logger.warning("No valid HaloIDs!")
@@ -95,7 +93,7 @@ def compute_rank_assignments(
         halo_ids = raw_halo_id_cache[ptype]  # cached from the first loop (MVP burnt this practice into my brain)
         all_indices = np.arange(len(halo_ids), dtype=np.int64)
 
-        in_halo = (halo_ids != -1) if valid_halo_set is None else np.isin(halo_ids, np.array(list(valid_halo_set)))
+        in_halo = (halo_ids != -1) if valid_halos is None else np.isin(halo_ids, valid_halos)
         filtered_ids = halo_ids[in_halo]  # ignore particles not assigned to a halo
         filtered_indices = all_indices[in_halo]
 
