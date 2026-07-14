@@ -35,7 +35,7 @@ def mock_catalogue(
     comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0
 
-    configure_logger(rank=rank, output_level="INFO", output_log_directory=tmp_dir)
+    configure_logger(rank=rank, output_level="INFO", log_dir=tmp_dir)
 
     sim_type = request.param
     snapshot_path = GIZMO_TEST_PATH if sim_type == "GIZMO" else SWIFT_TEST_PATH

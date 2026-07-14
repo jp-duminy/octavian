@@ -498,7 +498,7 @@ def test_run(args: argparse.Namespace) -> None:
     rank = comm.Get_rank() if comm else 0
     size = comm.Get_size() if comm else 1
 
-    configure_logger(rank=rank, output_log_directory=args.work_dir)
+    configure_logger(rank=rank, log_dir=args.work_dir)
     logger = get_logger()
 
     memray_file = Path(args.work_dir / f"memray_rank_{rank}.bin")

@@ -304,3 +304,17 @@ class SnapshotReader:
         Temperature is usually computed from multiple datasets, and how it can be computed differs between readers.
         """
         raise NotImplementedError
+
+
+def intermediate_catalogue_path(directory: Path, rank: int) -> Path:
+    """
+    Returns the Path object pointing to the intermediate analysis catalogue filename for a rank.
+    """
+    return directory / f"rank_{rank}_analysis.hdf5"
+
+
+def output_catalogue_path(directory: Path) -> Path:
+    """
+    Returns the Path object pointing to the final production output analysis catalogue filename.
+    """
+    return directory / "output_catalogue.hdf5"
