@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 # others
 import numpy as np
 from octavian.data_management.conventions import DTYPES
-from octavian.data_management import get_logger
+from octavian.log import get_logger
 
 from octavian.aggregate_properties.aggregate_computations import (
     compute_kinematics,

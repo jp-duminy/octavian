@@ -10,8 +10,6 @@ if TYPE_CHECKING:
     from octavian.data_management.data_structures import SnapshotReader
     from octavian.data_management.conventions import OctavianConfig
 
-# defaults
-
 # others
 import numpy as np
 
@@ -19,11 +17,6 @@ import numpy as np
 from octavian.log import get_logger
 
 logger = get_logger()
-
-HDF5_GROUP_NAMES = {
-    "halos": "halo_data",
-    "galaxies": "galaxy_data",
-}
 
 
 def compute_rank_assignments(

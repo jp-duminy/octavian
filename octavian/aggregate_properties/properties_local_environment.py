@@ -16,7 +16,7 @@ from scipy.spatial import KDTree  # remember, always pass boxsize
 from scipy.sparse import csr_array
 
 # octavian
-from octavian.data_management import get_logger
+from octavian.log import get_logger
 from octavian.data_management.conventions import DTYPES
 from octavian.aggregate_properties.aggregate_helpers import (
     sort_by_group,

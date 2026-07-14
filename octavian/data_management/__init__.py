@@ -30,7 +30,6 @@ from octavian.data_management.conventions import (
     OctavianConstants as OctavianConstants,
     OctavianConfig as OctavianConfig,
 )
-from octavian.log import (
-    configure_logger as configure_logger,
-    get_logger as get_logger,
+from octavian.data_management.parallel_io import (
+    compute_rank_assignments as compute_rank_assignments,
 )

@@ -46,9 +46,8 @@ from octavian.data_management import (
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
-    configure_logger,
-    get_logger,
 )
+from octavian.log import configure_logger, get_logger
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
 from octavian.run_octavian import get_mpi_communicator

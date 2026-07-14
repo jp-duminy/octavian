@@ -19,7 +19,7 @@ from dataclasses import dataclass
 # octavians
 from octavian.data_management import DTYPES, OctavianConfig
 from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
-from octavian.data_management import get_logger
+from octavian.log import get_logger
 
 # other libraries
 import numpy as np
