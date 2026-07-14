@@ -17,6 +17,7 @@ from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
+    clean_intermediates,
     GroupStore,
     SimulationData,
     Internals,
@@ -179,3 +180,6 @@ def run_octavian(
     if rank == 0:
         files = [intermediate_directory / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
         merge_intermediate_catalogues(files=files, output_path=output_catalogue, internals=internals)
+        clean_intermediates(
+            intermediate_dir=intermediate_directory, output_dir=output_directory, n_ranks=size, config=config
+        )

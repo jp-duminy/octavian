@@ -34,6 +34,7 @@ from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
+    clean_intermediates,
     GroupStore,
     SimulationData,
     Internals,
@@ -538,6 +539,7 @@ def test_run(args: argparse.Namespace) -> None:
             files = [args.work_dir / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
             test_remerge(files=files, output_path=output_catalogue, internals=internals)
             conduct_output_catalogue_validation(catalogue=output_catalogue)
+            clean_intermediates(intermediate_dir=args.work_dir, output_dir=args.work_dir, n_ranks=size, config=config)
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]
         all_memories = comm.gather(memories, root=0) if comm else [memories]

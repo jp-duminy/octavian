@@ -55,6 +55,7 @@ class OctavianConfig:
     properties_weight: float
 
     terminal_output_level: str
+    keep_logs: bool
 
     @classmethod
     def from_yaml(cls, config_path: Path) -> OctavianConfig:
@@ -85,6 +86,7 @@ class OctavianConfig:
             fof6d_weight=raw["fof6d_weight"],
             properties_weight=raw["properties_weight"],
             terminal_output_level=raw["terminal_output_level"],
+            keep_logs=raw["keep_logs"],
         )
 
 
