@@ -17,7 +17,7 @@ from octavian.data_management.conventions import (
     OctavianConfig,
 )  # NOTE: import from within-file, not module level (to avoid circular import)
 from octavian.log import get_logger
-from octavian import __version__
+from octavian.version import __version__
 
 # others
 import h5py
