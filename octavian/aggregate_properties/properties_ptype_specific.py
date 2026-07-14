@@ -24,7 +24,7 @@ from octavian.aggregate_properties.aggregate_helpers import (
     max_idx_per_group,
     guarded_divide,
 )
-from octavian.data_management import get_logger
+from octavian.log import get_logger
 
 logger = get_logger()
 
