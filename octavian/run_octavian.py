@@ -18,6 +18,7 @@ from octavian.data_management import (
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
     clean_intermediates,
+    write_catalogue_metadata,
     GroupStore,
     SimulationData,
     Internals,
@@ -177,9 +178,12 @@ def run_octavian(
     if comm:
         comm.Barrier()
 
-    output_catalogue = output_catalogue_path(directory=output_dir)
+    catalogue_path = output_catalogue_path(directory=output_dir)
 
     if rank == 0:
         files = [intermediate_catalogue_path(directory=intermediate_dir, rank=i) for i in range(size)]
-        merge_intermediate_catalogues(files=files, output_path=output_catalogue, internals=internals)
+        merge_intermediate_catalogues(files=files, output_path=catalogue_path, internals=internals)
         clean_intermediates(intermediate_dir=intermediate_dir, output_dir=output_dir, n_ranks=size, config=config)
+        write_catalogue_metadata(
+            catalogue_path=catalogue_path, snapshot_path=snapshot_path, config=config, n_ranks=size
+        )

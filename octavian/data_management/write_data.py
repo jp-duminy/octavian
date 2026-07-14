@@ -14,13 +14,18 @@ if TYPE_CHECKING:
 # octavian modules
 from octavian.data_management.conventions import (
     DTYPES,
+    OctavianConfig,
 )  # NOTE: import from within-file, not module level (to avoid circular import)
 from octavian.log import get_logger
+from octavian import __version__
 
 # others
 import h5py
 from pathlib import Path  # NOTE: migrated fully to pathlib in v0.3
 import numpy as np
+from datetime import datetime, timezone
+import subprocess
+from dataclasses import asdict
 
 HDF5_GROUP_NAMES = {
     "halos": "halo_data",
@@ -163,3 +168,46 @@ def write_analysis_to_output_file(
                     dataset.attrs["description"] = column_meta.description
 
     logger.info("Created intermediate analysis file.")
+
+
+def write_catalogue_metadata(
+    catalogue_path: Path,
+    snapshot_path: Path,
+    config: OctavianConfig,
+    n_ranks: int,
+) -> None:
+    commit_hash = _get_git_commit()
+
+    with h5py.File(catalogue_path, "a") as f:
+        metadata = f.create_group("metadata")
+        metadata.attrs["octavian_version"] = __version__
+        metadata.attrs["timestamp"] = datetime.now(timezone.utc).isoformat()
+        metadata.attrs["original_snapshot_path"] = str(snapshot_path.resolve())
+        metadata.attrs["simulation_type"] = config.simulation_type
+        metadata.attrs["number_of_mpi_ranks"] = n_ranks
+
+        config_group = metadata.create_group("config_parameters")
+
+        for key, value in asdict(config).items():
+            if isinstance(value, dict):
+                subgroup = config_group.create_group(key)
+                for sub_key, sub_value in value.items():
+                    subgroup.attrs[sub_key] = sub_value
+            elif isinstance(value, list):
+                config_group.attrs[key] = value
+            else:
+                config_group.attrs[key] = value
+
+        if commit_hash is not None:
+            metadata.attrs["git_commit"] = commit_hash
+
+
+def _get_git_commit() -> str | None:
+    """
+    Tries to retrieve the git commit; wraps in try/except to avoid stalling on clusters.
+    """
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5)
+        return result.stdout.strip() if result.returncode == 0 else None
+    except FileNotFoundError, subprocess.TimeoutExpired:
+        return None
