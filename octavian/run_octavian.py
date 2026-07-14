@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from mpi4py import MPI
 
 from octavian.data_management import (
-    filter_snapshot,
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
@@ -29,6 +28,7 @@ from octavian.data_management import (
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
+    compute_rank_assignments,
 )
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
@@ -36,6 +36,7 @@ from octavian.log import configure_logger, get_logger
 
 # data handling
 from pathlib import Path
+import numpy as np
 
 
 def get_mpi_communicator() -> MPI.Comm | None:
@@ -51,13 +52,21 @@ def get_mpi_communicator() -> MPI.Comm | None:
     return None
 
 
-def execute_pipeline(snapshot_path: Path, output_path: Path, config: OctavianConfig, internals: Internals) -> None:
+def execute_pipeline(
+    snapshot_path: Path,
+    output_path: Path,
+    config: OctavianConfig,
+    internals: Internals,
+    indices: dict[str, np.ndarray] | None = None,
+) -> None:
     """
     Executes each toggled stage of the Octavian pipeline.
     """
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
     reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
+    if indices is not None:
+        reader.set_indices(indices=indices)
     sim = reader.simulation_attributes
     particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
 
@@ -105,7 +114,10 @@ def execute_pipeline(snapshot_path: Path, output_path: Path, config: OctavianCon
                     particles[ptype].release(col)
 
     for ptype in particles:
-        particles[ptype]["particle_index"] = reader.read_dataset(ptype=ptype, dataset="particle_index")
+        if reader.indices is not None:
+            particles[ptype]["particle_index"] = reader.indices[ptype]
+        else:
+            particles[ptype]["particle_index"] = np.arange(len(particles[ptype]), dtype=np.int64)
 
     particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals)
     write_analysis_to_output_file(
@@ -121,7 +133,6 @@ def run_octavian(
     output_directory: Path,
     config_path: Path,
     internals_path: Path,
-    intermediates_exist: bool = False,
 ) -> None:
     """
     Conduct a full parallel run of Octavian.
@@ -140,28 +151,24 @@ def run_octavian(
 
     config = OctavianConfig.from_yaml(config_path=config_path)
     internals = load_internals(internals_filepath=internals_path, config=config)
+    oc = OctavianConstants()
+    reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
 
-    if rank == 0:
-        if not intermediates_exist:
-            oc = OctavianConstants()
-            reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
+    if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
+        all_indices = compute_rank_assignments(reader=reader, config=config, n_ranks=size)
+    else:
+        all_indices = None
 
-            filter_snapshot(
-                snapshot_file=snapshot_path,
-                intermediate_directory=intermediate_directory,
-                reader=reader,
-                config=config,
-                n_split=size,
-            )
+    rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
 
-    if comm:
-        comm.Barrier()
-
-    intermediate_file = intermediate_directory / f"rank_{rank}.hdf5"
     intermediate_output = intermediate_directory / f"rank_{rank}_intermediate_analysis.hdf5"
 
     execute_pipeline(
-        snapshot_path=intermediate_file, output_path=intermediate_output, config=config, internals=internals
+        snapshot_path=snapshot_path,
+        output_path=intermediate_output,
+        config=config,
+        internals=internals,
+        indices=rank_indices,
     )
 
     if comm:

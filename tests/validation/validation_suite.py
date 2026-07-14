@@ -188,6 +188,7 @@ def _profiled_pipeline(
     output_path: Path,
     config: OctavianConfig,
     internals: Internals,
+    indices: dict[str, np.ndarray] | None = None,
 ) -> None:
     """
     Executes each stage of the Octavian pipeline with timing/memory.
@@ -196,6 +197,8 @@ def _profiled_pipeline(
 
     with time_and_memory("Read-in Data"):
         reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
+        if indices is not None:
+            reader.set_indices(indices=indices)
         sim = reader.simulation_attributes
         particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
 
@@ -249,7 +252,10 @@ def _profiled_pipeline(
 
     with time_and_memory("Save data"):
         for ptype in particles:
-            particles[ptype]["particle_index"] = reader.read_dataset(ptype=ptype, dataset="particle_index")
+            if reader.indices is not None:
+                particles[ptype]["particle_index"] = reader.indices[ptype]
+            else:
+                particles[ptype]["particle_index"] = np.arange(len(particles[ptype]), dtype=np.int64)
 
         particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals)
         write_analysis_to_output_file(
@@ -260,7 +266,7 @@ def _profiled_pipeline(
         )
 
 
-def test_remerge(files: list[Path], output_path: Path, config: OctavianConfig, internals: Internals) -> None:
+def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> None:
     """
     Tests the remerging of the snapshot.
     """
@@ -542,16 +548,23 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             logger.info(f"Testing Octavian with {size} ranks.")
-            test_filter_snapshot(n_ranks=size, config=config, args=args)
-            logger.info("Filtering complete.")
+        oc = OctavianConstants()
+        reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
 
-        if comm:
-            comm.Barrier()
+        if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
+            all_indices = compute_rank_assignments(reader=reader, config=config, n_ranks=size)
+        else:
+            all_indices = None
 
-        snapshot_path = args.work_dir / f"rank_{rank}.hdf5"
+        rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
+
         intermediate_path = args.work_dir / f"rank_{rank}_intermediate_analysis.hdf5"
         _profiled_pipeline(
-            snapshot_path=snapshot_path, output_path=intermediate_path, config=config, internals=internals
+            snapshot_path=args.snapshot,
+            output_path=intermediate_path,
+            config=config,
+            internals=internals,
+            indices=rank_indices,
         )
 
         if comm:
@@ -561,7 +574,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             files = [args.work_dir / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
-            test_remerge(files=files, output_path=output_catalogue, config=config, internals=internals)
+            test_remerge(files=files, output_path=output_catalogue, internals=internals)
             conduct_output_catalogue_validation(catalogue=output_catalogue)
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]

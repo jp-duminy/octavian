@@ -267,6 +267,13 @@ class SnapshotReader:
     inverse_ptype_map: dict[str, str] = NotImplemented
     dataset_map: dict[str, dict[str, str]] = NotImplemented
     simulation_attributes: SimulationAttributes = NotImplemented
+    indices: dict[str, np.ndarray] | None = NotImplemented
+
+    def set_indices(self, indices: dict[str, np.ndarray]) -> None:
+        """
+        Sets the indices (if in parallel) dictionary to the per-rank read masks.
+        """
+        raise NotImplementedError
 
     def read_header(self) -> SimulationAttributes:
         """

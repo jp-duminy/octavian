@@ -68,7 +68,6 @@ class GizmoReader(SnapshotReader):
         "fH2": "FractionH2",
         "bhmass": "BH_Mass",
         "bhmdot": "BH_Mdot",
-        "particle_index": "particle_index",
     }
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
@@ -79,6 +78,7 @@ class GizmoReader(SnapshotReader):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
+        self.indices: dict[str, np.ndarray] | None = None
 
         self.read_header()
         self.unit_conversions = {
@@ -86,6 +86,12 @@ class GizmoReader(SnapshotReader):
             for dataset in self.dataset_map
             if dataset in DTYPES
         }
+
+    def set_indices(self, indices: dict[str, np.ndarray]) -> None:
+        """
+        Stores the indice mask which allows a rank to access its assigned portion of the snapshot.
+        """
+        self.indices = indices  # avoids passing "indices=" into functions
 
     def read_header(self) -> SimulationAttributes:
         """
@@ -128,7 +134,7 @@ class GizmoReader(SnapshotReader):
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
-        Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision).
+        Reads a HDF5 dataset from the file. Returns an ndarray of the chosen dataset in Octavian code units with the correct dtype applied, masked to the rank's allocation.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map[dataset]
@@ -148,11 +154,17 @@ class GizmoReader(SnapshotReader):
                 time_gyr=self.simulation_attributes.time_gyr,
                 cosmology=self.simulation_attributes.cosmology,
             )
+            if self.indices is not None:
+                raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
+
             return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
 
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
         if conversion_factor != 1.0:  # skip unnecessary multiplication on (potentially giant) arrays
             raw_hdf5_array = raw_hdf5_array * conversion_factor
+
+        if self.indices is not None:
+            raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
 
         return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
 
@@ -166,6 +178,9 @@ class GizmoReader(SnapshotReader):
             halo_ids = f[hdf5_group]["HaloID"][:].astype(
                 DTYPES.get("HaloID", np.int64)
             )  # change dtype here otherwise you get int overflow
+
+            if self.indices is not None:
+                halo_ids = halo_ids[self.indices[ptype]]
 
         halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
 
@@ -221,7 +236,6 @@ class SwiftReader(SnapshotReader):
         "fH2": "MolecularHydrogenFractions",
         "bhmass": "SubgridMasses",
         "bhmdot": "AccretionRates",
-        "particle_index": "particle_index",
     }
 
     dataset_map_overrides: dict[tuple[str, str], str] = {  # this is for the dynamical vs subgrid bh mass
@@ -236,8 +250,15 @@ class SwiftReader(SnapshotReader):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
+        self.indices: dict[str, np.ndarray] | None = None
 
         self.read_header()
+
+    def set_indices(self, indices: dict[str, np.ndarray]) -> None:
+        """
+        Stores the indice mask which allows a rank to access its assigned portion of the snapshot.
+        """
+        self.indices = indices  # avoids passing "indices=" into functions
 
     def available_ptypes(self) -> list[str]:
         """
@@ -306,11 +327,19 @@ class SwiftReader(SnapshotReader):
             if dataset == "fHI":
                 masses = f[hdf5_group]["Masses"][:]
                 HI_masses = f[hdf5_group]["AtomicHydrogenMasses"][:]
-                raw_hdf5_array = HI_masses / masses
-                return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+
+                if self.indices is not None:
+                    masses = masses[self.indices[ptype]]
+                    HI_masses = HI_masses[self.indices[ptype]]
+
+                return (HI_masses / masses).astype(DTYPES.get(dataset, np.float64))
+
             elif dataset == "particle_index":
                 raw_hdf5_array = hdf5_dataset[:]
-                return raw_hdf5_array.astype(DTYPES.get(dataset, np.int64))
+                if self.indices is not None:
+                    raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
+
+                return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
             else:
                 raw_hdf5_array = hdf5_dataset[:]
                 a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
@@ -325,7 +354,13 @@ class SwiftReader(SnapshotReader):
                 time_gyr=self.simulation_attributes.time_gyr,
                 cosmology=self.simulation_attributes.cosmology,
             )
+            if self.indices is not None:
+                raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
+
             return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+
+        if self.indices is not None:
+            raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
 
         target_units = CODE_UNITS[dataset]
         target_cgs_units = (1.0 * target_units.unit).cgs.value
@@ -346,6 +381,8 @@ class SwiftReader(SnapshotReader):
 
         with h5py.File(self.snapshot_path, "r") as f:
             halo_ids = f[hdf5_group]["FOFGroupIDs"][:].astype(DTYPES.get("HaloID", np.int64))
+            if self.indices is not None:
+                halo_ids = halo_ids[self.indices[ptype]]
 
         sentinel_mask = halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
         halo_ids -= 1  # SWIFT is also 1-indexed
