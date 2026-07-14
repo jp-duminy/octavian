@@ -46,6 +46,7 @@ from octavian.data_management import (
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
+    compute_rank_assignments,
 )
 from octavian.log import configure_logger, get_logger
 from octavian.galaxy_finding import find_galaxies
@@ -164,6 +165,20 @@ def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: Octavia
     assert n_filtered == resolved_halo_count, (
         f"Difference: {n_filtered - resolved_halo_count}"
     )  # no helper function here since that says 'merge'
+
+    assignments = compute_rank_assignments(reader=reader, config=config, n_ranks=n_ranks)
+
+    for rank in range(n_ranks):  # testing whether the parallel IO/intermediate files are identical
+        with h5py.File(args.work_dir / f"rank_{rank}.hdf5", "r") as f_intermediate:
+            for ptype in reader.available_ptypes():
+                raw_ptype = reader.inverse_ptype_map[ptype]
+                if raw_ptype in f_intermediate and "particle_index" in f_intermediate[raw_ptype]:
+                    file_indices = set(f_intermediate[raw_ptype]["particle_index"][:])
+                else:
+                    file_indices = set()
+                computed_indices = set(assignments[rank].get(ptype, np.array([])))
+                assert file_indices == computed_indices, f"Mismatch: rank {rank}, {ptype}"
+        logger.info(f"Rank {rank} is identical between intermediate/parallel io path.")
 
     logger.info("filter_snapshot passes tests.")
 
