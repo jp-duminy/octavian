@@ -29,6 +29,8 @@ from octavian.data_management.conventions import (
     DTYPES as DTYPES,
     OctavianConstants as OctavianConstants,
     OctavianConfig as OctavianConfig,
+    output_catalogue_path as output_catalogue_path,
+    intermediate_catalogue_path as intermediate_catalogue_path,
 )
 from octavian.data_management.parallel_io import (
     compute_rank_assignments as compute_rank_assignments,

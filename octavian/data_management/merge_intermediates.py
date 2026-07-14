@@ -20,8 +20,8 @@ import h5py
 import numpy as np
 
 # octavian
-from octavian.data_management.conventions import DTYPES
-from octavian.log import get_logger
+from octavian.data_management.conventions import DTYPES, intermediate_catalogue_path
+from octavian.log import get_logger, intermediate_log_path
 
 logger = get_logger()
 
@@ -185,7 +185,7 @@ def clean_intermediates(
     Cleans the working directory by removing intermediate analysis catalogues and compressing the log into one file/removing the log, depending on what was specified in config.yaml.
     """
     for i in range(n_ranks):  # remove intermediate analysis files
-        (intermediate_dir / f"rank_{i}_intermediate_analysis.hdf5").unlink(missing_ok=True)
+        (intermediate_catalogue_path(directory=intermediate_dir, rank=i)).unlink(missing_ok=True)
     logger.info(f"Removed {n_ranks} intermediate analysis catalogues.")
 
     if config.keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
@@ -199,7 +199,9 @@ def clean_intermediates(
             logger.info(f"Merged then cleaned up {n_ranks} log files.")
     else:
         for i in range(n_ranks):
-            (intermediate_dir / f"octavian_rank{i}.log").unlink(missing_ok=True)  # remove intermediate logs
+            (intermediate_log_path(directory=intermediate_dir, rank=i)).unlink(
+                missing_ok=True
+            )  # remove intermediate logs
         logger.info(f"Removed {n_ranks} log files.")
 
 

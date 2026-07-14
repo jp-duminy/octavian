@@ -30,6 +30,8 @@ from octavian.data_management import (
     resolve_dependencies,
     get_releasable_columns,
     compute_rank_assignments,
+    output_catalogue_path,
+    intermediate_catalogue_path,
 )
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
@@ -131,7 +133,7 @@ def execute_pipeline(
 
 def run_octavian(
     snapshot_path: Path,
-    output_directory: Path,
+    output_dir: Path,
     config_path: Path,
     internals_path: Path,
 ) -> None:
@@ -142,10 +144,10 @@ def run_octavian(
     rank = comm.Get_rank() if comm else 0
     size = comm.Get_size() if comm else 1
 
-    intermediate_directory = output_directory / "Intermediates"
-    intermediate_directory.mkdir(parents=True, exist_ok=True)
+    intermediate_dir = output_dir / "Intermediates"
+    intermediate_dir.mkdir(parents=True, exist_ok=True)
 
-    configure_logger(rank=rank, output_level="INFO", output_log_directory=intermediate_directory)
+    configure_logger(rank=rank, output_level="INFO", log_dir=intermediate_dir)
     logger = get_logger()
 
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
@@ -162,7 +164,7 @@ def run_octavian(
 
     rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
 
-    intermediate_output = intermediate_directory / f"rank_{rank}_intermediate_analysis.hdf5"
+    intermediate_output = intermediate_catalogue_path(directory=intermediate_dir, rank=rank)
 
     execute_pipeline(
         snapshot_path=snapshot_path,
@@ -175,11 +177,9 @@ def run_octavian(
     if comm:
         comm.Barrier()
 
-    output_catalogue = output_directory / "output_catalogue.hdf5"
+    output_catalogue = output_catalogue_path(directory=output_dir)
 
     if rank == 0:
-        files = [intermediate_directory / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
+        files = [intermediate_catalogue_path(directory=intermediate_dir, rank=i) for i in range(size)]
         merge_intermediate_catalogues(files=files, output_path=output_catalogue, internals=internals)
-        clean_intermediates(
-            intermediate_dir=intermediate_directory, output_dir=output_directory, n_ranks=size, config=config
-        )
+        clean_intermediates(intermediate_dir=intermediate_dir, output_dir=output_dir, n_ranks=size, config=config)

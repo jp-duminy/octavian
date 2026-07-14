@@ -10,9 +10,7 @@ import logging
 from pathlib import Path
 
 
-def configure_logger(
-    rank: int = 0, output_level: str = "INFO", output_log_directory: Path | None = None
-) -> logging.Logger:
+def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | None = None) -> logging.Logger:
     """
     Creates a logger object for use throughout stages.
 
@@ -38,9 +36,9 @@ def configure_logger(
     console.setFormatter(logging.Formatter(terminal_format))
     logger.addHandler(console)  # from the getattr call above, this means output_level defines what you see
 
-    if output_log_directory is not None:
-        output_log_directory.mkdir(parents=True, exist_ok=True)
-        log_path = output_log_directory / f"octavian_rank{rank}.log"
+    if log_dir is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = intermediate_log_path(directory=log_dir, rank=rank)
         file_handler = logging.FileHandler(log_path, mode="w")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(logging.Formatter(file_format))
@@ -56,3 +54,17 @@ def get_logger() -> logging.Logger:
     logger = logging.getLogger("OCTAVIAN")
 
     return logger
+
+
+def intermediate_log_path(directory: Path, rank: int) -> Path:
+    """
+    Returns the Path object pointing to the intermediate log filename for a rank.
+    """
+    return directory / f"rank_{rank}_log.log"
+
+
+def merged_log_path(directory: Path) -> Path:
+    """
+    Returns the Path object pointing to the merged log filename.
+    """
+    return directory / "output_log.log"
