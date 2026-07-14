@@ -188,7 +188,6 @@ CODE_UNITS = {
     "sfr": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
     "bhmass": DatasetUnits(unit=u.M_sun),  # solar masses
     "bhmdot": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
-    "particle_index": DatasetUnits(unit=u.dimensionless_unscaled),  # TODO: move this, not a dataset
 }
 
 DTYPES = {
@@ -244,7 +243,6 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
         "bhmdot": (1e10 * u.M_sun / (h * u.kpc / (u.km / u.s))),
         "helium_fraction": (u.dimensionless_unscaled),
         "electron_abundance": (u.dimensionless_unscaled),
-        "particle_index": (u.dimensionless_unscaled),
     }
 
     snap_unit = conversions[dataset]

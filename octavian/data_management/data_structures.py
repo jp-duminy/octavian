@@ -334,12 +334,6 @@ class SwiftReader(SnapshotReader):
 
                 return (HI_masses / masses).astype(DTYPES.get(dataset, np.float64))
 
-            elif dataset == "particle_index":
-                raw_hdf5_array = hdf5_dataset[:]
-                if self.indices is not None:
-                    raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
-
-                return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
             else:
                 raw_hdf5_array = hdf5_dataset[:]
                 a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
