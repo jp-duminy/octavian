@@ -313,8 +313,8 @@ def intermediate_catalogue_path(directory: Path, rank: int) -> Path:
     return directory / f"rank_{rank}_analysis.hdf5"
 
 
-def output_catalogue_path(directory: Path) -> Path:
+def output_catalogue_path(snapshot_path: Path, output_dir: Path) -> Path:
     """
     Returns the Path object pointing to the final production output analysis catalogue filename.
     """
-    return directory / "output_catalogue.hdf5"
+    return output_dir / f"octavian_{snapshot_path.stem}.hdf5"
