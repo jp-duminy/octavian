@@ -35,6 +35,7 @@ from octavian.data_management import (
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
     clean_intermediates,
+    write_catalogue_metadata,
     GroupStore,
     SimulationData,
     Internals,
@@ -535,13 +536,16 @@ def test_run(args: argparse.Namespace) -> None:
         if comm:
             comm.Barrier()
 
-        output_catalogue = output_catalogue_path(snapshot_path=args.snapshot, output_dir=args.work_dir)
+        catalogue_path = output_catalogue_path(snapshot_path=args.snapshot, output_dir=args.work_dir)
 
         if rank == 0:
             files = [intermediate_catalogue_path(directory=args.work_dir, rank=i) for i in range(size)]
-            test_remerge(files=files, output_path=output_catalogue, internals=internals)
-            conduct_output_catalogue_validation(catalogue=output_catalogue)
+            test_remerge(files=files, output_path=catalogue_path, internals=internals)
+            conduct_output_catalogue_validation(catalogue=catalogue_path)
             clean_intermediates(intermediate_dir=args.work_dir, output_dir=args.work_dir, n_ranks=size, config=config)
+            write_catalogue_metadata(
+                catalogue_path=catalogue_path, snapshot_path=args.snapshot, config=config, n_ranks=size
+            )
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]
         all_memories = comm.gather(memories, root=0) if comm else [memories]

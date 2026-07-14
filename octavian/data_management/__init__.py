@@ -1,6 +1,7 @@
 from octavian.data_management.write_data import (
     construct_particle_csr_lists as construct_particle_csr_lists,
     write_analysis_to_output_file as write_analysis_to_output_file,
+    write_catalogue_metadata as write_catalogue_metadata,
 )
 from octavian.data_management.merge_intermediates import (
     merge_intermediate_catalogues as merge_intermediate_catalogues,
