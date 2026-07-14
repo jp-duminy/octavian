@@ -47,6 +47,8 @@ from octavian.data_management import (
     resolve_dependencies,
     get_releasable_columns,
     compute_rank_assignments,
+    output_catalogue_path,
+    intermediate_catalogue_path,
 )
 from octavian.log import configure_logger, get_logger
 from octavian.galaxy_finding import find_galaxies
@@ -521,7 +523,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
 
-        intermediate_path = args.work_dir / f"rank_{rank}_intermediate_analysis.hdf5"
+        intermediate_path = intermediate_catalogue_path(directory=args.work_dir, rank=rank)
         _profiled_pipeline(
             snapshot_path=args.snapshot,
             output_path=intermediate_path,
@@ -533,10 +535,10 @@ def test_run(args: argparse.Namespace) -> None:
         if comm:
             comm.Barrier()
 
-        output_catalogue = args.work_dir / "output_catalogue.hdf5"
+        output_catalogue = output_catalogue_path(snapshot_path=args.snapshot, output_dir=args.work_dir)
 
         if rank == 0:
-            files = [args.work_dir / f"rank_{i}_intermediate_analysis.hdf5" for i in range(size)]
+            files = [intermediate_catalogue_path(directory=args.work_dir, rank=i) for i in range(size)]
             test_remerge(files=files, output_path=output_catalogue, internals=internals)
             conduct_output_catalogue_validation(catalogue=output_catalogue)
             clean_intermediates(intermediate_dir=args.work_dir, output_dir=args.work_dir, n_ranks=size, config=config)
@@ -566,7 +568,7 @@ def test_run(args: argparse.Namespace) -> None:
                 cores_per_rank=config.cores_per_rank,
                 args=args,
             )
-            plot_gsmf(catalogue=output_catalogue, boxsize=25, minstars=32)
+            # plot_gsmf(catalogue=output_catalogue, boxsize=25, minstars=32)
 
 
 def _assert_conserved(label: str, pre: int, post: int):

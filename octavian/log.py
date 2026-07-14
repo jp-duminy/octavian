@@ -14,7 +14,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
     """
     Creates a logger object for use throughout stages.
 
-    Specify output_log_directory if you'd like a .txt file with more detailed information.
+    Specify output_log_dir if you'd like a .txt file with more detailed information.
     """
     logger = logging.getLogger(name="OCTAVIAN")
 
