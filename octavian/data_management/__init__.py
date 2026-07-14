@@ -2,8 +2,9 @@ from octavian.data_management.write_data import (
     construct_particle_csr_lists as construct_particle_csr_lists,
     write_analysis_to_output_file as write_analysis_to_output_file,
 )
-from octavian.data_management.snapshot_splitting import (
+from octavian.data_management.merge_intermediates import (
     merge_intermediate_catalogues as merge_intermediate_catalogues,
+    clean_intermediates as clean_intermediates,
 )
 from octavian.data_management.data_structures import (
     SimulationData as SimulationData,

@@ -1,6 +1,6 @@
 # SNAPSHOT FORMAT
 
-simulation_type: SWIFT # SWIFT/GIZMO
+simulation_type: GIZMO # SWIFT/GIZMO
 
 # STAGES TO EXECUTE
 
@@ -56,4 +56,5 @@ properties_weight:  0.4 # fraction of computational cost aggregate properties co
 
 # LOGGING
 
-terminal_output_level: "INFO" # how chatty do you want Octavian to be (set to WARNING for runtime-critical notifications)
+terminal_output_level:  "INFO" # how chatty do you want Octavian to be (set to WARNING for runtime-critical notifications)
+keep_logs:              False  # keep log .txt files (useful for debugging), per-rank logs are merged into one file

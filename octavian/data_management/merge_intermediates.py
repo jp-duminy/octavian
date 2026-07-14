@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
+    from octavian.data_management.conventions import OctavianConfig
 
 # defaults
 from pathlib import Path
@@ -172,6 +173,34 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
                 membership_grp.create_dataset(f"{ptype}_lengths", data=lengths, compression=1)
 
     logger.info("Created merged analysis catalogue.")
+
+
+def clean_intermediates(
+    intermediate_dir: Path,
+    output_dir: Path,
+    n_ranks: int,
+    config: OctavianConfig,
+) -> None:
+    """
+    Cleans the working directory by removing intermediate analysis catalogues and compressing the log into one file/removing the log, depending on what was specified in config.yaml.
+    """
+    for i in range(n_ranks):  # remove intermediate analysis files
+        (intermediate_dir / f"rank_{i}_intermediate_analysis.hdf5").unlink(missing_ok=True)
+    logger.info(f"Removed {n_ranks} intermediate analysis catalogues.")
+
+    if config.keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
+        merged_log = output_dir / "octavian.log"
+        with open(merged_log, "w") as out:
+            for i in range(n_ranks):
+                rank_log = intermediate_dir / f"octavian_rank{i}.log"
+                if rank_log.exists():
+                    out.write(rank_log.read_text())
+                    rank_log.unlink()
+            logger.info(f"Merged then cleaned up {n_ranks} log files.")
+    else:
+        for i in range(n_ranks):
+            (intermediate_dir / f"octavian_rank{i}.log").unlink(missing_ok=True)  # remove intermediate logs
+        logger.info(f"Removed {n_ranks} log files.")
 
 
 def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
