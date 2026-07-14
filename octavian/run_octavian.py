@@ -113,13 +113,13 @@ def execute_pipeline(
                 if col in particles[ptype]:
                     particles[ptype].release(col)
 
-    for ptype in particles:
-        if reader.indices is not None:
-            particles[ptype]["particle_index"] = reader.indices[ptype]
-        else:
-            particles[ptype]["particle_index"] = np.arange(len(particles[ptype]), dtype=np.int64)
+    if reader.indices is not None:
+        particle_indices = reader.indices
+    else:
+        particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
-    particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals)
+    particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals, indices=particle_indices)
+
     write_analysis_to_output_file(
         data=simulation_data,
         particle_lists=particle_lists,

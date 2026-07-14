@@ -30,7 +30,9 @@ HDF5_GROUP_NAMES = {
 logger = get_logger()
 
 
-def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> dict[str, dict[str, dict]]:
+def construct_particle_csr_lists(
+    data: SimulationData, internals: Internals, indices: dict[str, np.ndarray]
+) -> dict[str, dict[str, dict]]:
     """
     Extracts particle lists from SimulationData (matching GroupStore & ParticleStore) and converts them to the CSR format for hdf5.
     """
@@ -50,7 +52,7 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
                 continue
 
             particle_group_ids = particles[ptype][group_key]
-            particle_indices = particles[ptype]["particle_index"]  # positional index of particles in original snapshot
+            particle_indices = indices[ptype]  # indices into original snapshot which were assigned to this rank
 
             # mask out non-group particles (technically redundant for halos) // sort
             mask = particle_group_ids != -1
@@ -86,10 +88,12 @@ def construct_particle_csr_lists(data: SimulationData, internals: Internals) -> 
 
             group_slots = group_store.get_indexer(group_id=sorted_particle_group_ids)
             reorder = np.argsort(group_slots)  # in case GroupStore order is not sorted
-            indices = sorted_indices[reorder].astype(DTYPES["csr_indices"])
+            reordered_indices = sorted_indices[reorder].astype(
+                DTYPES["csr_indices"]
+            )  # indices variable is set above and is different
 
             result[group_name][ptype] = {
-                "indices": indices,
+                "indices": reordered_indices,
                 "offsets": offsets,
                 "lengths": lengths,
             }
