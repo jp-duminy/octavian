@@ -3,7 +3,6 @@ from octavian.data_management.write_data import (
     write_analysis_to_output_file as write_analysis_to_output_file,
 )
 from octavian.data_management.snapshot_splitting import (
-    filter_snapshot as filter_snapshot,
     merge_intermediate_catalogues as merge_intermediate_catalogues,
 )
 from octavian.data_management.data_structures import (

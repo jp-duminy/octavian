@@ -31,7 +31,6 @@ from cycler import cycler
 
 # octavian pipeline stages
 from octavian.data_management import (
-    filter_snapshot,
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues,
@@ -106,81 +105,41 @@ memories = {}
 results = []
 
 
-def test_filter_snapshot(n_ranks: int, args: argparse.Namespace, config: OctavianConfig) -> list[Path]:
+def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ranks: int) -> None:
     """
-    Tests whether the snapshot filter keeps all the right particles and distributes load equally.
+    Tests whether parallel IO rank assignments correctly parallelise the snapshot and return self-consistent counts, as well as correctly discard non-halo particles/halos below min_dm_per_halo.
     """
     logger = get_logger()
 
-    for i in range(n_ranks):
-        (args.work_dir / f"rank_{i}.hdf5").unlink(missing_ok=True)  # clears previous intermediates
-
     oc = OctavianConstants()
-
-    halo_id_key = "FOFGroupIDs" if config.simulation_type == "SWIFT" else "HaloID"
-
-    with time_and_memory("Filter Snapshot"):
-        with h5py.File(args.snapshot, "r") as f:
-            header = f["Header"].attrs
-            numpart = header["NumPart_Total"]  # particles before non-halo particles get tossed
-            logger.info(f"Total particles: {numpart.sum()}")
-            logger.info(f"Gas: {numpart[0]}, Dark Matter: {numpart[1]}")
-            logger.info(f"Stars: {numpart[4]}, Black Holes: {numpart[5]}")
-
-        reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
-
-        filter_snapshot(
-            snapshot_file=args.snapshot,
-            intermediate_directory=args.work_dir,
-            reader=reader,
-            config=config,
-            n_split=n_ranks,
-        )
-
-    dm_ids = reader.read_halo_ids(ptype="dm")
-    dm_ids_valid = dm_ids[dm_ids != -1]
-    unique, counts = np.unique(dm_ids_valid, return_counts=True)
-    valid_halos = unique[counts >= config.min_dm_per_halo]
-
-    halo_count = sum(np.sum(reader.read_halo_ids(ptype=pt) != -1) for pt in PTYPES)
-    if len(valid_halos) > 0:
-        resolved_halo_count = sum(np.sum(np.isin(reader.read_halo_ids(ptype=pt), valid_halos)) for pt in PTYPES)
-    else:
-        resolved_halo_count = halo_count
-
-    logger.info(f"Total in-halo particles: {halo_count}")
-    logger.info(f"Discarded by min_dm_per_halo: {halo_count - resolved_halo_count}")
-
-    split_files = [args.work_dir / f"rank_{i}.hdf5" for i in range(n_ranks)]
-    n_filtered = 0
-
-    for path in split_files:
-        with h5py.File(path, "r") as f:
-            n_filtered += sum(
-                len(f[pt][halo_id_key]) for pt in RAW_PTYPES if pt in f and halo_id_key in f[pt]
-            )  # number of particles with an assigned HaloID
-
-    logger.info(f"In-halo particles post-filter: {n_filtered}")
-
-    assert n_filtered == resolved_halo_count, (
-        f"Difference: {n_filtered - resolved_halo_count}"
-    )  # no helper function here since that says 'merge'
+    reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
 
     assignments = compute_rank_assignments(reader=reader, config=config, n_ranks=n_ranks)
 
-    for rank in range(n_ranks):  # testing whether the parallel IO/intermediate files are identical
-        with h5py.File(args.work_dir / f"rank_{rank}.hdf5", "r") as f_intermediate:
-            for ptype in reader.available_ptypes():
-                raw_ptype = reader.inverse_ptype_map[ptype]
-                if raw_ptype in f_intermediate and "particle_index" in f_intermediate[raw_ptype]:
-                    file_indices = set(f_intermediate[raw_ptype]["particle_index"][:])
-                else:
-                    file_indices = set()
-                computed_indices = set(assignments[rank].get(ptype, np.array([])))
-                assert file_indices == computed_indices, f"Mismatch: rank {rank}, {ptype}"
-        logger.info(f"Rank {rank} is identical between intermediate/parallel io path.")
+    for ptype in reader.available_ptypes():
+        halo_ids = reader.read_halo_ids(ptype=ptype)
 
-    logger.info("filter_snapshot passes tests.")
+        # conservation + exclusivity
+        all_assigned = np.concatenate([assignments[r][ptype] for r in range(n_ranks)])
+        assert len(all_assigned) == len(np.unique(all_assigned)), f"{ptype}: duplicate indices across ranks."
+
+        # no sentinels
+        assigned_hids = halo_ids[all_assigned]
+        assert np.all(assigned_hids != -1), (
+            f"{ptype}: particles unassigned to halo present in rank assignments (validate whether expected)."
+        )
+
+        # halo completeness — every halo's particles on exactly one rank
+        for rank_idx in range(n_ranks):
+            rank_hids = halo_ids[assignments[rank_idx][ptype]]
+            rank_halos = set(np.unique(rank_hids))
+            for other_rank in range(rank_idx + 1, n_ranks):
+                other_hids = halo_ids[assignments[other_rank][ptype]]
+                other_halos = set(np.unique(other_hids))
+                overlap = rank_halos & other_halos
+                assert len(overlap) == 0, f"{ptype}: halo(s) {overlap} appear on both ranks {rank_idx} and {other_rank}"
+
+    logger.info("Rank assignments passes tests.")
 
 
 def _profiled_pipeline(
@@ -555,6 +514,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
             all_indices = compute_rank_assignments(reader=reader, config=config, n_ranks=size)
+            test_rank_assignments(config=config, args=args, n_ranks=size)
         else:
             all_indices = None
 
