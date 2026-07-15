@@ -4,6 +4,11 @@ Internal agnostic halo source infrastructure, for passing to the likewise-agnost
 
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from octavian.data_management import SnapshotReader
+
 from dataclasses import dataclass
 import numpy as np
 
@@ -52,4 +57,25 @@ class HaloSource:
         """
         Reads subhalo information from the source, if this exists.
         """
-        raise NotImplementedError
+        return None
+
+
+class SnapshotHaloSource(HaloSource):
+    """
+    Raw snapshot halo sources (no external finder.) This means HaloIDs for GIZMO and FOFGroupIDs from SWIFT.
+    """
+
+    def __init__(self, reader: SnapshotReader):
+
+        self.reader = reader
+
+    def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
+        """
+        Iterates over ptypes with the reader to produce HaloAssignments.
+        """
+        halo_ids: dict[str, np.ndarray] = {}
+
+        for pt in ptypes:
+            halo_ids[pt] = self.reader.read_halo_ids(ptype=pt)  # these are already contiguous
+
+        return HaloAssignments(halo_ids=halo_ids, subhalo_ids=None)  # on-the-fly currently does not do subhalos
