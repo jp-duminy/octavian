@@ -34,6 +34,9 @@ from octavian.data_management import (
     output_catalogue_path,
     intermediate_catalogue_path,
 )
+from octavian.external_halo_sources import (
+    SnapshotHaloSource,
+)
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
 from octavian.log import configure_logger, get_logger
@@ -159,7 +162,9 @@ def run_octavian(
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
 
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-        all_indices = compute_rank_assignments(reader=reader, config=config, n_ranks=size)
+        all_indices = compute_rank_assignments(
+            reader=reader, config=config, n_ranks=size, halo_source=SnapshotHaloSource(reader=reader)
+        )
     else:
         all_indices = None
 

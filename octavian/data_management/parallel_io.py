@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from octavian.data_management.data_structures import SnapshotReader
     from octavian.data_management.conventions import OctavianConfig
+    from octavian.external_halo_sources import HaloSource
 
 # others
 import numpy as np
@@ -20,7 +21,10 @@ logger = get_logger()
 
 
 def compute_rank_assignments(
-    reader: SnapshotReader, config: OctavianConfig, n_ranks: int
+    reader: SnapshotReader,
+    halo_source: HaloSource,
+    config: OctavianConfig,
+    n_ranks: int,
 ) -> list[dict[str, np.ndarray]]:
     """
     Uses the weighted greedy binning algorithm to produce balanced rank particle assignments, returning:
@@ -34,15 +38,15 @@ def compute_rank_assignments(
         reader.available_ptypes()
     )  # reader functions open the snapshot (so no need to wrap this code block)
 
+    assignments = halo_source.read_halo_ids(
+        ptypes=available_ptypes
+    )  # named this assignments because it will eventually contain subhalos too
     ptype_counts = {}
-    raw_halo_id_cache: dict[str, np.ndarray] = {}  # worth caching the IDs to avoid re-reading them in the second loop
 
-    for pt in available_ptypes:
-        halo_ids = reader.read_halo_ids(ptype=pt)  # autoconverts to raw snapshot convention
-        raw_halo_id_cache[pt] = halo_ids
-        halo_ids = halo_ids[halo_ids != -1]  # masks sentinel value here
-        unique, counts = np.unique(halo_ids, return_counts=True)
-        ptype_counts[pt] = (unique, counts)
+    for ptype, halo_ids in assignments.halo_ids.items():
+        valid = halo_ids[halo_ids != -1]
+        unique, counts = np.unique(valid, return_counts=True)
+        ptype_counts[ptype] = (unique, counts)
 
     if "dm" in ptype_counts and len(ptype_counts["dm"][0]) > 0:
         dm_unique, dm_per_halo = ptype_counts["dm"]
@@ -90,7 +94,7 @@ def compute_rank_assignments(
     result: list[dict[str, np.ndarray]] = [{} for _ in range(n_ranks)]
 
     for ptype in available_ptypes:
-        halo_ids = raw_halo_id_cache[ptype]  # cached from the first loop (MVP burnt this practice into my brain)
+        halo_ids = assignments.halo_ids[ptype]  # cached from the first loop (MVP burnt this practice into my brain)
         all_indices = np.arange(len(halo_ids), dtype=np.int64)
 
         in_halo = (halo_ids != -1) if valid_halos is None else np.isin(halo_ids, valid_halos)
