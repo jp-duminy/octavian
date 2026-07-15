@@ -39,3 +39,17 @@ def make_halo_ids_contiguous(halo_ids: np.ndarray) -> np.ndarray:
     remapped_ids[valid] = np.searchsorted(unique_ids, halo_ids[valid])
 
     return remapped_ids
+
+
+class HaloSource:
+    def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
+        """
+        Reads particles in raw snapshot their HaloIDs based on the conventions and quirks of the source implementation; returns a HaloAssignments dataclass.
+        """
+        raise NotImplementedError
+
+    def read_subhalo_info(self) -> SubhaloInformation | None:
+        """
+        Reads subhalo information from the source, if this exists.
+        """
+        raise NotImplementedError
