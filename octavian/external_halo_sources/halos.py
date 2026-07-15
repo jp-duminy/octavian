@@ -29,5 +29,13 @@ class SubhaloInformation:
     track_ids: np.ndarray | None = None  # only provided by HBT HERONS
 
 
-def make_halo_ids_continuous() -> np.ndarray:
-    pass
+def make_halo_ids_contiguous(halo_ids: np.ndarray) -> np.ndarray:
+    """
+    Returns halo_ids remapped to a contiguous array; assumes the halo_ids array has had its sentinel handled appropriately.
+    """
+    valid = halo_ids != -1  # NOTE: assumes Octavian -1 sentinel has already been handled
+    unique_ids = np.unique(halo_ids[valid])
+    remapped_ids = np.full(shape=halo_ids, fill_value=-1)
+    remapped_ids[valid] = np.searchsorted(unique_ids, halo_ids[valid])
+
+    return remapped_ids
