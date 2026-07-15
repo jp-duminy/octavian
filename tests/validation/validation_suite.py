@@ -51,6 +51,9 @@ from octavian.data_management import (
     output_catalogue_path,
     intermediate_catalogue_path,
 )
+from octavian.external_halo_sources import (
+    SnapshotHaloSource,
+)
 from octavian.log import configure_logger, get_logger
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
@@ -118,7 +121,9 @@ def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ra
     oc = OctavianConstants()
     reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
 
-    assignments = compute_rank_assignments(reader=reader, config=config, n_ranks=n_ranks)
+    assignments = compute_rank_assignments(
+        reader=reader, config=config, n_ranks=n_ranks, halo_source=SnapshotHaloSource(reader=reader)
+    )
 
     for ptype in reader.available_ptypes():
         halo_ids = reader.read_halo_ids(ptype=ptype)
@@ -517,7 +522,9 @@ def test_run(args: argparse.Namespace) -> None:
         reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
 
         if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-            all_indices = compute_rank_assignments(reader=reader, config=config, n_ranks=size)
+            all_indices = compute_rank_assignments(
+                reader=reader, config=config, n_ranks=size, halo_source=SnapshotHaloSource(reader=reader)
+            )
             test_rank_assignments(config=config, args=args, n_ranks=size)
         else:
             all_indices = None
