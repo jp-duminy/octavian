@@ -186,6 +186,20 @@ class GizmoReader(SnapshotReader):
 
         return halo_ids
 
+    def read_particle_ids(self, ptype: str) -> np.ndarray:
+        """
+        Reads GIZMO snapshot PIDs in int64.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            particle_ids = f[hdf5_group]["ParticleIDs"][:].astype(DTYPES.get("pid", np.int64))
+
+            if self.indices is not None:
+                particle_ids = particle_ids[self.indices][ptype]
+
+        return particle_ids
+
     def read_temperature(self, ptype: str = "gas") -> np.ndarray:
         """
         Reads data to calculate temperature according to method in http://www.tapir.caltech.edu/~phopkins/Site/GIZMO_files/gizmo_documentation.html
@@ -383,6 +397,20 @@ class SwiftReader(SnapshotReader):
         halo_ids[sentinel_mask] = -1
 
         return halo_ids
+
+    def read_particle_ids(self, ptype: str) -> np.ndarray:
+        """
+        Reads SWIFT snapshot PIDs in int64.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            particle_ids = f[hdf5_group]["ParticleIDs"][:].astype(DTYPES.get("pid", np.int64))
+
+            if self.indices is not None:
+                particle_ids = particle_ids[self.indices][ptype]
+
+        return particle_ids
 
     def read_temperature(self, ptype: str = "gas"):
         """
