@@ -16,6 +16,7 @@ class HaloAssignments:
     """
 
     halo_ids: dict[str, np.ndarray]
+    n_total_halos: int
     subhalo_ids: dict[str, np.ndarray] | None = None
 
 
@@ -73,4 +74,9 @@ class SnapshotHaloSource(HaloSource):
         for pt in ptypes:
             halo_ids[pt] = self.reader.read_halo_ids(ptype=pt)  # these are already contiguous
 
-        return HaloAssignments(halo_ids=halo_ids, subhalo_ids=None)  # on-the-fly currently does not do subhalos
+        max_id = max(int(ids.max()) for ids in halo_ids.values() if len(ids) > 0)
+        n_total_halos = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
+
+        return HaloAssignments(
+            halo_ids=halo_ids, n_total_halos=n_total_halos, subhalo_ids=None
+        )  # on-the-fly currently does not do subhalos
