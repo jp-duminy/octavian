@@ -4,11 +4,7 @@ Internal agnostic halo source infrastructure, for passing to the likewise-agnost
 
 """
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from octavian.data_management import SnapshotReader
-
+from octavian.data_management import SnapshotReader
 from dataclasses import dataclass
 import numpy as np
 
@@ -34,16 +30,15 @@ class SubhaloInformation:
     track_ids: np.ndarray | None = None  # only provided by HBT HERONS
 
 
-def make_halo_ids_contiguous(halo_ids: np.ndarray) -> np.ndarray:
+def build_contiguous_id_lookup(ids: np.ndarray) -> np.ndarray:
     """
-    Returns halo_ids remapped to a contiguous array; assumes the halo_ids array has had its sentinel handled appropriately.
+    Thin wrapper around np.searchsorted which returns an array of the indices which would remap a (sub)halo_id array to be contiguous
     """
-    valid = halo_ids != -1  # NOTE: assumes Octavian -1 sentinel has already been handled
-    unique_ids = np.unique(halo_ids[valid])
-    remapped_ids = np.full(shape=halo_ids, fill_value=-1)
-    remapped_ids[valid] = np.searchsorted(unique_ids, halo_ids[valid])
+    unique_ids = np.unique(ids[ids != -1])
+    lookup = np.full(shape=unique_ids.max() + 1, fill_value=-1, dtype=np.int64)
+    lookup[unique_ids] = np.arange(len(unique_ids), dtype=np.int64)
 
-    return remapped_ids
+    return lookup
 
 
 class HaloSource:
