@@ -41,68 +41,71 @@ def compute_rank_assignments(
     assignments = halo_source.read_halo_ids(
         ptypes=available_ptypes
     )  # named this assignments because it will eventually contain subhalos too
+
     ptype_counts = {}
 
     for ptype, halo_ids in assignments.halo_ids.items():
-        valid = halo_ids[halo_ids != -1]
-        unique, counts = np.unique(valid, return_counts=True)
-        ptype_counts[ptype] = (unique, counts)
+        valid = halo_ids[halo_ids != -1]  # masks valid HaloIDs here
+        ptype_counts[ptype] = np.bincount(
+            valid, minlength=assignments.n_total_halos
+        )  # same logic as sum_per_group in aggregate_helpers.py
 
-    if "dm" in ptype_counts and len(ptype_counts["dm"][0]) > 0:
-        dm_unique, dm_per_halo = ptype_counts["dm"]
-        valid_mask = dm_per_halo >= config.min_dm_per_halo
-        valid_halos = dm_unique[valid_mask]  # masks min_dm_per_halo here
-    else:
-        valid_halos = None
+    haloes_exist = sum(ptype_counts.values()) > 0
+    valid_halo_mask = (
+        haloes_exist & (ptype_counts["dm"] >= config.min_dm_per_halo) if "dm" in ptype_counts else haloes_exist
+    )  # masks min_dm_per_halo here
+    all_valid_hids = np.flatnonzero(valid_halo_mask)
 
-    all_hids_raw = np.unique(np.concatenate([unique for unique, _ in ptype_counts.values()]))
-    all_hids = all_hids_raw if valid_halos is None else all_hids_raw[np.isin(all_hids_raw, valid_halos)]
-
-    if len(all_hids) == 0:  # prudent guard for a no-halo snapshot
+    if all_valid_hids.size == 0:  # prudent guard for a no-halo snapshot
         logger.warning("No valid HaloIDs!")
         return [
             {pt: np.array([], dtype=np.int64) for pt in available_ptypes} for _ in range(n_ranks)
         ]  # match type check
 
-    n_halos = all_hids.max() + 1  # at this point the reader has remapped HaloIDs to 0-indexed
+    n_valid_halos = all_valid_hids.max() + 1  # at this point the reader has remapped HaloIDs to 0-indexed
 
-    star_counts = np.zeros(shape=n_halos)
-    gas_counts = np.zeros(shape=n_halos)
-    dm_counts = np.zeros(shape=n_halos)
+    halo_to_rank = np.full(shape=n_valid_halos, fill_value=-1, dtype=np.int64)
+    zeros = np.zeros(n_valid_halos, dtype=np.int64)
+    star_counts = ptype_counts.get("star", zeros)
+    gas_counts = ptype_counts.get("gas", zeros)
+    dm_counts = ptype_counts.get("dm", zeros)
 
-    weight_ptypes = {"star": star_counts, "gas": gas_counts, "dm": dm_counts}
-
-    for ptype, count_array in weight_ptypes.items():
-        if ptype in ptype_counts:
-            halo_ids, counts = ptype_counts[ptype]
-            count_array[halo_ids] = counts
-
-    fof6d_cost = star_counts[all_hids] ** 1.2 + gas_counts[all_hids]  # this power law is empirical
-    aggregates_cost = star_counts[all_hids] + gas_counts[all_hids] + dm_counts[all_hids]
+    fof6d_cost = star_counts[all_valid_hids] ** 1.2 + gas_counts[all_valid_hids]  # NOTE: this power law is empirical
+    aggregates_cost = star_counts[all_valid_hids] + gas_counts[all_valid_hids] + dm_counts[all_valid_hids]
     halo_weights = config.fof6d_weight * fof6d_cost + config.properties_weight * aggregates_cost
 
     # greedy binning according to halo weight: sort halos by size descending then sequentially assign to rank with lightest load
     weight_order = np.argsort(halo_weights)[::-1]  # TODO: move to argsort(descending=True) in numpy 2.5.0
-    rank_assignments = [set() for _ in range(n_ranks)]
     rank_loads = np.zeros(n_ranks)
 
-    for idx in weight_order:  # the actual binning algorithm, which is naturally sequential (not performance-heavy)
-        lightest = np.argmin(rank_loads)
-        rank_assignments[lightest].add(all_hids[idx])
+    for idx in weight_order:
+        lightest = int(
+            np.argmin(rank_loads)
+        )  # the actual binning algorithm, which is naturally sequential (not performance-heavy)
+        halo_to_rank[all_valid_hids[idx]] = lightest
         rank_loads[lightest] += halo_weights[idx]
 
     result: list[dict[str, np.ndarray]] = [{} for _ in range(n_ranks)]
 
-    for ptype in available_ptypes:
-        halo_ids = assignments.halo_ids[ptype]  # cached from the first loop (MVP burnt this practice into my brain)
-        all_indices = np.arange(len(halo_ids), dtype=np.int64)
+    for ptype, halo_ids in assignments.halo_ids.items():
+        mask = np.zeros(shape=len(halo_ids), dtype=bool)
+        in_halo = halo_ids != -1
+        mask[in_halo] = valid_halo_mask[
+            halo_ids[in_halo]
+        ]  # have to match with halos > min_dm_per_halo mask and sentinel value
+        filtered_indices = np.flatnonzero(mask)  # ignore particles not in halo/not matched to criteria
 
-        in_halo = (halo_ids != -1) if valid_halos is None else np.isin(halo_ids, valid_halos)
-        filtered_ids = halo_ids[in_halo]  # ignore particles not assigned to a halo
-        filtered_indices = all_indices[in_halo]
+        particle_rank_assignments = halo_to_rank[halo_ids[filtered_indices]]
+        particle_counts = np.bincount(
+            particle_rank_assignments, minlength=n_ranks
+        )  # NOTE: reimplements build_group_csr to avoid circular import
+        offsets = np.empty(n_ranks + 1, dtype=np.int64)
+        offsets[0] = 0
+        offsets[1:] = np.cumsum(particle_counts)
 
-        for rank_idx in range(n_ranks):
-            rank_mask = np.isin(filtered_ids, np.array(list(rank_assignments[rank_idx])))
-            result[rank_idx][ptype] = filtered_indices[rank_mask]
+        sorted_indices = np.argsort(particle_rank_assignments, kind="stable")
+
+        for r in range(n_ranks):
+            result[r][ptype] = filtered_indices[sorted_indices[offsets[r] : offsets[r + 1]]]
 
     return result
