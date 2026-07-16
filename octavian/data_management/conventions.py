@@ -299,6 +299,12 @@ class SnapshotReader:
         """
         raise NotImplementedError
 
+    def read_particle_ids(self, ptype: str) -> np.ndarray:
+        """
+        Reads snapshot-assigned particle IDs for a specified ptype.
+        """
+        raise NotImplementedError
+
     def read_temperature(self, ptype: str) -> np.ndarray:
         """
         Temperature is usually computed from multiple datasets, and how it can be computed differs between readers.
