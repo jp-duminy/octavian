@@ -61,7 +61,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             )
             group_store.write_batch(results=gas_results)
 
-            if group_type == "halos":
+            if group_store.kind == "halo":
                 cgm_results = compute_cgm_properties(
                     gas=gas, nH=nH, group_idx=gas_group_idx, n_groups=n_groups, nHlim=config.nH_lim
                 )

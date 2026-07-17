@@ -532,13 +532,14 @@ class GroupStore:
     """
 
     def __init__(
-        self, group_ids: np.ndarray, group_key: int, original_ids: np.ndarray | None = None
+        self, group_ids: np.ndarray, group_key: int, kind: str, original_ids: np.ndarray | None = None
     ):  # original_ids is for external halo readers
 
         self.group_ids = group_ids
         self.n_groups = len(group_ids)
         self.columns: dict[str, np.ndarray] = {}
         self.group_key = group_key
+        self.kind = kind
 
         max_id = group_ids.max() if self.n_groups > 0 else 0
         logger.debug(f"Max ID guard hit in group store for {group_key}")
@@ -592,18 +593,21 @@ class GroupStore:
         return id_to_idx
 
 
-def build_group_store(particles: dict[str, ParticleStore], group_type: str) -> GroupStore:
+def build_group_store(
+    particles: dict[str, ParticleStore],
+    group_key: str,
+    group_kind: str,
+) -> GroupStore:
     """
     Constructs GroupStore classes (for halos and galaxies) from the ParticleStores.
     """
-    group_key = {"halos": "HaloID", "galaxies": "GalID"}[group_type]
     ids = [particles[ptype][group_key] for ptype in particles]
     unique_ids = np.unique(np.concatenate(ids))
 
-    if group_type == "galaxies":
-        unique_ids = unique_ids[unique_ids != -1]
+    if group_key == "GalID":
+        unique_ids = unique_ids[unique_ids != -1]  # at this point invalid HaloIDs should already be filtered out
 
-    return GroupStore(group_ids=unique_ids, group_key=group_key)
+    return GroupStore(group_ids=unique_ids, group_key=group_key, kind=group_kind)
 
 
 @dataclass(slots=True)  # no frozen=True as this is inherently supposed to be mutable

@@ -27,11 +27,6 @@ from datetime import datetime, timezone
 import subprocess
 from dataclasses import asdict
 
-HDF5_GROUP_NAMES = {
-    "halos": "halo_data",
-    "galaxies": "galaxy_data",
-}
-
 logger = get_logger()
 
 
@@ -121,7 +116,10 @@ def write_analysis_to_output_file(
         output_file.unlink()
 
     with h5py.File(output_file, "w") as out:
-        for group_name, hdf5_name in HDF5_GROUP_NAMES.items():
+        for group_name in internals.group_types:
+            group_params = internals.group_types[group_name]
+            hdf5_name = group_params["hdf5_group"]
+
             if group_name not in data.groups:
                 continue
 
@@ -129,10 +127,9 @@ def write_analysis_to_output_file(
             hdf5_group = out.create_group(hdf5_name)
             membership_group = hdf5_group.create_group("membership")
 
-            group_config = internals.group_types[group_name]
-            hdf5_group.create_dataset(name=group_config["key"], data=group_store.group_ids, compression=1)
+            hdf5_group.create_dataset(name=group_params["key"], data=group_store.group_ids, compression=1)
 
-            for ptype in group_config["ptypes"]:
+            for ptype in group_params["ptypes"]:
                 if ptype not in particle_lists[group_name]:
                     continue
 
