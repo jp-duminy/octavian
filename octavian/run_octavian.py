@@ -84,10 +84,18 @@ def execute_pipeline(
     fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     groups: dict[str, GroupStore] = {}
-    groups["halos"] = build_group_store(particles=particles, group_type="halos")
+    groups["halos"] = build_group_store(
+        particles=particles,
+        group_key=internals.group_types["halos"]["key"],
+        group_kind=internals.group_types["halos"]["kind"],
+    )
 
     if fof6d_result.n_galaxies > 0:
-        groups["galaxies"] = build_group_store(particles=particles, group_type="galaxies")
+        groups["galaxies"] = build_group_store(
+            particles=particles,
+            group_key=internals.group_types["galaxies"]["key"],
+            group_kind=internals.group_types["galaxies"]["kind"],
+        )
 
     for ptype in particles:
         particles[ptype]["potential"] = reader.read_dataset(ptype=ptype, dataset="potential")

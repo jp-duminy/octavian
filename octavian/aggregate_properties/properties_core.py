@@ -56,22 +56,22 @@ def run_core_properties(simulation_data: SimulationData, config: OctavianConfig)
         logger.info(f"Running core properties for {group_type}: {simulation_data.groups[group_type].n_groups} members")
 
         group_store = simulation_data.groups[group_type]
+        kind = group_store.kind
         particles = simulation_data.particles
         sim = simulation_data.simulation
 
         available_ptypes = list(particles.keys())
         available_baryonic = [pt for pt, s in particles.items() if s.is_baryonic]
 
-        if group_type == "halos":
+        if kind == "halo":
             global_minimum = _prepare_global_minimum_potential(
                 particles=particles, group_store=group_store, ptypes=available_ptypes, group_key=group_store.group_key
             )
             group_store.write_batch(results=global_minimum)
 
-        run_core_ptype_pass(particles=particles, store=group_store, group_type=group_type, sim=sim, config=config)
+        run_core_ptype_pass(particles=particles, store=group_store, sim=sim, config=config)
         run_combine(
             store=group_store,
-            group_type=group_type,
             available_ptypes=available_ptypes,
             available_baryonic_ptypes=available_baryonic,
             boxsize=sim.boxsize,
@@ -80,17 +80,16 @@ def run_core_properties(simulation_data: SimulationData, config: OctavianConfig)
         run_combined_radial_quantiles(
             particles=particles,
             store=group_store,
-            group_type=group_type,
             available_ptypes=available_ptypes,
             available_baryonic_ptypes=available_baryonic,
             sim=sim,
             config=config,
         )
 
-        if group_type == "halos":
+        if kind == "halo":
             run_halo_stages(particles=particles, store=group_store, sim=sim, constants=constants, config=config)
 
-        elif group_type == "galaxies":
+        elif kind == "galaxy":
             run_galaxy_stages(
                 particles=particles,
                 galaxies=group_store,
@@ -105,7 +104,6 @@ def run_core_properties(simulation_data: SimulationData, config: OctavianConfig)
 def run_core_ptype_pass(
     particles: dict[str, ParticleStore],
     store: GroupStore,
-    group_type: str,
     sim: SimulationAttributes,
     config: OctavianConfig,
 ) -> None:
@@ -144,7 +142,7 @@ def run_core_ptype_pass(
 
         ptype_cache[ptype] = (group_idx, masses, positions, velocities, counts_and_mass)
 
-    if group_type == "halos":
+    if store.kind == "halo":
         ref_pos = store["minpot_pos"]
         ref_vel = store["minpot_vel"]
     else:
@@ -202,7 +200,6 @@ def run_core_ptype_pass(
 
 def run_combine(
     store: GroupStore,
-    group_type: str,
     available_ptypes: list[str],
     available_baryonic_ptypes: list[str],
     boxsize: float,
@@ -218,7 +215,7 @@ def run_combine(
     )
     store.write_batch(results=combined_baryon)
 
-    if group_type == "halos":
+    if store.kind == "halo":
         combined_total = _combine_ptype_sums(
             group_store=store,
             collective_name="total",
@@ -397,7 +394,6 @@ def _combined_quantiles(
 def run_combined_radial_quantiles(
     particles: dict[str, ParticleStore],
     store: GroupStore,
-    group_type: str,
     available_ptypes: list[str],
     available_baryonic_ptypes: list[str],
     sim: SimulationAttributes,
@@ -409,7 +405,7 @@ def run_combined_radial_quantiles(
     quantile_names = list(config.radial_quantiles)
     quantiles = np.array(list(config.radial_quantiles.values()), dtype=np.float64)
 
-    if group_type == "halos":
+    if store.kind == "halo":
         baryon_ref = store["minpot_pos"]
     else:
         baryon_ref = store["com_pos_baryon"]
@@ -426,7 +422,7 @@ def run_combined_radial_quantiles(
 
     store.write_batch(results=baryon_quantiles, suffix="baryon")
 
-    if group_type == "halos":
+    if store.kind == "halo":
         total_quantiles = _combined_quantiles(
             particles=particles,
             store=store,
