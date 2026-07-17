@@ -14,8 +14,15 @@ from dataclasses import replace
 
 from octavian.run_octavian import execute_pipeline, get_mpi_communicator
 from octavian.log import configure_logger
-from octavian.data_management.pipeline_management import load_internals
-from octavian.data_management.conventions import OctavianConfig
+from octavian.data_management import (
+    OctavianConfig,
+    OctavianConstants,
+    load_internals,
+    build_reader,
+)
+from octavian.external_halo_sources import (
+    SnapshotHaloSource,
+)
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
@@ -44,8 +51,18 @@ def mock_catalogue(
         config, simulation_type=sim_type
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
+    reader = build_reader(
+        snapshot_path=snapshot_path, constants=OctavianConstants(mu=config.MU, frad=config.FRAD), config=config
+    )
+    halo_source = SnapshotHaloSource(reader=reader)
 
-    execute_pipeline(snapshot_path=snapshot_path, output_path=output_path, config=config, internals=internals)
+    execute_pipeline(
+        output_path=output_path,
+        config=config,
+        internals=internals,
+        reader=reader,
+        halo_source=halo_source,
+    )
 
     assert output_path.exists()
 

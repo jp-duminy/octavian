@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mpi4py import MPI
+    from octavian.data_management import SnapshotReader
 
 from octavian.data_management import (
     write_analysis_to_output_file,
@@ -36,6 +37,7 @@ from octavian.data_management import (
 )
 from octavian.external_halo_sources import (
     SnapshotHaloSource,
+    HaloSource,
 )
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
@@ -60,22 +62,21 @@ def get_mpi_communicator() -> MPI.Comm | None:
 
 
 def execute_pipeline(
-    snapshot_path: Path,
     output_path: Path,
     config: OctavianConfig,
     internals: Internals,
-    indices: dict[str, np.ndarray] | None = None,
+    reader: SnapshotReader,
+    halo_source: HaloSource,
 ) -> None:
     """
     Executes each toggled stage of the Octavian pipeline.
     """
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
-
-    reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
-    if indices is not None:
-        reader.set_indices(indices=indices)
+    halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     sim = reader.simulation_attributes
-    particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
+    particles = build_particle_stores(
+        reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
+    )
 
     for prop in ["rho", "sfr"]:
         particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
@@ -169,15 +170,20 @@ def run_octavian(
         all_indices = None
 
     rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
+    if rank_indices is not None:
+        reader.set_indices(
+            indices=rank_indices
+        )  # make sure this is called before ID assignments otherwise masks won't be applied
+    halo_source = SnapshotHaloSource(reader=reader)
 
     intermediate_output = intermediate_catalogue_path(directory=intermediate_dir, rank=rank)
 
     execute_pipeline(
-        snapshot_path=snapshot_path,
         output_path=intermediate_output,
         config=config,
         internals=internals,
-        indices=rank_indices,
+        reader=reader,
+        halo_source=halo_source,
     )
 
     if comm:

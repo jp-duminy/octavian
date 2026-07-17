@@ -7,6 +7,12 @@ test_snapshot_large: 4GB
 
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from octavian.external_halo_sources import HaloSource
+    from octavian.data_management import SnapshotReader
+
 # default libraries
 from pathlib import Path
 from contextlib import contextmanager
@@ -152,23 +158,22 @@ def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ra
 
 
 def _profiled_pipeline(
-    snapshot_path: Path,
     output_path: Path,
     config: OctavianConfig,
     internals: Internals,
-    indices: dict[str, np.ndarray] | None = None,
+    reader: SnapshotReader,
+    halo_source: HaloSource,
 ) -> None:
     """
     Executes each stage of the Octavian pipeline with timing/memory.
     """
-    constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
-
     with time_and_memory("Read-in Data"):
-        reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
-        if indices is not None:
-            reader.set_indices(indices=indices)
+        constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
+        halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
         sim = reader.simulation_attributes
-        particles = build_particle_stores(reader=reader, internals=internals, process_ptypes=config.process_ptypes)
+        particles = build_particle_stores(
+            reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
+        )
 
     with time_and_memory("FOF6D"):
         for prop in ["rho", "sfr"]:
@@ -530,14 +535,17 @@ def test_run(args: argparse.Namespace) -> None:
             all_indices = None
 
         rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
+        if rank_indices is not None:
+            reader.set_indices(indices=rank_indices)
+        halo_source = SnapshotHaloSource(reader=reader)
 
         intermediate_path = intermediate_catalogue_path(directory=args.work_dir, rank=rank)
         _profiled_pipeline(
-            snapshot_path=args.snapshot,
             output_path=intermediate_path,
             config=config,
             internals=internals,
-            indices=rank_indices,
+            reader=reader,
+            halo_source=halo_source,
         )
 
         if comm:
