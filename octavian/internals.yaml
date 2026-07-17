@@ -8,10 +8,19 @@ groups: [halos, galaxies]
 group_types:
   halos:
     key: HaloID
+    kind: halo
     ptypes: [gas, star, dm, bh]
+    hdf5_group: halo_data
   galaxies:
     key: GalID
+    kind: galaxy
     ptypes: [gas, star, bh]
+    hdf5_group: galaxy_data
+  subhalos:
+    key: SubhaloID
+    kind: halo
+    ptypes: [gas, star, dm, bh]
+    hdf5_group: subhalo_data
 
 # aggregate properties stage dependency graph
 

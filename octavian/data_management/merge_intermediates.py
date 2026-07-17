@@ -25,9 +25,10 @@ from octavian.log import get_logger, intermediate_log_path
 
 logger = get_logger()
 
-HDF5_GROUP_NAMES = {
-    "halos": "halo_data",
-    "galaxies": "galaxy_data",
+
+SORT_COLUMN_BY_KIND: dict[str, str] = {
+    "halo": "properties/core/mass_total",
+    "galaxy": "properties/core/mass_baryon",
 }
 
 
@@ -36,8 +37,6 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
     Merges per-rank HDF5 catalogues into a single output file, groups sorted by mass descending.
     """
     logger.info(f"Merging {len(files)} intermediate files into output catalogue.")
-
-    sort_column = {"halos": "properties/core/mass_total", "galaxies": "properties/core/mass_baryon"}
 
     # first pass: collect lengths and sort keys per group type
     group_lengths: dict[str, list[int]] = {}
@@ -48,15 +47,23 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
     for file in files:
         with h5py.File(file, "r") as f:
-            for group_type, hdf5_name in HDF5_GROUP_NAMES.items():
+            for group_type in internals.group_types:
+                group_params = internals.group_types[group_type]
+                hdf5_name = group_params["hdf5_group"]
+
                 if hdf5_name not in f:
                     group_lengths.setdefault(group_type, []).append(0)
                     continue
 
+                kind = group_params["kind"]
+                sort_path = SORT_COLUMN_BY_KIND[
+                    kind
+                ]  # needed due to semantic baryon vs total columns in galaxy vs halo data (which comes from internals.yaml)
+
                 grp = f[hdf5_name]
-                n_groups = len(grp[internals.group_types[group_type]["key"]])
+                n_groups = len(grp[group_params["key"]])
                 group_lengths.setdefault(group_type, []).append(n_groups)
-                sort_arrays.setdefault(group_type, []).append(grp[sort_column[group_type]][:])
+                sort_arrays.setdefault(group_type, []).append(grp[sort_path][:])
 
                 if group_type == "galaxies" and n_groups > 0:
                     parent_halo_chunks.append(grp["properties/core/parent_halo_index"][:] + cumulative_halos)
@@ -75,11 +82,12 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
     # second pass: merge datasets
     with h5py.File(output_path, "w") as f_out:
-        for group_type, hdf5_name in HDF5_GROUP_NAMES.items():
+        for group_type in internals.group_types:
+            group_params = internals.group_types[group_type]
+            hdf5_name = group_params["hdf5_group"]
+
             if group_type not in sort_orders:
                 continue
-
-            group_config = internals.group_types[group_type]
 
             order = sort_orders[group_type]
             out_grp = f_out.create_group(hdf5_name)
@@ -149,7 +157,7 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
 
             # CSR lists
 
-            for ptype in group_config["ptypes"]:
+            for ptype in group_params["ptypes"]:
                 all_indices, all_lengths = [], []
 
                 for file, length in zip(files, group_lengths[group_type]):
