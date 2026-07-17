@@ -1,6 +1,6 @@
 # SNAPSHOT FORMAT
 
-simulation_type: SWIFT # SWIFT/GIZMO
+simulation_type: GIZMO # SWIFT/GIZMO
 
 # STAGES TO EXECUTE
 

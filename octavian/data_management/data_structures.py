@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
     from octavian.data_management.conventions import OctavianConstants, OctavianConfig
+    from octavian.external_halo_sources import HaloAssignments
 from octavian.log import get_logger
 
 # defaults
@@ -495,6 +496,7 @@ class ParticleStore:
 def build_particle_stores(
     reader: SnapshotReader,
     internals: Internals,
+    halo_assignments: HaloAssignments,
     process_ptypes: dict[str, bool],
 ) -> dict[str, ParticleStore]:
     """
@@ -506,9 +508,11 @@ def build_particle_stores(
     particles: dict[str, ParticleStore] = {}
 
     for ptype in requested:
-        halo_ids = reader.read_halo_ids(ptype=ptype)
+        halo_ids = halo_assignments.halo_ids[ptype]
         store = ParticleStore(ptype=ptype, n_particles=len(halo_ids), is_baryonic=ptype in internals.baryonic_ptypes)
         store["HaloID"] = halo_ids
+        if halo_assignments.subhalo_ids is not None:
+            store["SubhaloID"] = halo_assignments.subhalo_ids[ptype]
 
         for dataset in ["mass", "pos", "vel"]:
             store[dataset] = reader.read_dataset(ptype, dataset)
