@@ -197,7 +197,7 @@ class GizmoReader(SnapshotReader):
             particle_ids = f[hdf5_group]["ParticleIDs"][:].astype(DTYPES.get("pid", np.int64))
 
             if self.indices is not None:
-                particle_ids = particle_ids[self.indices][ptype]
+                particle_ids = particle_ids[self.indices[ptype]]
 
         return particle_ids
 
@@ -409,7 +409,7 @@ class SwiftReader(SnapshotReader):
             particle_ids = f[hdf5_group]["ParticleIDs"][:].astype(DTYPES.get("pid", np.int64))
 
             if self.indices is not None:
-                particle_ids = particle_ids[self.indices][ptype]
+                particle_ids = particle_ids[self.indices[ptype]]
 
         return particle_ids
 
