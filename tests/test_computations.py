@@ -26,8 +26,11 @@ from octavian.aggregate_properties.aggregate_helpers import (
     min_idx_per_group,
     max_idx_per_group,
     first_idx_per_group,
-    build_group_csr,
     sort_by_group,
+)
+
+from octavian.data_management import (
+    build_group_csr,
 )
 
 from octavian.data_management import OctavianConstants

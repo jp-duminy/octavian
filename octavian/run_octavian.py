@@ -26,7 +26,8 @@ from octavian.data_management import (
     OctavianConstants,
     OctavianConfig,
     build_reader,
-    build_group_store,
+    build_galaxy_store,
+    build_halo_store,
     build_particle_stores,
     load_internals,
     resolve_dependencies,
@@ -84,14 +85,14 @@ def execute_pipeline(
     fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     groups: dict[str, GroupStore] = {}
-    groups["halos"] = build_group_store(
+    groups["halos"] = build_halo_store(
         particles=particles,
         group_key=internals.group_types["halos"]["key"],
         group_kind=internals.group_types["halos"]["kind"],
     )
 
     if fof6d_result.n_galaxies > 0:
-        groups["galaxies"] = build_group_store(
+        groups["galaxies"] = build_galaxy_store(
             particles=particles,
             group_key=internals.group_types["galaxies"]["key"],
             group_kind=internals.group_types["galaxies"]["kind"],

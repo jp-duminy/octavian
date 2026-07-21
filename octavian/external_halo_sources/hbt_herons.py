@@ -107,7 +107,7 @@ class HeronsHaloSource(HaloSource):
         """
         track_ids, host_halo_ids, n_bound = self._properties
         return SubhaloInformation(
-            parent_ids=_apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
+            host_halo_ids=_apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
             track_ids=track_ids,
             n_bound=n_bound,
         )  # this is basically a wrapper; I envision AHF needing more on this method
