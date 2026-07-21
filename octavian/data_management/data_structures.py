@@ -604,6 +604,15 @@ class GroupStore:
         """
         return self.csr_membership[ptype]
 
+    def expand_csr_membership(self, ptype: str) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Returns a tuple of (particle_idx, group_idx) arrays which allow for multi-membership slicing (both sorted).
+        """
+        offsets, particle_idx = self.csr_membership[ptype]
+        group_idx = np.repeat(np.arange(self.n_groups, dtype=np.int64), np.diff(offsets))
+
+        return particle_idx, group_idx
+
 
 def build_galaxy_store(
     particles: dict[str, ParticleStore],
