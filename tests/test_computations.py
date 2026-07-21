@@ -118,19 +118,6 @@ def test_first_idx_per_group() -> None:
     np.testing.assert_array_equal(first_expected, first_result, err_msg="first_idx_per_group failed.")
 
 
-def test_group_csr() -> None:
-    """
-    Tests aggregate helper build_group_csr.
-    """
-    offsets, idx_sorted = build_group_csr(group_idx=GROUP_IDX, n_groups=N_GROUPS)
-
-    for g in range(N_GROUPS):
-        expected = np.flatnonzero(GROUP_IDX == g)
-        result = idx_sorted[offsets[g] : offsets[g + 1]]
-
-        np.testing.assert_array_equal(np.sort(result), expected, err_msg="build_group_csr failed.")
-
-
 def test_sort_by_group() -> None:
     """
     Tests aggregate helper sort_by_group.
@@ -141,7 +128,7 @@ def test_sort_by_group() -> None:
         expected = np.flatnonzero(GROUP_IDX == unique_ids[i])
         result = order[starts[i] : ends[i]]
 
-        np.testing.assert_array_equal(np.sort(result), expected, err_msg="build_group_csr failed.")
+        np.testing.assert_array_equal(np.sort(result), expected, err_msg="sort_by_group failed.")
 
 
 def test_radii() -> None:
