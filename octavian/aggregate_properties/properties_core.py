@@ -68,7 +68,9 @@ def run_core_properties(simulation_data: SimulationData, config: OctavianConfig)
 
         if kind == "halo":
             global_minimum = _prepare_global_minimum_potential(
-                particles=particles, group_store=group_store, ptypes=available_ptypes, group_key=group_store.group_key
+                particles=particles,
+                group_store=group_store,
+                ptypes=available_ptypes,
             )
             group_store.write_batch(results=global_minimum)
 
@@ -120,14 +122,11 @@ def run_core_ptype_pass(
 
     for ptype in particles:
         data = particles[ptype]
-        group_ids = data[store.group_key]
-        group_idx = store.get_indexer(group_id=group_ids)
+        particle_idx, group_idx = store.expand_csr_membership(ptype=ptype)
 
-        valid = group_idx >= 0
-        group_idx = group_idx[valid]
-        masses = data["mass"][valid]
-        positions = data["pos"][valid]
-        velocities = data["vel"][valid]
+        masses = data["mass"][particle_idx]
+        positions = data["pos"][particle_idx]
+        velocities = data["vel"][particle_idx]
 
         counts_and_mass = _compute_counts_and_mass(masses, group_idx=group_idx, n_groups=n_groups, ptype=ptype)
         store.write_batch(results=counts_and_mass)
@@ -238,7 +237,6 @@ def run_halo_stages(
     """
     Halo-specific virial/mass profile quantities.
     """
-    group_key = store.group_key
     n_groups = store.n_groups
     ref_pos = store["minpot_pos"]
 
@@ -246,19 +244,18 @@ def run_halo_stages(
 
     for ptype in particles:
         data = particles[ptype]
-        group_idx = store.get_indexer(group_id=data[group_key])
-        valid = group_idx >= 0
+        particle_idx, group_idx = store.expand_csr_membership(ptype=ptype)
 
         radii = compute_radii(
-            positions=data["pos"][valid],
+            positions=data["pos"][particle_idx],
             ref_pos=ref_pos,
-            group_idx=group_idx[valid],
-            n_particles=valid.sum(),
+            group_idx=group_idx,
+            n_particles=len(particle_idx),
             boxsize=sim.boxsize,
         )
         all_radii_list.append(radii)
-        all_masses_list.append(data["mass"][valid])
-        all_group_idx_list.append(group_idx[valid])
+        all_masses_list.append(data["mass"][particle_idx])
+        all_group_idx_list.append(group_idx)
 
     all_radii = np.concatenate(all_radii_list)
     all_masses = np.concatenate(all_masses_list)
@@ -297,7 +294,6 @@ def run_galaxy_stages(
     """
     Galaxy-specific morphological quantities (requires another pass for alignment of particle L axes).
     """
-    group_key = galaxies.group_key
     n_groups = galaxies.n_groups
     combined_L = galaxies["L_baryon"]
     ref_pos = galaxies["com_pos_baryon"]
@@ -308,19 +304,18 @@ def run_galaxy_stages(
 
     for ptype in available_baryonic_ptypes:
         data = particles[ptype]
-        group_idx = galaxies.get_indexer(group_id=data[group_key])
-        valid = group_idx >= 0
+        particle_idx, group_idx = galaxies.expand_csr_membership(ptype=ptype)
 
         counter_rot, ke_rot = compute_rotational_quantities(
-            positions=data["pos"][valid],
-            velocities=data["vel"][valid],
-            masses=data["mass"][valid],
-            group_idx=group_idx[valid],
+            positions=data["pos"][particle_idx],
+            velocities=data["vel"][particle_idx],
+            masses=data["mass"][particle_idx],
+            group_idx=group_idx,
             ref_pos=ref_pos,
             ref_vel=ref_vel,
             L_group=combined_L,
             n_groups=n_groups,
-            n_particles=valid.sum(),
+            n_particles=len(particle_idx),
             boxsize=sim.boxsize,
         )
 
@@ -368,19 +363,18 @@ def _combined_quantiles(
 
     for ptype in ptypes:
         data = particles[ptype]
-        group_idx = store.get_indexer(group_id=data[store.group_key])
-        valid = group_idx >= 0
+        particle_idx, group_idx = store.expand_csr_membership(ptype=ptype)
 
         radii = compute_radii(
-            positions=data["pos"][valid],
+            positions=data["pos"][particle_idx],
             ref_pos=ref_pos,
-            group_idx=group_idx[valid],
-            n_particles=valid.sum(),
+            group_idx=group_idx,
+            n_particles=len(particle_idx),
             boxsize=sim.boxsize,
         )
         radii_list.append(radii)
-        masses_list.append(data["mass"][valid])
-        group_idx_list.append(group_idx[valid])
+        masses_list.append(data["mass"][particle_idx])
+        group_idx_list.append(group_idx)
 
     radial = _compute_radial_quantities(
         radii=np.concatenate(radii_list),
@@ -440,7 +434,7 @@ def run_combined_radial_quantiles(
 
 
 def _prepare_global_minimum_potential(
-    particles: dict[str, ParticleStore], group_store: GroupStore, ptypes: list[str], group_key: str
+    particles: dict[str, ParticleStore], group_store: GroupStore, ptypes: list[str]
 ) -> dict[str, np.ndarray]:
     """
     Finds the global minimum potential across multiple particle types.
@@ -458,12 +452,10 @@ def _prepare_global_minimum_potential(
 
     for ptype in ptypes:
         data = particles[ptype]
-        group_ids = data[group_key]
-        group_idx = group_store.get_indexer(group_id=group_ids)
+        particle_idx, group_idx = group_store.expand_csr_membership(ptype=ptype)
 
-        in_group = group_idx >= 0
-        idx, potentials = group_idx[in_group], data["potential"][in_group]
-        positions, velocities = data["pos"][in_group], data["vel"][in_group]
+        idx, potentials = group_idx, data["potential"][particle_idx]
+        positions, velocities = data["pos"][particle_idx], data["vel"][particle_idx]
 
         min_idx = min_idx_per_group(values=potentials, group_idx=idx, n_groups=n_groups)
         has_min = min_idx >= 0
