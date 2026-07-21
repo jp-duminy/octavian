@@ -7,6 +7,7 @@ Internal agnostic halo source infrastructure, for passing to the likewise-agnost
 from octavian.data_management import SnapshotReader
 from dataclasses import dataclass
 import numpy as np
+from numba import njit
 
 
 @dataclass(slots=True, frozen=True)
@@ -23,13 +24,18 @@ class HaloAssignments:
 @dataclass(slots=True, frozen=True)
 class SubhaloInformation:
     """
-    Basic subhalo information: the parent HaloID and the number of bound particles. For HBT HERONS this will include the TrackID (not provided by AHF).
+    Basic subhalo information.
+
+    - host_halo_ids: top-level HaloID
+    - parent_index: immediate parent subhalo index
+    - depth: the level of nestage, always >=1
+    - n_bound: the number of bound particles (inclusive)
     """
 
-    parent_ids: np.ndarray
-    host_halo_ids: np.ndarray
+    host_halo_ids: np.ndarray  # top-level HaloID
+    parent_index: np.ndarray  # immediate parent subhalo index
+    depth: np.ndarray  # >= 1
     n_bound: np.ndarray
-    track_ids: np.ndarray | None = None  # only provided by HBT HERONS
 
 
 def build_contiguous_id_lookup(ids: np.ndarray) -> np.ndarray:
@@ -81,3 +87,27 @@ class SnapshotHaloSource(HaloSource):
         return HaloAssignments(
             halo_ids=halo_ids, n_total_halos=n_total_halos, subhalo_ids=None
         )  # on-the-fly currently does not do subhalos
+
+
+@njit
+def compute_depths(parent_ids: np.ndarray, max_allowed_depth: int = 15) -> np.ndarray:
+    """
+    Uses the parent_id array to return a corresponding depths array where depth=1 means its immediate parent is the field halo.
+    """
+    n_subhalos = len(parent_ids)
+    depths = np.empty(n_subhalos, dtype=np.int64)
+
+    for idx in range(n_subhalos):
+        current = idx
+        depth = 1
+
+        while parent_ids[current] >= 0:
+            current = parent_ids[current]
+            depth += 1
+
+            if depth > max_allowed_depth:
+                raise ValueError("Subhalo depth loop has entered a recursion (cyclic relationship somewhere in data?)")
+
+        depths[idx] = depth
+
+    return depths

@@ -87,14 +87,14 @@ def execute_pipeline(
     groups: dict[str, GroupStore] = {}
     groups["halos"] = build_halo_store(
         particles=particles,
-        group_key=internals.group_types["halos"]["key"],
+        halo_key=internals.group_types["halos"]["key"],
         group_kind=internals.group_types["halos"]["kind"],
     )
 
     if fof6d_result.n_galaxies > 0:
         groups["galaxies"] = build_galaxy_store(
             particles=particles,
-            group_key=internals.group_types["galaxies"]["key"],
+            galaxy_key=internals.group_types["galaxies"]["key"],
             group_kind=internals.group_types["galaxies"]["kind"],
         )
 
