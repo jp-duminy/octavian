@@ -40,4 +40,5 @@ from octavian.data_management.parallel_io import (
 
 from octavian.data_management.csr import (
     build_group_csr as build_group_csr,
+    propagate_membership_csr as propagate_membership_csr,
 )
