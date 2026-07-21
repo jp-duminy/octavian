@@ -35,6 +35,7 @@ from octavian.data_management.conventions import (
 
 from .csr import (
     build_group_csr,
+    propagate_membership_csr,
 )
 
 from octavian.data_management.physics import (
@@ -606,22 +607,22 @@ class GroupStore:
 
 def build_galaxy_store(
     particles: dict[str, ParticleStore],
-    group_key: str,  # NOTE: this doesn't need to be an argument but I prefer it for explicit purposes
+    galaxy_key: str,  # NOTE: this doesn't need to be an argument but I prefer it for explicit purposes
     group_kind: str,
 ) -> GroupStore:
     """
     Constructs the galaxy GroupStore.
     """
-    ids = [particles[ptype][group_key] for ptype in particles]
+    ids = [particles[ptype][galaxy_key] for ptype in particles]
     unique_ids = np.unique(np.concatenate(ids))
 
     unique_ids = unique_ids[unique_ids != -1]
 
-    store = GroupStore(group_ids=unique_ids, group_key=group_key, kind=group_kind)
+    store = GroupStore(group_ids=unique_ids, group_key=galaxy_key, kind=group_kind)
 
     for ptype in particles:
         offsets, sorted_indices = build_group_csr(
-            group_idx=store.get_indexer(group_id=particles[ptype][group_key]), n_groups=store.n_groups
+            group_idx=store.get_indexer(group_id=particles[ptype][galaxy_key]), n_groups=store.n_groups
         )
         store.csr_membership[ptype] = (offsets, sorted_indices)
 
@@ -630,44 +631,70 @@ def build_galaxy_store(
 
 def build_halo_store(
     particles: dict[str, ParticleStore],
-    group_key: str,
-    group_kind: str,
+    halo_key: str = "HaloID",
+    subhalo_key: str | None = None,
+    group_kind: str = "halo",
     subhalo_info: SubhaloInformation | None = None,
 ) -> GroupStore:
     """
     Constructs a halo GroupStore.
     """
-    ids = [particles[ptype][group_key] for ptype in particles]
-    unique_ids = np.unique(np.concatenate(ids))
+    all_halo_ids = [particles[ptype][halo_key] for ptype in particles]
+    unique_hids = np.unique(np.concatenate(all_halo_ids))
+    unique_hids = unique_hids[unique_hids != -1]
+    n_halos = len(unique_hids)
 
-    unique_ids = unique_ids[unique_ids != -1]
+    if subhalo_info is not None:
+        subhalo_ids = [particles[ptype][subhalo_key] for ptype in particles]
+        unique_subhids = np.unique(np.concatenate(subhalo_ids))
+        unique_subhids = unique_subhids[unique_subhids != -1]
+        n_subhalos = len(unique_subhids)
 
-    store = GroupStore(group_ids=unique_ids, group_key=group_key, kind=group_kind)
+        field_to_row = np.full(shape=(unique_hids.max() + 1), fill_value=-1, dtype=np.int64)
+        field_to_row[unique_hids] = np.arange(n_halos)
 
-    for ptype in particles:
-        offsets, sorted_indices = build_group_csr(
-            group_idx=store.get_indexer(group_id=particles[ptype][group_key]), n_groups=store.n_groups
-        )
-        store.csr_membership[ptype] = (offsets, sorted_indices)
+        combined_ids = np.concatenate([unique_hids, unique_subhids])
+        store = GroupStore(group_ids=combined_ids, group_key=halo_key, kind=group_kind)
+
+        for ptype in particles:
+            halo_ids = particles[ptype][halo_key]
+            sub_ids = particles[ptype][subhalo_key]
+            group_idx = field_to_row[halo_ids]
+
+            mask = sub_ids != -1
+            group_idx[mask] = sub_ids[mask] + n_halos
+
+            offsets, sorted_indices = build_group_csr(group_idx=group_idx, n_groups=store.n_groups)
+            store.csr_membership[ptype] = (offsets, sorted_indices)
+
+        parent_rows = np.full(n_halos + n_subhalos, -1, dtype=np.int64)
+        depth_1_mask = subhalo_info.depth == 1
+        deeper_mask = subhalo_info.depth > 1
+        parent_rows[n_halos:][depth_1_mask] = field_to_row[subhalo_info.parent_index[depth_1_mask]]
+        parent_rows[n_halos:][deeper_mask] = subhalo_info.parent_index[deeper_mask] + n_halos
+
+        for ptype in particles:
+            exclusive_offsets, exclusive_sorted = store.csr_membership[ptype]
+            inclusive_offsets, inclusive_sorted = propagate_membership_csr(
+                offsets=exclusive_offsets,
+                sorted_indices=exclusive_sorted,
+                parent=parent_rows,
+                n_groups=store.n_groups,
+            )
+            store.csr_membership[ptype] = (inclusive_offsets, inclusive_sorted)
+
+        store["_parent"] = parent_rows
+        store["_depth"] = np.concatenate([np.zeros(n_halos, dtype=np.int64), subhalo_info.depth])
+
+    else:
+        store = GroupStore(group_ids=unique_hids, group_key=halo_key, kind=group_kind)
+        for ptype in particles:
+            offsets, sorted_indices = build_group_csr(
+                group_idx=store.get_indexer(group_id=particles[ptype][halo_key]), n_groups=store.n_groups
+            )
+            store.csr_membership[ptype] = (offsets, sorted_indices)
 
     return store
-
-
-def build_group_store(
-    particles: dict[str, ParticleStore],
-    group_key: str,
-    group_kind: str,
-) -> GroupStore:
-    """
-    Constructs GroupStore classes (for halos and galaxies) from the ParticleStores.
-    """
-    ids = [particles[ptype][group_key] for ptype in particles]
-    unique_ids = np.unique(np.concatenate(ids))
-
-    if group_key == "GalID":
-        unique_ids = unique_ids[unique_ids != -1]  # at this point invalid HaloIDs should already be filtered out
-
-    return GroupStore(group_ids=unique_ids, group_key=group_key, kind=group_kind)
 
 
 @dataclass(slots=True)  # no frozen=True as this is inherently supposed to be mutable
