@@ -111,3 +111,13 @@ def compute_depths(parent_ids: np.ndarray, max_allowed_depth: int = 15) -> np.nd
         depths[idx] = depth
 
     return depths
+
+
+def apply_lookup(ids: np.ndarray, lookup: np.ndarray) -> np.ndarray:
+    """
+    Small helper to use the global id lookup with the ptype id arrays.
+    """
+    result = np.full_like(ids, fill_value=-1)
+    matched = ids != -1  # there will be unmatched particles and [-1] on an ndarray picks last element, so must mask
+    result[matched] = lookup[ids[matched]]
+    return result
