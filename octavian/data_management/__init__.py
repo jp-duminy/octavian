@@ -16,7 +16,8 @@ from octavian.data_management.data_structures import (
     GizmoReader as GizmoReader,
     SwiftReader as SwiftReader,
     build_reader as build_reader,
-    build_group_store as build_group_store,
+    build_galaxy_store as build_galaxy_store,
+    build_halo_store as build_halo_store,
     build_particle_stores as build_particle_stores,
 )
 from octavian.data_management.pipeline_management import (
@@ -35,4 +36,8 @@ from octavian.data_management.conventions import (
 )
 from octavian.data_management.parallel_io import (
     compute_rank_assignments as compute_rank_assignments,
+)
+
+from octavian.data_management.csr import (
+    build_group_csr as build_group_csr,
 )

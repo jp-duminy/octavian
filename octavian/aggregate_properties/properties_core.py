@@ -38,9 +38,12 @@ from octavian.aggregate_properties.aggregate_helpers import (
     count_per_group,
     min_idx_per_group,
     first_idx_per_group,
-    build_group_csr,
     guarded_arcsin,
     guarded_divide,
+)
+
+from octavian.data_management import (
+    build_group_csr,
 )
 
 logger = get_logger()

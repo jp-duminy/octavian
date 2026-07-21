@@ -27,6 +27,7 @@ class SubhaloInformation:
     """
 
     parent_ids: np.ndarray
+    host_halo_ids: np.ndarray
     n_bound: np.ndarray
     track_ids: np.ndarray | None = None  # only provided by HBT HERONS
 

@@ -48,7 +48,8 @@ from octavian.data_management import (
     OctavianConstants,
     OctavianConfig,
     build_reader,
-    build_group_store,
+    build_galaxy_store,
+    build_halo_store,
     build_particle_stores,
     load_internals,
     resolve_dependencies,
@@ -112,6 +113,7 @@ PTYPES = ["gas", "star", "bh", "dm"]
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config.yaml"
 INTERNALS_PATH = Path(__file__).parent.parent.parent / "octavian" / "internals.yaml"
+REFERENCE_PATH = Path.home() / "Octavian" / "small_ref_catalogue.hdf5"
 
 timings = {}
 memories = {}
@@ -184,14 +186,14 @@ def _profiled_pipeline(
     with time_and_memory("Build GroupStores"):
         groups: dict[str, GroupStore] = {}
 
-        groups["halos"] = build_group_store(
+        groups["halos"] = build_halo_store(
             particles=particles,
             group_key=internals.group_types["halos"]["key"],
             group_kind=internals.group_types["halos"]["kind"],
         )
 
         if fof6d_result.n_galaxies > 0:
-            groups["galaxies"] = build_group_store(
+            groups["galaxies"] = build_galaxy_store(
                 particles=particles,
                 group_key=internals.group_types["galaxies"]["key"],
                 group_kind=internals.group_types["galaxies"]["kind"],
@@ -278,7 +280,7 @@ def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> 
     _assert_conserved(label="Number of Galaxies", pre=n_galaxies_original, post=n_galaxies_final)
 
 
-def validate_against_reference(catalogue: str, reference: str, rtol: float = 1e-6, atol: float = 1e-10) -> None:
+def validate_against_reference(catalogue: Path, reference: Path, rtol: float = 1e-6, atol: float = 1e-10) -> None:
     """
     Validates output vs reference more rigorously, comparing specific fields within tolerance.
 
@@ -596,6 +598,7 @@ def test_run(args: argparse.Namespace) -> None:
                 args=args,
             )
             # plot_gsmf(catalogue=output_catalogue, boxsize=25, minstars=32)
+            validate_against_reference(catalogue=catalogue_path, reference=REFERENCE_PATH)
 
 
 def _assert_conserved(label: str, pre: int, post: int):
