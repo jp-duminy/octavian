@@ -106,8 +106,26 @@ def merge_intermediate_catalogues(files: list[Path], output_path: Path, internal
     sort_orders: dict[str, np.ndarray] = {}
 
     for group_type in sort_arrays:
-        merged = np.concatenate(sort_arrays[group_type])
-        sort_orders[group_type] = np.argsort(-merged, kind="stable")
+        merged = np.concatenate(sort_arrays[group_type])  # this variable is overwritten later
+        key = internals.group_types[group_type]["key"]
+
+        halo_ids = []
+        for file, length in zip(files, group_lengths[group_type]):
+            if length == 0:
+                continue
+            with h5py.File(file, "r") as f:
+                halo_ids.append(f[internals.group_types[group_type]["hdf5_group"]][key][:])
+
+        global_ids = np.concatenate(halo_ids)
+
+        depth_chunks = membership_chunks.get(group_type, {}).get("depth")
+        if depth_chunks:
+            depth = np.concatenate(depth_chunks)
+            sort_orders[group_type] = np.lexsort(
+                (global_ids, depth, -merged)
+            )  # lexsort sorts by last key first, so in this case, halos
+        else:
+            sort_orders[group_type] = np.lexsort((global_ids, -merged))
 
     if "halos" in sort_orders:
         inverse_halo_order = np.argsort(sort_orders["halos"], kind="stable")

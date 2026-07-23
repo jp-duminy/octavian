@@ -19,9 +19,11 @@ from octavian.data_management import (
     OctavianConstants,
     load_internals,
     build_reader,
+    compute_rank_assignments,
+    compute_rank_halo_assignments,
 )
 from octavian.external_halo_sources import (
-    SnapshotHaloSource,
+    build_halo_source,
 )
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
@@ -51,17 +53,33 @@ def mock_catalogue(
         config, simulation_type=sim_type, halo_id_source="SNAPSHOT"
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
+
     reader = build_reader(
         snapshot_path=snapshot_path, constants=OctavianConstants(mu=config.MU, frad=config.FRAD), config=config
     )
-    halo_source = SnapshotHaloSource(reader=reader)
+    halo_source = build_halo_source(config=config, reader=reader)
+    all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
+    subhalo_info = halo_source.read_subhalo_info()
+
+    all_indices = compute_rank_assignments(
+        halo_assignments=all_halo_assignments,
+        config=config,
+        n_ranks=1,
+    )
+
+    reader.set_indices(indices=all_indices[0])  # only runs in serial
+
+    rank_halo_assignments = compute_rank_halo_assignments(
+        halo_assignments=all_halo_assignments, all_indices=all_indices
+    )
 
     execute_pipeline(
         output_path=output_path,
         config=config,
         internals=internals,
         reader=reader,
-        halo_source=halo_source,
+        halo_assignments=rank_halo_assignments[0],  # only runs in serial
+        global_subhalo_info=subhalo_info,
     )
 
     assert output_path.exists()

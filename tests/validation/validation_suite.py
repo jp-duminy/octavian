@@ -10,7 +10,7 @@ test_snapshot_large: 4GB
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.external_halo_sources import HaloSource
+    from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
     from octavian.data_management import SnapshotReader
 
 # default libraries
@@ -57,6 +57,8 @@ from octavian.data_management import (
     compute_rank_assignments,
     output_catalogue_path,
     intermediate_catalogue_path,
+    compute_local_subhalo_ids,
+    compute_rank_halo_assignments,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -135,7 +137,8 @@ def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ra
     reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
 
-    assignments = compute_rank_assignments(reader=reader, config=config, n_ranks=n_ranks, halo_source=halo_source)
+    all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
+    assignments = compute_rank_assignments(halo_assignments=all_halo_assignments, config=config, n_ranks=n_ranks)
 
     halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     for ptype in reader.available_ptypes():
@@ -168,19 +171,19 @@ def _profiled_pipeline(
     config: OctavianConfig,
     internals: Internals,
     reader: SnapshotReader,
-    halo_source: HaloSource,
+    halo_assignments: HaloAssignments,
+    global_subhalo_info: SubhaloInformation,
 ) -> None:
     """
     Executes each stage of the Octavian pipeline with timing/memory.
     """
     with time_and_memory("Read-in Data"):
         constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
-        halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
-        subhalo_info = halo_source.read_subhalo_info()
         sim = reader.simulation_attributes
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
+        subhalo_info = compute_local_subhalo_ids(particles=particles, subhalo_info=global_subhalo_info)
 
     with time_and_memory("FOF6D"):
         for prop in ["rho", "sfr"]:
@@ -549,22 +552,40 @@ def test_run(args: argparse.Namespace) -> None:
         halo_source = build_halo_source(config=config, reader=reader)
 
         if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-            all_indices = compute_rank_assignments(reader=reader, config=config, n_ranks=size, halo_source=halo_source)
+            halo_source = build_halo_source(config=config, reader=reader)
+            all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
+            subhalo_info = halo_source.read_subhalo_info()
+
+            all_indices = compute_rank_assignments(
+                halo_assignments=all_halo_assignments,
+                config=config,
+                n_ranks=size,
+            )
             test_rank_assignments(config=config, args=args, n_ranks=size)
+
+            rank_halo_assignments = compute_rank_halo_assignments(
+                halo_assignments=all_halo_assignments, all_indices=all_indices
+            )
         else:
             all_indices = None
+            subhalo_info = None
+            rank_halo_assignments = None
 
         rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
-        if rank_indices is not None:
-            reader.set_indices(indices=rank_indices)
+        rank_halo_assignments = comm.scatter(rank_halo_assignments, root=0) if comm else rank_halo_assignments[0]
+        subhalo_info = comm.bcast(subhalo_info, root=0) if comm else subhalo_info
+
+        reader.set_indices(indices=rank_indices)
 
         intermediate_path = intermediate_catalogue_path(directory=args.work_dir, rank=rank)
+
         _profiled_pipeline(
             output_path=intermediate_path,
             config=config,
             internals=internals,
             reader=reader,
-            halo_source=halo_source,
+            halo_assignments=rank_halo_assignments,
+            global_subhalo_info=subhalo_info,
         )
 
         if comm:
