@@ -170,6 +170,7 @@ def _profiled_pipeline(
     output_path: Path,
     config: OctavianConfig,
     internals: Internals,
+    constants: OctavianConstants,
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
@@ -178,7 +179,6 @@ def _profiled_pipeline(
     Executes each stage of the Octavian pipeline with timing/memory.
     """
     with time_and_memory("Read-in Data"):
-        constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
         sim = reader.simulation_attributes
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
@@ -547,7 +547,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             logger.info(f"Testing Octavian with {size} ranks.")
-        oc = OctavianConstants()
+        oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
         reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
         halo_source = build_halo_source(config=config, reader=reader)
 
@@ -583,6 +583,7 @@ def test_run(args: argparse.Namespace) -> None:
             output_path=intermediate_path,
             config=config,
             internals=internals,
+            constants=oc,
             reader=reader,
             halo_assignments=rank_halo_assignments,
             global_subhalo_info=subhalo_info,

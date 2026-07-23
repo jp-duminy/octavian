@@ -80,8 +80,6 @@ class GizmoReader(SnapshotReader):
 
     def __init__(self, snapshot_path: Path, constants: OctavianConstants):
 
-        logger.info("Using GIZMO reader.")
-
         self.snapshot_path = snapshot_path
         self.constants = constants
         self.indices: dict[str, np.ndarray] | None = None
@@ -266,8 +264,6 @@ class SwiftReader(SnapshotReader):
 
     def __init__(self, snapshot_path: Path, constants: OctavianConstants):
 
-        logger.info("Using SWIFT reader.")
-
         self.snapshot_path = snapshot_path
         self.constants = constants
         self.indices: dict[str, np.ndarray] | None = None
@@ -442,8 +438,10 @@ def build_reader(snapshot_path: Path, constants: OctavianConstants, config: Octa
     Builds a GIZMO/SWIFT reader class depending on what was specified in the config.
     """
     if config.simulation_type == "GIZMO":
+        logger.info("Using GIZMO reader.")
         return GizmoReader(snapshot_path=snapshot_path, constants=constants)
     elif config.simulation_type == "SWIFT":
+        logger.info("Using SWIFT reader.")
         return SwiftReader(snapshot_path=snapshot_path, constants=constants)
     else:
         raise ValueError(f"Unknown simulation ({config.simulation_type}), please put GIZMO/SWIFT!")
