@@ -59,7 +59,6 @@ from octavian.data_management import (
     intermediate_catalogue_path,
 )
 from octavian.external_halo_sources import (
-    SnapshotHaloSource,
     build_halo_source,
 )
 from octavian.log import configure_logger, get_logger
@@ -134,14 +133,13 @@ def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ra
 
     oc = OctavianConstants()
     reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
+    halo_source = build_halo_source(config=config, reader=reader)
 
-    assignments = compute_rank_assignments(
-        reader=reader, config=config, n_ranks=n_ranks, halo_source=SnapshotHaloSource(reader=reader)
-    )
+    assignments = compute_rank_assignments(reader=reader, config=config, n_ranks=n_ranks, halo_source=halo_source)
 
+    halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     for ptype in reader.available_ptypes():
-        halo_ids = reader.read_halo_ids(ptype=ptype)
-
+        halo_ids = halo_assignments.halo_ids[ptype]
         # conservation + exclusivity
         all_assigned = np.concatenate([assignments[r][ptype] for r in range(n_ranks)])
         assert len(all_assigned) == len(np.unique(all_assigned)), f"{ptype}: duplicate indices across ranks."
@@ -609,7 +607,7 @@ def test_run(args: argparse.Namespace) -> None:
                 args=args,
             )
             # plot_gsmf(catalogue=output_catalogue, boxsize=25, minstars=32)
-            # validate_against_reference(catalogue=catalogue_path, reference=args.reference)
+            validate_against_reference(catalogue=catalogue_path, reference=args.reference)
 
 
 def _assert_conserved(label: str, pre: int, post: int):
