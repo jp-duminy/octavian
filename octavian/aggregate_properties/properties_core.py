@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
 # others
 import numpy as np
-from octavian.data_management.conventions import DTYPES
 from octavian.log import get_logger
 
 from octavian.aggregate_properties.aggregate_computations import (
@@ -340,11 +339,6 @@ def run_galaxy_stages(
         counts=galaxies["_n_baryon"],
     )
     galaxies.write_batch(results=derived, suffix="baryon")
-
-    parent = _assign_parent_halo_indices(
-        particles=particles, galaxies=galaxies, halos=halos, available_baryonic_ptypes=available_baryonic_ptypes
-    )
-    galaxies.write_batch(results=parent)
 
 
 def _combined_quantiles(
@@ -892,51 +886,3 @@ def _combine_ptype_sums(
     results[f"velocity_dispersion_{collective_name}"] = combined_velocity_dispersion
 
     return results | counts_and_mass | centre_of_mass
-
-
-def _assign_parent_halo_indices(
-    particles: dict[str, ParticleStore], galaxies: GroupStore, halos: GroupStore, available_baryonic_ptypes: list[str]
-) -> dict[str, np.ndarray]:
-    """
-    Assigns galaxies their parent halo indices (slightly hacky, assigns based on membership of first).
-
-    This may move elsewhere depending on how we do subhalos with FOF6D; returns a dictionary of:
-
-    - parent_halo_index
-    """
-    results: dict[str, np.ndarray] = {}
-
-    gids_list, hids_list = [], []
-
-    for ptype in available_baryonic_ptypes:
-        store = particles[ptype]
-        gids_list.append(store["GalID"])
-        hids_list.append(store["HaloID"])
-
-    all_gids, all_hids = (
-        np.concatenate(gids_list, dtype=DTYPES["GalID"]),
-        np.concatenate(hids_list, dtype=DTYPES["HaloID"]),
-    )
-    in_galaxy = all_gids >= 0
-    all_gids, all_hids = all_gids[in_galaxy], all_hids[in_galaxy]
-
-    galaxy_idx = galaxies.get_indexer(group_id=all_gids)
-    first_particle_idx = first_idx_per_group(group_idx=galaxy_idx, n_groups=galaxies.n_groups)
-    valid = first_particle_idx >= 0
-
-    if not valid.all():
-        n_orphan = (~valid).sum()
-        logger.warning(f"{n_orphan} galaxies have no baryonic particles!")
-
-    galaxy_halo_id = np.full(shape=galaxies.n_groups, fill_value=-1, dtype=DTYPES["HaloID"])
-    galaxy_halo_id[valid] = all_hids[first_particle_idx[valid]]
-
-    parent_halo_index = halos.get_indexer(group_id=galaxy_halo_id)
-
-    if np.any(parent_halo_index == -1):
-        n_orphan = (parent_halo_index == -1).sum()
-        logger.warning(f"{n_orphan} galaxies exist with no valid parent halo.")
-
-    results["parent_halo_index"] = parent_halo_index
-
-    return results

@@ -44,57 +44,19 @@ def construct_particle_csr_lists(
         group_name
     ) in data.groups:  # NOTE: sorts both halos & galaxies as opposed to previous function which took group_name
         group_store = data.groups[group_name]
-        group_key = group_store.group_key
         particles = data.particles
 
-        for ptype in internals.group_types[group_name]["ptypes"]:  # let it be known this was a pain to write
+        for ptype in internals.group_types[group_name]["ptypes"]:
             if ptype not in particles:
                 continue
 
-            particle_group_ids = particles[ptype][group_key]
-            particle_indices = indices[ptype]  # indices into original snapshot which were assigned to this rank
-
-            # mask out non-group particles (technically redundant for halos) // sort
-            mask = particle_group_ids != -1
-            particle_group_ids = particle_group_ids[mask]
-            particle_indices = particle_indices[mask]
-            order = np.argsort(particle_group_ids)
-            sorted_particle_group_ids = particle_group_ids[order]
-            sorted_indices = particle_indices[order]
-
-            if len(sorted_particle_group_ids) == 0:
-                result[group_name][ptype] = {
-                    "indices": np.array([], dtype=DTYPES["csr_indices"]),
-                    "offsets": np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_offsets"]),
-                    "lengths": np.zeros(shape=group_store.n_groups, dtype=DTYPES["csr_lengths"]),
-                }
-                continue
-
-            breaks = np.flatnonzero(np.diff(sorted_particle_group_ids)) + 1  # +1 shifts index array right
-            split_lengths = np.diff(
-                np.concatenate([[0], breaks, [len(sorted_particle_group_ids)]])
-            )  # prepend/append position of first/last group ID
-            split_ids = sorted_particle_group_ids[np.concatenate([[0], breaks])]  # equivalent to np.unique
-
-            lengths = np.zeros(
-                shape=group_store.n_groups, dtype=DTYPES["csr_lengths"]
-            )  # a group can be empty for a certain ptype
-            group_indices = group_store.get_indexer(group_id=split_ids)
-            lengths[group_indices] = split_lengths
-
-            offsets = np.concatenate(
-                [[0], np.cumsum(lengths[:-1])], dtype=DTYPES["csr_offsets"]
-            )  # shift array left (first offset is 0)
-
-            group_slots = group_store.get_indexer(group_id=sorted_particle_group_ids)
-            reorder = np.argsort(group_slots)  # in case GroupStore order is not sorted
-            reordered_indices = sorted_indices[reorder].astype(
-                DTYPES["csr_indices"]
-            )  # indices variable is set above and is different
+            offsets, sorted_local = group_store.csr_membership[ptype]
+            lengths = np.diff(offsets).astype(DTYPES["csr_lengths"])
+            snapshot_indices = indices[ptype][sorted_local].astype(DTYPES["csr_indices"])
 
             result[group_name][ptype] = {
-                "indices": reordered_indices,
-                "offsets": offsets,
+                "indices": snapshot_indices,
+                "offsets": offsets.astype(DTYPES["csr_offsets"]),
                 "lengths": lengths,
             }
 
@@ -137,6 +99,18 @@ def write_analysis_to_output_file(
                 membership_group.create_dataset(f"{ptype}_indices", data=pl["indices"], compression=1)
                 membership_group.create_dataset(f"{ptype}_offsets", data=pl["offsets"], compression=1)
                 membership_group.create_dataset(f"{ptype}_lengths", data=pl["lengths"], compression=1)
+
+            for column_name, column_meta in internals.membership_columns.get(group_name, {}).items():
+                if column_name not in group_store.columns:
+                    continue
+
+                dataset = membership_group.create_dataset(
+                    column_name,
+                    data=group_store[column_name],
+                    compression=1,
+                )
+                dataset.attrs["unit"] = column_meta.unit
+                dataset.attrs["description"] = column_meta.description
 
             # group columns by stage label (what was previously dicts)
             columns_by_label: dict[str, list[str]] = {}
@@ -190,8 +164,8 @@ def write_catalogue_metadata(
                 subgroup = config_group.create_group(key)
                 for sub_key, sub_value in value.items():
                     subgroup.attrs[sub_key] = sub_value
-            elif isinstance(value, list):
-                config_group.attrs[key] = value
+            elif isinstance(value, Path) or value is None:
+                config_group.attrs[key] = str(value)
             else:
                 config_group.attrs[key] = value
 

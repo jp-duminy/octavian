@@ -10,3 +10,6 @@ from octavian.aggregate_properties.properties_local_environment import (
 from octavian.aggregate_properties.properties_ptype_specific import (
     run_ptype_specific_properties as run_ptype_specific_properties,
 )
+from octavian.aggregate_properties.group_linking import (
+    assign_membership as assign_membership,
+)

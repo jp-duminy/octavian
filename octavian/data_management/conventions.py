@@ -30,6 +30,8 @@ class OctavianConfig:
 
     simulation_type: str
 
+    halo_id_source: str  # filepath is at the bottom
+
     stages: dict[str, bool]
     process_ptypes: dict[str, bool]
 
@@ -57,6 +59,8 @@ class OctavianConfig:
     terminal_output_level: str
     keep_logs: bool
 
+    halo_id_filepath: Path | None = None  # because of Python syntax this has to go at the bottom (it has default arg)
+
     @classmethod
     def from_yaml(cls, config_path: Path) -> OctavianConfig:
         """
@@ -67,6 +71,8 @@ class OctavianConfig:
 
         return cls(
             simulation_type=raw["simulation_type"],
+            halo_id_source=raw["halo_id_source"],
+            halo_id_filepath=Path(raw["halo_id_filepath"]).expanduser() if "halo_id_filepath" in raw else None,
             stages=raw["stages"],
             process_ptypes=raw["process_ptypes"],
             min_stars_per_galaxy=raw["MINIMUM_STARS_PER_GALAXY"],
