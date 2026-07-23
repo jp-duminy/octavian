@@ -73,6 +73,7 @@ def execute_pipeline(
     output_path: Path,
     config: OctavianConfig,
     internals: Internals,
+    constants: OctavianConstants,
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
@@ -80,8 +81,6 @@ def execute_pipeline(
     """
     Executes each toggled stage of the Octavian pipeline.
     """
-    constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
-
     sim = reader.simulation_attributes
     particles = build_particle_stores(
         reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
@@ -182,7 +181,7 @@ def run_octavian(
 
     config = OctavianConfig.from_yaml(config_path=config_path)
     internals = load_internals(internals_filepath=internals_path, config=config)
-    oc = OctavianConstants()
+    oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
 
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
@@ -221,6 +220,7 @@ def run_octavian(
         output_path=intermediate_output,
         config=config,
         internals=internals,
+        constants=oc,
         reader=reader,
         halo_assignments=rank_halo_assignments,
         global_subhalo_info=subhalo_info,

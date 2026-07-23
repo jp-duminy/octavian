@@ -53,10 +53,9 @@ def mock_catalogue(
         config, simulation_type=sim_type, halo_id_source="SNAPSHOT"
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
+    oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
 
-    reader = build_reader(
-        snapshot_path=snapshot_path, constants=OctavianConstants(mu=config.MU, frad=config.FRAD), config=config
-    )
+    reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
     all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     subhalo_info = halo_source.read_subhalo_info()
@@ -76,6 +75,7 @@ def mock_catalogue(
         config=config,
         internals=internals,
         reader=reader,
+        constants=oc,
         halo_assignments=rank_halo_assignments[0],  # only runs in serial
         global_subhalo_info=subhalo_info,
     )
