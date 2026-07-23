@@ -1,3 +1,3 @@
-from octavian.galaxy_finding.find_galaxies import (
+from .galaxy_finding import (
     find_galaxies as find_galaxies,
 )

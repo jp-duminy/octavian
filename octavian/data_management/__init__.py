@@ -1,13 +1,13 @@
-from octavian.data_management.write_data import (
+from .write_data import (
     construct_particle_csr_lists as construct_particle_csr_lists,
     write_analysis_to_output_file as write_analysis_to_output_file,
     write_catalogue_metadata as write_catalogue_metadata,
 )
-from octavian.data_management.merge_intermediates import (
+from .merge_intermediates import (
     merge_intermediate_catalogues as merge_intermediate_catalogues,
     clean_intermediates as clean_intermediates,
 )
-from octavian.data_management.data_structures import (
+from .data_structures import (
     SimulationData as SimulationData,
     ParticleStore as ParticleStore,
     GroupStore as GroupStore,
@@ -20,27 +20,27 @@ from octavian.data_management.data_structures import (
     build_halo_store as build_halo_store,
     build_particle_stores as build_particle_stores,
 )
-from octavian.data_management.pipeline_management import (
+from .pipeline_management import (
     PipelineStage as PipelineStage,
     Internals as Internals,
     load_internals as load_internals,
     get_releasable_columns as get_releasable_columns,
     resolve_dependencies as resolve_dependencies,
 )
-from octavian.data_management.conventions import (
+from .conventions import (
     DTYPES as DTYPES,
     OctavianConstants as OctavianConstants,
     OctavianConfig as OctavianConfig,
     output_catalogue_path as output_catalogue_path,
     intermediate_catalogue_path as intermediate_catalogue_path,
 )
-from octavian.data_management.parallel_io import (
+from .parallel_io import (
     generate_rank_assignments as generate_rank_assignments,
     assign_local_subhalos as assign_local_subhalos,
     assign_rank_halo_assignments as assign_rank_halo_assignments,
 )
 
-from octavian.data_management.csr import (
+from .csr import (
     build_group_csr as build_group_csr,
     propagate_membership_csr as propagate_membership_csr,
 )

@@ -1,15 +1,15 @@
-from octavian.aggregate_properties.aggregate_helpers import (
+from .aggregate_helpers import (
     sort_by_group as sort_by_group,
 )
-from octavian.aggregate_properties.properties_core import (
+from .properties_core import (
     run_core_properties as run_core_properties,
 )
-from octavian.aggregate_properties.properties_local_environment import (
+from .properties_local_environment import (
     run_local_environment as run_local_environment,
 )
-from octavian.aggregate_properties.properties_ptype_specific import (
+from .properties_ptype_specific import (
     run_ptype_specific_properties as run_ptype_specific_properties,
 )
-from octavian.aggregate_properties.group_linking import (
+from .group_linking import (
     assign_membership as assign_membership,
 )
