@@ -178,7 +178,10 @@ def _get_git_commit() -> str | None:
     Tries to retrieve the git commit; wraps in try/except to avoid stalling on clusters.
     """
     try:
-        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["git", "rev-parse", "HEAD"], check=False, capture_output=True, text=True, timeout=5)
         return result.stdout.strip() if result.returncode == 0 else None
-    except FileNotFoundError, subprocess.TimeoutExpired:
+    except (
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+    ):  # https://github.com/astral-sh/ruff/issues/25901 (PEP 758 py3.14 syntax)
         return None
