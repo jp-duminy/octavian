@@ -525,7 +525,6 @@ def build_particle_stores(
         if ptype == "gas":
             store["temperature"] = reader.read_temperature(ptype=ptype)
 
-        store["ptype"] = np.full(len(store), ptype)
         particles[ptype] = store
 
     return particles
