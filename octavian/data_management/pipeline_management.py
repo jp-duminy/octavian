@@ -40,6 +40,7 @@ class Internals:
     baryonic_ptypes: frozenset[str]
     group_types: dict[str, dict]
     output_columns: dict[str, OutputColumnMetadata]
+    membership_columns: dict[str, OutputColumnMetadata]
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +65,12 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
     raw_output_columns = internals["output_columns"]
     output_columns = {}
 
-    for template, meta in raw_output_columns.items():
+    for (
+        template,
+        meta,
+    ) in (
+        raw_output_columns.items()
+    ):  # your IDE will grey this out because safe_load returns Any as type check (fear not it is a dict)
         if "over" in meta:
             resolved = resolve_over(meta["over"], config)
 
@@ -134,11 +140,26 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
     unclaimed = set(output_columns.keys()) - all_stage_outputs
     assert not unclaimed, f"output_columns not claimed by any stage: {unclaimed}"
 
+    raw_membership = internals.get("membership_columns", {})
+    membership_columns: dict[str, dict[str, OutputColumnMetadata]] = {}
+
+    for group_name, columns in raw_membership.items():
+        membership_columns[group_name] = {
+            column_name: OutputColumnMetadata(
+                dtype=meta["dtype"],
+                unit=meta.get("unit", ""),
+                description=meta.get("description", ""),
+                label="membership",
+            )
+            for column_name, meta in columns.items()
+        }
+
     return Internals(
         stages=stages,
         baryonic_ptypes=frozenset(internals["baryonic_ptypes"]),
         group_types=internals["group_types"],
         output_columns=expanded_output_columns,
+        membership_columns=membership_columns,
     )
 
 

@@ -18,11 +18,10 @@ from functools import (
     cached_property,
 )  # for avoiding rereading files across methods but also not holding too much in __init__
 
-from .halos import (
+from .halo_structures import (
     HaloAssignments,
     SubhaloInformation,
     HaloSource,
-    build_contiguous_id_lookup,
     compute_depths,
     apply_lookup,
 )
@@ -40,21 +39,24 @@ class AHFHaloSource(HaloSource):
         """
         Parses and stores AHF_halos file information, deriving raw ahf ids, parent indices, subhalo depths, and lookup arrays.
         """
-        ahf_ids, raw_host_ids, n_particles = parse_ahf_halos(self.halos_path)
+        raw_ahf_ids, raw_host_ids, n_particles = parse_ahf_halos(self.halos_path)
 
-        id_lookup = build_contiguous_id_lookup(ids=ahf_ids)
-        parent_indices = np.where(raw_host_ids == 0, -1, id_lookup[raw_host_ids])
+        # you now need to remap the comically-large AHF ids (use indices instead)
+        parent_indices = remap_ahf_ids(
+            ahf_ids=raw_ahf_ids, raw_host_ids=raw_host_ids
+        )  # this uses searchsorted so no need for the contiguous ID helper
+
         depths = compute_depths(parent_ids=parent_indices)
 
         is_field = parent_indices == -1
 
-        field_lookup = np.full(len(ahf_ids), fill_value=-1, dtype=np.int64)
+        field_lookup = np.full(len(raw_ahf_ids), fill_value=-1, dtype=np.int64)
         field_lookup[is_field] = np.arange(is_field.sum(), dtype=np.int64)
 
-        sub_lookup = np.full(len(ahf_ids), fill_value=-1, dtype=np.int64)
+        sub_lookup = np.full(len(raw_ahf_ids), fill_value=-1, dtype=np.int64)
         sub_lookup[~is_field] = np.arange((~is_field).sum(), dtype=np.int64)
 
-        return ahf_ids, parent_indices, depths, n_particles, field_lookup, sub_lookup
+        return parent_indices, depths, n_particles, field_lookup, sub_lookup
 
     @cached_property
     def _particles(self) -> tuple[np.ndarray, ...]:
@@ -63,7 +65,7 @@ class AHFHaloSource(HaloSource):
         Returns (unique_pids, field_halo_indices, deepest_halo_indices), sorted by unique_pids.
         """
         particles_array = np.loadtxt(self.particles_path, skiprows=1, dtype=np.int64)
-        _, _, depths, _, _, _ = self._halos_catalogue
+        _, depths, _, _, _ = self._halos_catalogue
 
         pids, halo_indices = parse_ahf_particles(ahf_particle_array=particles_array, n_halos=len(depths))
 
@@ -73,7 +75,7 @@ class AHFHaloSource(HaloSource):
         """
         Returns a HaloAssignments dataclass containing the assignments made by AHF.
         """
-        _, _, depths, _, field_lookup, sub_lookup = self._halos_catalogue
+        _, depths, _, field_lookup, sub_lookup = self._halos_catalogue
         unique_pids, field_halo_indices, deepest_halo_indices = self._particles
 
         halo_assignments: dict[str, np.ndarray] = {}
@@ -101,7 +103,7 @@ class AHFHaloSource(HaloSource):
         """
         Returns the AHF subhalo information, sliced to subhalo-only rows in contiguous SubhaloID order.
         """
-        _, parent_indices, depths, n_particles, field_lookup, sub_lookup = self._halos_catalogue
+        parent_indices, depths, n_particles, field_lookup, sub_lookup = self._halos_catalogue
 
         sub_mask = depths > 0
 
@@ -215,6 +217,23 @@ def match_ahf_particle_ids(
     aligned_subhids[matched] = np.where(depths[deepest] > 0, deepest, -1)
 
     return aligned_hids, aligned_subhids
+
+
+def remap_ahf_ids(ahf_ids: np.ndarray, raw_host_ids: np.ndarray) -> np.ndarray:
+    """
+    Map the comically-large AHF IDs to positional indices (necessary otherwise you will allocate an unfathomably large array of several exobytes).
+    """
+    sort_order = np.argsort(ahf_ids, stable=True)
+    sorted_ids = ahf_ids[sort_order]
+    is_field = raw_host_ids == 0
+    parent_indices = np.full(len(ahf_ids), fill_value=-1, dtype=np.int64)
+
+    insertion_idx = np.searchsorted(
+        sorted_ids, raw_host_ids[~is_field]
+    )  # position within the sorted array gives ascending unique sensible IDs
+    parent_indices[~is_field] = sort_order[insertion_idx]
+
+    return parent_indices
 
 
 @njit

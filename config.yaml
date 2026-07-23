@@ -1,6 +1,10 @@
 # SNAPSHOT FORMAT
 
-simulation_type: GIZMO # SWIFT/GIZMO
+simulation_type:  GIZMO       # SWIFT/GIZMO
+
+# HALO SOURCE
+halo_id_source:     AHF    # AHF/SNAPSHOT
+halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003.
 
 # STAGES TO EXECUTE
 

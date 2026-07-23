@@ -48,7 +48,7 @@ def mock_catalogue(
     snapshot_path = GIZMO_TEST_PATH if sim_type == "GIZMO" else SWIFT_TEST_PATH
     config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
     config = replace(
-        config, simulation_type=sim_type
+        config, simulation_type=sim_type, halo_id_source="SNAPSHOT"
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     reader = build_reader(

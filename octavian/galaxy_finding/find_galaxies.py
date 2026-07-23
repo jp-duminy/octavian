@@ -127,7 +127,14 @@ def prepare_fof6d_data(
     - params: FOF6DParameters dataclass
     """
     star_halo_ids = particles["star"]["HaloID"]
-    star_counts = np.bincount(star_halo_ids[star_halo_ids >= 0])  # NOTE: work sentinel value into here
+    max_halo_id = max(
+        (int(particles[pt]["HaloID"].max()) for pt in ("star", "gas", "bh") if pt in particles),
+        default=-1,
+    )
+    n_halos = max_halo_id + 1  # this is now the number of field halos (since that's what we operate on)
+    star_counts = np.bincount(
+        star_halo_ids[star_halo_ids >= 0], minlength=n_halos
+    )  # NOTE: need to mask sentinel value here
 
     eligible_halos = np.where(star_counts >= config.min_stars_per_galaxy)[
         0
@@ -152,7 +159,6 @@ def prepare_fof6d_data(
     )
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
-
     for ptype in ["star", "gas", "bh"]:
         if ptype not in particles:
             continue

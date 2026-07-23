@@ -16,7 +16,9 @@ BARYON_PTYPES = ["gas", "star", "bh"]
 SUFFIXES = ["lengths", "offsets", "indices"]  # for csr indexing
 
 
-def _validate_csr_integrity(f: h5py.File, group_data: str, particle_list: str) -> None:
+def _validate_csr_integrity(
+    f: h5py.File, group_data: str, particle_list: str, row_mask: np.ndarray | None = None
+) -> None:
     """
     Validates CSR format of particle lists (sanity checks); handles empty groups too.
     """
@@ -26,9 +28,12 @@ def _validate_csr_integrity(f: h5py.File, group_data: str, particle_list: str) -
     indices = f[group_data][f"membership/{particle_list}_indices"][:]
 
     # check offset slicing matches
-    expected = np.concatenate([[0], np.cumsum(lengths[:-1])])  # mainly want to verify the prepended 0 is there
+    expected = np.concatenate([[0], np.cumsum(lengths)])  # mainly want to verify the prepended 0 is there
     assert np.array_equal(offsets, expected), (
         f"{group_data}/{particle_list} offset array does not match expected format."
+    )
+    assert offsets[-1] == len(indices), (
+        f"{group_data}/{particle_list} final offset slice does not match with length of indices."
     )
     logger.info(f"{group_data}/{particle_list} offset slicing matches.")
 
@@ -52,13 +57,15 @@ def _validate_csr_integrity(f: h5py.File, group_data: str, particle_list: str) -
     logger.info(f"{group_data}/{particle_list} has no intra-group duplicate particles.")
 
     # no particle appears in two groups
-    if len(indices) > 0:
+    if row_mask is None:
+        row_mask = np.ones(len(lengths), dtype=bool)
+    masked_indices = indices[np.repeat(row_mask, lengths)]
+    if len(masked_indices) > 0:
         assert np.all(indices >= 0), f"Invalid indices in {group_data}/{particle_list}."
-        assert len(np.unique(indices)) == len(indices), (
-            f"In {group_data}/{particle_list}, same particle appears in multiple groups."
+        assert len(np.unique(masked_indices)) == len(masked_indices), (
+            f"In {group_data}/{particle_list}, same particle appears in multiple field-level groups."
         )
-
-    logger.info(f"{group_data}/{particle_list} has no duplicates across groups.")
+    logger.info(f"{group_data}/{particle_list} has no unexpected duplicates across groups.")
     logger.info(f"{group_data}/{particle_list} passes tests.")
 
 
@@ -74,18 +81,41 @@ def validate_halo_membership(f: h5py.File) -> None:
     """
     Tests output catalogue halo membership.
     """
+    all_keys = [f"membership/{p}_{s}" for p in PTYPES for s in SUFFIXES] + [
+        "membership/parent",
+        "membership/depth",
+    ]  # TODO: move to validation_columns.py
     logger = get_logger()
     # check keys exist
     all_keys = [f"membership/{p}_{s}" for p in PTYPES for s in SUFFIXES]  # perhaps a cleaner way to do this
     _check_keys_exist(f=f["halo_data"], keys=all_keys)
     logger.info("All keys exist for halos.")
 
+    field_mask = _get_field_mask(f=f, group_data="halo_data")
     for ptype in PTYPES:
-        _validate_csr_integrity(f=f, group_data="halo_data", particle_list=ptype)
+        _validate_csr_integrity(f=f, group_data="halo_data", particle_list=ptype, row_mask=field_mask)
 
     # ensure there are no empty halos
     particles_per_halo = np.sum([f["halo_data"][f"membership/{p}_lengths"][:] for p in PTYPES], axis=0)
-    assert particles_per_halo.min() > 0, "Empty halos detected."
+    assert particles_per_halo[field_mask].min() > 0, "Empty field halos detected."
+    n_empty_subhalos = int((particles_per_halo[~field_mask] == 0).sum())
+    if n_empty_subhalos > 0:
+        logger.info(f"{n_empty_subhalos} empty subhalo rows (permitted).")
+
+    parent = f["halo_data"]["membership/parent"][:]
+    depth = f["halo_data"]["membership/depth"][:]
+    non_field = ~field_mask
+    assert np.array_equal(field_mask, depth == 0), "parent == -1 (field-centric) and depth == 0 (sub-centric) disagree."
+    assert np.all((parent[non_field] >= 0) & (parent[non_field] < len(parent))), "Subhalo parent index out of range."
+    assert np.all(depth[non_field] == depth[parent[non_field]] + 1), (
+        "Chain depth does not match from fields to child-field mapping."
+    )
+
+    for ptype in PTYPES:
+        lengths = f["halo_data"][f"membership/{ptype}_lengths"][:]
+        assert np.all(lengths[non_field] <= lengths[parent[non_field]]), (
+            f"{ptype}: subhalo has more particles than its parent."
+        )
 
     logger.info("Halo membership is self-consistent.")
 
@@ -108,7 +138,11 @@ def validate_galaxy_membership(f: h5py.File) -> None:
     particles_per_galaxy = np.sum([f["galaxy_data"][f"membership/{p}_lengths"][:] for p in BARYON_PTYPES], axis=0)
 
     assert particles_per_galaxy.min() > 0, "Empty galaxies detected."
-    assert particles_per_galaxy.sum() <= particles_per_halo.sum(), "More particles in galaxies than in halos."
+    halo_field_mask = _get_field_mask(f=f, group_data="halo_data")
+    particles_per_halo = np.sum([f["halo_data"][f"membership/{p}_lengths"][:] for p in BARYON_PTYPES], axis=0)
+    assert particles_per_galaxy.sum() <= particles_per_halo[halo_field_mask].sum(), (
+        "More particles in galaxies than field halos."
+    )
 
     logger.info("Galaxy membership is self-consistent.")
 
@@ -117,9 +151,12 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
     """
     Validate galaxy-halo relationships are sensible.
     """
+    field_halo_indices = f["galaxy_data"]["membership/field_halo_index"][:]
+    parent_halo_indices = f["galaxy_data"]["membership/parent_halo_index"][:]
+    fraction = f["galaxy_data"]["membership/parent_membership_fraction"][:]
     logger = get_logger()
+
     # check parent halo indices are valid
-    parent_halo_indices = f["galaxy_data"]["properties/core/parent_halo_index"][:]
     n_halos = len(f["halo_data"]["HaloID"])
     assert np.all(parent_halo_indices >= 0), "Invalid parent halo indices."
     assert np.all(parent_halo_indices < n_halos), "Parent halo index is larger than the number of halos."
@@ -139,21 +176,41 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
 
         # quick check: the number of particles in galaxies is fewer than the total particles in each halo
         total_galaxy_particles_per_halo = np.bincount(
-            parent_halo_indices, weights=galaxy_lengths, minlength=len(halo_lengths)
+            field_halo_indices, weights=galaxy_lengths, minlength=len(halo_lengths)
         )
-        assert np.all(total_galaxy_particles_per_halo <= halo_lengths), f"{ptype} particles span multiple galaxies."
+        assert np.all(total_galaxy_particles_per_halo <= halo_lengths), (
+            f"{ptype}: more particles in a galaxy than in a corresponding field halo."
+        )
 
         halo_ids = np.repeat(np.arange(len(halo_lengths)), halo_lengths)  # unwrapped
         halo_membership_lookup_array = np.full(
             fill_value=-1, shape=halo_indices.max() + 1, dtype=np.int64
         )  # note: filled with unassigned
-        halo_membership_lookup_array[halo_indices] = halo_ids
+        halo_field_mask = _get_field_mask(f=f, group_data="halo_data")
+        field_particle_mask = np.repeat(halo_field_mask, halo_lengths)
+        halo_membership_lookup_array[halo_indices[field_particle_mask]] = halo_ids[field_particle_mask]
 
-        expected_halo_ids = np.repeat(parent_halo_indices, galaxy_lengths)
+        expected_halo_ids = np.repeat(field_halo_indices, galaxy_lengths)
         actual_halos = halo_membership_lookup_array[galaxy_indices]
 
         assert np.array_equal(expected_halo_ids, actual_halos), (
             f"{ptype} particle halo IDs do not match their galaxy host ID."
+        )
+
+        # tree hierarchy checking: can we recover field halos, do all roads lead to rome (less poetically, do all subhalos lead to fields)
+        depth = f["halo_data"]["membership/depth"][:]
+        parent = f["halo_data"]["membership/parent"][:]
+        walker = parent_halo_indices.copy()
+        for _ in range(int(depth.max())):
+            at_field = depth[walker] == 0
+            walker = np.where(at_field, walker, parent[walker])
+        assert np.all(depth[walker] == 0), "The tree hierarchy (from membership arrays) does not lead to a field halo."
+        assert np.array_equal(walker, field_halo_indices), "field_halo_index does not match what the tree produces."
+
+        # simple checks on the membership fraction
+        assert np.all((fraction > 0.0) & (fraction <= 1.0)), "parent_membership_fraction outside (0, 1]."
+        assert np.all(fraction[parent_halo_indices == field_halo_indices] == 1.0), (
+            "Galaxy belonging only to a field halo does not have membership fraction 1.0"
         )
 
     logger.info("Particle group membership is self-consistent.")
@@ -282,3 +339,11 @@ def check_for_nans(f: h5py.File) -> None:
                 logger.warning(f"{group}/{key} is over 50% NaN.")
 
         logger.info(f"{group} contains no dubious NaN occurences.")
+
+
+def _get_field_mask(f: h5py.File, group_data: str) -> np.ndarray:
+    """
+    Returns a mask to field halos.
+    """
+    parent = f[group_data]["membership/parent"][:]
+    return parent == -1

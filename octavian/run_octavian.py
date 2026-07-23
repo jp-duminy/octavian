@@ -37,11 +37,16 @@ from octavian.data_management import (
     intermediate_catalogue_path,
 )
 from octavian.external_halo_sources import (
-    SnapshotHaloSource,
     HaloSource,
+    build_halo_source,
 )
 from octavian.galaxy_finding import find_galaxies
-from octavian.aggregate_properties import run_ptype_specific_properties, run_core_properties, run_local_environment
+from octavian.aggregate_properties import (
+    run_ptype_specific_properties,
+    run_core_properties,
+    run_local_environment,
+    assign_membership,
+)
 from octavian.log import configure_logger, get_logger
 
 # data handling
@@ -74,6 +79,7 @@ def execute_pipeline(
     """
     constants = OctavianConstants(mu=config.MU, frad=config.FRAD)
     halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
+    subhalo_info = halo_source.read_subhalo_info()
     sim = reader.simulation_attributes
     particles = build_particle_stores(
         reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
@@ -88,7 +94,9 @@ def execute_pipeline(
     groups["halos"] = build_halo_store(
         particles=particles,
         halo_key=internals.group_types["halos"]["key"],
+        subhalo_key="SubhaloID",
         group_kind=internals.group_types["halos"]["kind"],
+        subhalo_info=subhalo_info,
     )
 
     if fof6d_result.n_galaxies > 0:
@@ -110,6 +118,7 @@ def execute_pipeline(
     particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
+    assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
 
     requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
     ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
@@ -170,10 +179,14 @@ def run_octavian(
     internals = load_internals(internals_filepath=internals_path, config=config)
     oc = OctavianConstants()
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
+    halo_source = build_halo_source(config=config, reader=reader)
 
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
         all_indices = compute_rank_assignments(
-            reader=reader, config=config, n_ranks=size, halo_source=SnapshotHaloSource(reader=reader)
+            reader=reader,
+            config=config,
+            n_ranks=size,
+            halo_source=halo_source,
         )
     else:
         all_indices = None
@@ -183,7 +196,6 @@ def run_octavian(
         reader.set_indices(
             indices=rank_indices
         )  # make sure this is called before ID assignments otherwise masks won't be applied
-    halo_source = SnapshotHaloSource(reader=reader)
 
     intermediate_output = intermediate_catalogue_path(directory=intermediate_dir, rank=rank)
 

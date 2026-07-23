@@ -16,11 +16,6 @@ group_types:
     kind: galaxy
     ptypes: [gas, star, bh]
     hdf5_group: galaxy_data
-  subhalos:
-    key: SubhaloID
-    kind: halo
-    ptypes: [gas, star, dm, bh]
-    hdf5_group: subhalo_data
 
 # aggregate properties stage dependency graph
 
@@ -57,8 +52,6 @@ stages:
         applies_to: [halos]
       - columns: ["r200", "virial_temperature", "circular_velocity", "spin_param", "vmax", "rmax"]
         applies_to: [halos]
-      - columns: ["parent_halo_index"]
-        applies_to: [galaxies]
 
   properties_ptype_specific:
     label: particle_specific
@@ -90,11 +83,6 @@ stages:
 # enforces dtypes, units, and provides descriptors
 
 output_columns:
-
-  parent_halo_index:
-    dtype:       int64
-    unit:        ""
-    description: "Corresponding index for parent halo."
 
   n_{ptype}:
     over:        {ptype: [gas, star, dm, bh]}
@@ -338,3 +326,33 @@ output_columns:
     dtype:       float64
     unit:        "1/kpc**3"
     description: "Local number density ({radius} kpc smoothing)"
+
+membership_columns:
+
+  halos:
+    parent:
+      dtype: int64
+      description: "Row index of immediate parent in halo_data (-1 for field halos)."
+      unit: ""
+    depth:
+      dtype: int64
+      description: "Level of nestage (0 for field halos)."
+      unit: ""
+    central_galaxy_index:
+      dtype: int64
+      description: "Most massive galaxy in halo (inclusive of substructure, -1 if no galaxy)."
+      unit: ""
+
+  galaxies:
+    field_halo_index: 
+      dtype: int64
+      description: "Index of galaxy's field halo."
+      unit: ""
+    parent_halo_index: 
+      dtype: int64
+      description: "Index of immediate parent (sub)halo (equal to field_halo_index if no subhalo info); parent decided by plurality."
+      unit: ""
+    parent_membership_fraction:
+      dtype: float32
+      description: "Fraction of galaxy's subhalo-assigned particles belonging to the halo at parent_halo_index."
+      unit: ""
