@@ -21,7 +21,7 @@ from octavian.log import get_logger
 logger = get_logger()
 
 
-def compute_rank_assignments(
+def generate_rank_assignments(
     halo_assignments: HaloAssignments,
     config: OctavianConfig,
     n_ranks: int,
@@ -103,7 +103,7 @@ def compute_rank_assignments(
     return result
 
 
-def compute_local_subhalo_ids(
+def assign_local_subhalos(
     particles: dict[str, ParticleStore],
     subhalo_info: SubhaloInformation | None,
 ) -> SubhaloInformation:
@@ -145,7 +145,7 @@ def compute_local_subhalo_ids(
     return new_subhalo_info
 
 
-def compute_rank_halo_assignments(
+def assign_rank_halo_assignments(
     halo_assignments: HaloAssignments, all_indices: list[dict[str, np.ndarray]]
 ) -> list[HaloAssignments]:
     """
