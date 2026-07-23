@@ -33,11 +33,11 @@ from octavian.data_management import (
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
-    compute_rank_assignments,
+    generate_rank_assignments,
     output_catalogue_path,
     intermediate_catalogue_path,
-    compute_rank_halo_assignments,
-    compute_local_subhalo_ids,
+    assign_rank_halo_assignments,
+    assign_local_subhalos,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -86,7 +86,7 @@ def execute_pipeline(
     particles = build_particle_stores(
         reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
     )
-    subhalo_info = compute_local_subhalo_ids(
+    subhalo_info = assign_local_subhalos(
         particles=particles, subhalo_info=global_subhalo_info
     )  # this is done locally and is safe, not worth optimising (though an elegant solution is always welcome)
 
@@ -192,13 +192,13 @@ def run_octavian(
         subhalo_info = halo_source.read_subhalo_info()
 
         # rank particle allocations
-        all_indices = compute_rank_assignments(
+        all_indices = generate_rank_assignments(
             halo_assignments=all_halo_assignments,
             config=config,
             n_ranks=size,
         )
 
-        rank_halo_assignments = compute_rank_halo_assignments(
+        rank_halo_assignments = assign_rank_halo_assignments(
             halo_assignments=all_halo_assignments, all_indices=all_indices
         )
 

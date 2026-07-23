@@ -35,9 +35,9 @@ from octavian.data_management.conventions import (
     intermediate_catalogue_path as intermediate_catalogue_path,
 )
 from octavian.data_management.parallel_io import (
-    compute_rank_assignments as compute_rank_assignments,
-    compute_local_subhalo_ids as compute_local_subhalo_ids,
-    compute_rank_halo_assignments as compute_rank_halo_assignments,
+    generate_rank_assignments as generate_rank_assignments,
+    assign_local_subhalos as assign_local_subhalos,
+    assign_rank_halo_assignments as assign_rank_halo_assignments,
 )
 
 from octavian.data_management.csr import (

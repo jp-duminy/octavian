@@ -19,8 +19,8 @@ from octavian.data_management import (
     OctavianConstants,
     load_internals,
     build_reader,
-    compute_rank_assignments,
-    compute_rank_halo_assignments,
+    generate_rank_assignments,
+    assign_rank_halo_assignments,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -61,7 +61,7 @@ def mock_catalogue(
     all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     subhalo_info = halo_source.read_subhalo_info()
 
-    all_indices = compute_rank_assignments(
+    all_indices = generate_rank_assignments(
         halo_assignments=all_halo_assignments,
         config=config,
         n_ranks=1,
@@ -69,9 +69,7 @@ def mock_catalogue(
 
     reader.set_indices(indices=all_indices[0])  # only runs in serial
 
-    rank_halo_assignments = compute_rank_halo_assignments(
-        halo_assignments=all_halo_assignments, all_indices=all_indices
-    )
+    rank_halo_assignments = assign_rank_halo_assignments(halo_assignments=all_halo_assignments, all_indices=all_indices)
 
     execute_pipeline(
         output_path=output_path,
