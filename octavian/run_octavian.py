@@ -38,6 +38,7 @@ from octavian.data_management import (
     intermediate_catalogue_path,
     assign_rank_halo_assignments,
     assign_local_subhalos,
+    pack_rank_data,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -157,6 +158,10 @@ def execute_pipeline(
         output_file=output_path,
     )
 
+    packed_data = pack_rank_data(data=simulation_data, particle_lists=particle_lists, internals=internals)
+
+    return packed_data
+
 
 def run_octavian(
     snapshot_path: Path,
@@ -216,7 +221,7 @@ def run_octavian(
 
     intermediate_output = intermediate_catalogue_path(directory=intermediate_dir, rank=rank)
 
-    execute_pipeline(
+    _packed_data = execute_pipeline(
         output_path=intermediate_output,
         config=config,
         internals=internals,

@@ -25,9 +25,50 @@ from pathlib import Path  # NOTE: migrated fully to pathlib in v0.3
 import numpy as np
 from datetime import datetime, timezone
 import subprocess
-from dataclasses import asdict
+from dataclasses import dataclass, asdict
 
 logger = get_logger()
+
+
+@dataclass(frozen=True, slots=True)
+class MembershipArrays:
+    """
+    Contains membership arrays in CSR format:
+
+    - indices
+    - offsets
+    - lengths
+    """
+
+    indices: np.ndarray
+    offsets: np.ndarray
+    lengths: np.ndarray
+
+
+@dataclass(frozen=True, slots=True)
+class GroupPackedData:
+    """
+    Contains packed data from a GroupStore, keyed by output catalogue HDF5 names.
+
+    - group_ids: array of IDs
+    - membership_columns: group-group membership dict
+    - physics_columns: properties output columns
+    - particle_lists: particle-level (key by ptype) MembershipArray dataclasses
+    """
+
+    group_ids: np.ndarray
+    membership_columns: dict[str, np.ndarray]
+    physics_columns: dict[str, np.ndarray]
+    particle_lists: dict[str, MembershipArrays]  # keyed by ptype
+
+
+@dataclass(frozen=True, slots=True)
+class RankPackedData:
+    """
+    Contains the GroupPackedData dataclasses of the groups present on a rank, keyed by output catalogue HDF5 names.
+    """
+
+    groups: dict[str, GroupPackedData]
 
 
 def construct_particle_csr_lists(
@@ -139,6 +180,75 @@ def write_analysis_to_output_file(
                     dataset.attrs["description"] = column_meta.description
 
     logger.info("Created intermediate analysis file.")
+
+
+def pack_rank_data(
+    data: SimulationData,
+    particle_lists: dict[str, dict[str, dict]],
+    internals: Internals,
+) -> RankPackedData:
+    """
+    Packs per-rank analysis data into a RankPackedData dataclass which follows the HDF5 output catalogue naming conventions; stripping of GroupStore columns prefixed with a _ is handled here.
+    """
+    logger.info("Packing data for MPI gather.")
+    groups_packed: dict[str, GroupPackedData] = {}
+
+    for group_name in internals.group_types:
+        group_params = internals.group_types[group_name]
+        hdf5_name = group_params["hdf5_group"]  # dict should be keyed by hdf5 name
+
+        if group_name not in data.groups:
+            continue
+
+        group_store = data.groups[group_name]
+
+        # particle-group membership
+        particle_membership: dict[str, np.ndarray] = {}
+        for ptype in group_params["ptypes"]:
+            if ptype not in particle_lists[group_name]:
+                logger.debug(f"{ptype} is not in the particle lists.")
+                continue
+
+            pl = particle_lists[group_name][ptype]
+            membership_arrays = MembershipArrays(
+                indices=pl["indices"],
+                offsets=pl["offsets"],
+                lengths=pl["lengths"],
+            )
+            particle_membership[ptype] = membership_arrays
+
+        # group-group membership
+        membership_columns: dict[str, np.ndarray] = {}
+        for column_name in internals.membership_columns[group_name]:
+            if column_name not in group_store.columns:
+                logger.debug(f"{column_name} is in internals.yaml but not found in the {group_name} GroupStore.")
+                continue
+
+            membership_columns[column_name] = group_store[column_name]
+
+        # physics data
+        physics_columns: dict[
+            str, np.ndarray
+        ] = {}  # write all properties as flat columns; the file-write does hdf5 hierarchies
+        for column_name in group_store.columns:
+            if column_name.startswith(
+                "_"
+            ):  # the convention I went with was to use a _ prefix for columns which go on GroupStore but not catalogue
+                continue
+
+            if column_name not in internals.output_columns:
+                continue
+
+            physics_columns[column_name] = group_store[column_name]
+
+        groups_packed[hdf5_name] = GroupPackedData(
+            group_ids=group_store.group_ids,
+            membership_columns=membership_columns,
+            physics_columns=physics_columns,
+            particle_lists=particle_membership,
+        )
+
+    return RankPackedData(groups=groups_packed)
 
 
 def write_catalogue_metadata(
