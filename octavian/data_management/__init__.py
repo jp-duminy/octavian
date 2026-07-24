@@ -4,7 +4,7 @@ from .write_data import (
     write_catalogue_metadata as write_catalogue_metadata,
 )
 from .merge_intermediates import (
-    merge_intermediate_catalogues as merge_intermediate_catalogues,
+    merge_intermediate_catalogues_2 as merge_intermediate_catalogues_2,
     clean_intermediates as clean_intermediates,
 )
 from .data_structures import (

@@ -39,7 +39,7 @@ from cycler import cycler
 from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
-    merge_intermediate_catalogues,
+    merge_intermediate_catalogues_2,
     clean_intermediates,
     write_catalogue_metadata,
     GroupStore,
@@ -278,7 +278,7 @@ def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> 
     logger.info(f"Galaxies pre-merge: {n_galaxies_original}")
 
     with time_and_memory("Remerge Catalogues"):
-        merge_intermediate_catalogues(files=files, output_path=output_path, internals=internals)
+        merge_intermediate_catalogues_2(files=files, output_path=output_path, internals=internals)
 
     with h5py.File(output_path, "r") as f:
         n_galaxies_final = len(f["galaxy_data"]["GalID"])
