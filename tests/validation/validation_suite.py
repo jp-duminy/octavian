@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
-    from octavian.data_management import SnapshotReader
+    from octavian.data_management import SnapshotReader, RankPackedData
 
 # default libraries
 from pathlib import Path
@@ -59,6 +59,7 @@ from octavian.data_management import (
     intermediate_catalogue_path,
     assign_local_subhalos,
     assign_rank_halo_assignments,
+    pack_rank_data,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -174,7 +175,7 @@ def _profiled_pipeline(
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
-) -> None:
+) -> RankPackedData:
     """
     Executes each stage of the Octavian pipeline with timing/memory.
     """
@@ -260,6 +261,14 @@ def _profiled_pipeline(
             internals=internals,
             output_file=output_path,
         )
+
+        packed_data = pack_rank_data(
+            data=simulation_data,
+            particle_lists=particle_lists,
+            internals=internals,
+        )
+
+        return packed_data
 
 
 def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> None:
@@ -579,7 +588,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         intermediate_path = intermediate_catalogue_path(directory=args.work_dir, rank=rank)
 
-        _profiled_pipeline(
+        _packed_data = _profiled_pipeline(
             output_path=intermediate_path,
             config=config,
             internals=internals,
@@ -628,7 +637,7 @@ def test_run(args: argparse.Namespace) -> None:
                 cores_per_rank=config.cores_per_rank,
                 args=args,
             )
-            # plot_gsmf(catalogue=output_catalogue, boxsize=25, minstars=32)
+            plot_gsmf(catalogue=catalogue_path, boxsize=25, minstars=32)
             validate_against_reference(catalogue=catalogue_path, reference=args.reference)
 
 

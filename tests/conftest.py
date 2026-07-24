@@ -70,7 +70,7 @@ def mock_catalogue(
 
     rank_halo_assignments = assign_rank_halo_assignments(halo_assignments=all_halo_assignments, all_indices=all_indices)
 
-    execute_pipeline(
+    _packed_data = execute_pipeline(
         output_path=output_path,
         config=config,
         internals=internals,
