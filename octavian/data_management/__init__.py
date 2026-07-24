@@ -40,6 +40,7 @@ from .parallel_io import (
     generate_rank_assignments as generate_rank_assignments,
     assign_local_subhalos as assign_local_subhalos,
     assign_rank_halo_assignments as assign_rank_halo_assignments,
+    gather_datasets as gather_datasets,
 )
 
 from .csr import (

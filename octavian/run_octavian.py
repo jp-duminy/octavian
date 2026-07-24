@@ -12,14 +12,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mpi4py import MPI
-    from octavian.data_management import SnapshotReader
+    from octavian.data_management import SnapshotReader, RankPackedData
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
 
 from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
     merge_intermediate_catalogues_2,
-    clean_intermediates,
     write_catalogue_metadata,
     GroupStore,
     SimulationData,
@@ -39,6 +38,7 @@ from octavian.data_management import (
     assign_rank_halo_assignments,
     assign_local_subhalos,
     pack_rank_data,
+    gather_datasets,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -78,7 +78,7 @@ def execute_pipeline(
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
-) -> None:
+) -> RankPackedData:
     """
     Executes each toggled stage of the Octavian pipeline.
     """
@@ -221,7 +221,7 @@ def run_octavian(
 
     intermediate_output = intermediate_catalogue_path(directory=intermediate_dir, rank=rank)
 
-    _packed_data = execute_pipeline(
+    packed_data = execute_pipeline(
         output_path=intermediate_output,
         config=config,
         internals=internals,
@@ -231,15 +231,21 @@ def run_octavian(
         global_subhalo_info=subhalo_info,
     )
 
-    if comm:
-        comm.Barrier()
+    gathered = gather_datasets(local_data=packed_data, internals=internals, comm=comm)
 
     catalogue_path = output_catalogue_path(directory=output_dir)
 
     if rank == 0:
-        files = [intermediate_catalogue_path(directory=intermediate_dir, rank=i) for i in range(size)]
-        merge_intermediate_catalogues_2(files=files, output_path=catalogue_path, internals=internals)
-        clean_intermediates(intermediate_dir=intermediate_dir, output_dir=output_dir, n_ranks=size, config=config)
+        all_lightweight, gathered_csr = gathered
+        merge_intermediate_catalogues_2(
+            all_lightweight=all_lightweight,
+            gathered_csr=gathered_csr,
+            output_path=catalogue_path,
+            internals=internals,
+        )
         write_catalogue_metadata(
-            catalogue_path=catalogue_path, snapshot_path=snapshot_path, config=config, n_ranks=size
+            catalogue_path=catalogue_path,
+            snapshot_path=snapshot_path,
+            config=config,
+            n_ranks=size,
         )
