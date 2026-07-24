@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 from octavian.data_management import (
     write_analysis_to_output_file,
     construct_particle_csr_lists,
-    merge_intermediate_catalogues,
+    merge_intermediate_catalogues_2,
     clean_intermediates,
     write_catalogue_metadata,
     GroupStore,
@@ -233,7 +233,7 @@ def run_octavian(
 
     if rank == 0:
         files = [intermediate_catalogue_path(directory=intermediate_dir, rank=i) for i in range(size)]
-        merge_intermediate_catalogues(files=files, output_path=catalogue_path, internals=internals)
+        merge_intermediate_catalogues_2(files=files, output_path=catalogue_path, internals=internals)
         clean_intermediates(intermediate_dir=intermediate_dir, output_dir=output_dir, n_ranks=size, config=config)
         write_catalogue_metadata(
             catalogue_path=catalogue_path, snapshot_path=snapshot_path, config=config, n_ranks=size
