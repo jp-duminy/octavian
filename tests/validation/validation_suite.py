@@ -271,7 +271,9 @@ def _profiled_pipeline(
         return packed_data
 
 
-def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> None:
+def test_remerge(
+    files: list[Path], all_rank_data: list[RankPackedData], output_path: Path, internals: Internals
+) -> None:
     """
     Tests the remerging of the snapshot.
     """
@@ -287,7 +289,9 @@ def test_remerge(files: list[Path], output_path: Path, internals: Internals) -> 
     logger.info(f"Galaxies pre-merge: {n_galaxies_original}")
 
     with time_and_memory("Remerge Catalogues"):
-        merge_intermediate_catalogues_2(files=files, output_path=output_path, internals=internals)
+        merge_intermediate_catalogues_2(
+            files=files, all_rank_data=all_rank_data, output_path=output_path, internals=internals
+        )
 
     with h5py.File(output_path, "r") as f:
         n_galaxies_final = len(f["galaxy_data"]["GalID"])
@@ -605,7 +609,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             files = [intermediate_catalogue_path(directory=args.work_dir, rank=i) for i in range(size)]
-            test_remerge(files=files, output_path=catalogue_path, internals=internals)
+            test_remerge(files=files, all_rank_data=[_packed_data], output_path=catalogue_path, internals=internals)
             conduct_output_catalogue_validation(catalogue=catalogue_path)
             clean_intermediates(intermediate_dir=args.work_dir, output_dir=args.work_dir, n_ranks=size, config=config)
             write_catalogue_metadata(

@@ -25,7 +25,7 @@ from pathlib import Path  # NOTE: migrated fully to pathlib in v0.3
 import numpy as np
 from datetime import datetime, timezone
 import subprocess
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 
 logger = get_logger()
 
@@ -40,9 +40,14 @@ class MembershipArrays:
     - lengths
     """
 
-    indices: np.ndarray
+    indices: np.ndarray | None
     offsets: np.ndarray
-    lengths: np.ndarray
+
+    def without_indices(self) -> MembershipArrays:
+        """
+        Deletes indices (memory problem).
+        """
+        return replace(self, indices=None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +74,23 @@ class RankPackedData:
     """
 
     groups: dict[str, GroupPackedData]
+
+    def without_indices(self) -> RankPackedData:
+        """
+        Deletes the particle lists (enormous) from the rankdata (useful for gather)
+        """
+        return replace(
+            self,
+            groups={
+                hdf5_name: replace(
+                    group,
+                    particle_lists={
+                        ptype: membership.without_indices() for ptype, membership in group.particle_lists.items()
+                    },
+                )
+                for hdf5_name, group in self.groups.items()
+            },
+        )
 
 
 def construct_particle_csr_lists(
@@ -213,7 +235,6 @@ def pack_rank_data(
             membership_arrays = MembershipArrays(
                 indices=pl["indices"],
                 offsets=pl["offsets"],
-                lengths=pl["lengths"],
             )
             particle_membership[ptype] = membership_arrays
 
