@@ -1,16 +1,13 @@
 """
 
-Functions to filter & split a snapshot into subfiles for per-rank MPI access; and remerge analysis hdf5 files into an output catalogue.
-
-NOTE: this will eventually be legacy code, as we intend to move away from intermediate files.
+Functions to collate per-rank analysis data via MPI and create a final, globally-ordered Octavian catalogue; the global order does not change between seriial/parallel runs.
 
 """
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
-    from octavian.data_management.conventions import OctavianConfig
     from .pack_catalogue_data import RankPackedData, MembershipArrays
     from mpi4py.MPI import Comm
 
@@ -24,19 +21,17 @@ import numpy as np
 
 # octavian
 from octavian.data_management.conventions import DTYPES
-from octavian.log import get_logger, intermediate_log_path
-
-GroupLengths: TypeAlias = dict[str, list[int]]  # temporary to avoid horrific type annotations
-SortArrays: TypeAlias = dict[str, list[np.ndarray]]
-MembershipChunks: TypeAlias = dict[str, dict[str, list[np.ndarray]]]
+from octavian.log import get_logger
 
 logger = get_logger()
 
-SORT_COLUMN_BY_KIND: dict[str, str] = {  # TODO: figure out a way to get around this
-    "halo": "properties/core/mass_total",
-    "galaxy": "properties/core/mass_baryon",
+SORT_COLUMN_BY_KIND: dict[str, str] = {  # this is necessitated by halos and galaxies having different total mass keys
+    "halo": "mass_total",
+    "galaxy": "mass_baryon",
 }
-HALO_POINTER_COLUMNS: frozenset[str] = frozenset({"parent", "field_halo_index", "parent_halo_index"})
+HALO_POINTER_COLUMNS: frozenset[str] = frozenset(
+    {"parent", "field_halo_index", "parent_halo_index"}
+)  # for hierarchical membership
 FILL_VALUES: dict[str, int] = {
     "parent": -1,
     "depth": 0,
@@ -62,14 +57,21 @@ class UnpackedRankData:
     physics_chunks: dict[str, dict[str, list[np.ndarray]]]
 
 
-def write_catalogue_parallel(
+def write_catalogue(
     packed_data: RankPackedData,
     catalogue_path: Path,
     internals: Internals,
     comm: Comm | None,
 ) -> None:
     """
-    Drop in for merge_intermediate_catalogues 2 (write catalogue in parallel). Docstring unfinished.
+    Writes the Octavian output catalogue.
+
+    - Gathers group-length data to rank 0
+    - Rank 0 creates catalogue and writes group data to it
+    - Rank 0 computes global ordering and per-rank HDF5 write positions for particle membership data
+    - Each rank receives its allocated space in the HDF5 file and writes its share of the global membership data
+
+    MPI-native, and handles serial runs with comm=None too; produces catalogues which have consistent serial/parallel global ordering.
     """
     rank = (
         comm.Get_rank() if comm is not None else 0
@@ -85,9 +87,9 @@ def write_catalogue_parallel(
     if rank == 0:
         logger.info(f"Synthesising analysis data from {len(all_lightweight)} ranks into output catalogue.")
         unpacked = unpack_data(all_rank_data=all_lightweight, internals=internals)
-        sort_orders, resolved = sort_and_resolve(unpacked=unpacked)
+        sort_orders, resolved = resolve_global_ordering(unpacked=unpacked)
 
-        write_catalogue_physics(
+        write_group_data_to_catalogue(
             output_path=catalogue_path,
             sort_orders=sort_orders,
             resolved=resolved,
@@ -192,11 +194,16 @@ def _resolve_pointer_column(chunks: list[np.ndarray], inverse_halo_order: np.nda
     return reindexed[order]
 
 
-def _build_galaxy_membership_csr(
+def build_galaxy_membership_arrays(
     galaxy_parent_halo_index: np.ndarray, halo_parent: np.ndarray, n_halos: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Builds the galaxy membershipn CSR and derives the central galaxies too.
+    Builds the galaxy membership CSR arrays and derives the central galaxy index from parent halos, returning a tuple of:
+
+    - indices: ndarray of galaxy indices
+    - offsets: ndarray of galaxy offsets
+    - lengths: ndarray of galaxy lengths
+    - central_galaxy_index: the index into galaxy_data which corresponds to a halo's most-massive galaxy
     """
     lengths = np.zeros(n_halos, dtype=DTYPES["csr_lengths"])
     level_halo_rows: list[np.ndarray] = []
@@ -227,7 +234,9 @@ def _build_galaxy_membership_csr(
 
     central_galaxy_index = np.full(n_halos, -1, dtype=np.int64)
     non_empty = lengths > 0
-    central_galaxy_index[non_empty] = indices[offsets[:-1][non_empty]]
+    central_galaxy_index[non_empty] = indices[
+        offsets[:-1][non_empty]
+    ]  # NOTE: this works because the global order uses mass_baryon so the central is the most massive baryonic galaxy (this)
 
     return indices, offsets, lengths, central_galaxy_index
 
@@ -237,41 +246,44 @@ def unpack_data(
     internals: Internals,
 ) -> UnpackedRankData:
     """
-    Will finish docstring once returns are done.
+    Unpacks all the ranks' packed data into an UnpackedRankData object.
     """
-    group_lengths: dict[str, list[int]] = {}
-    sort_arrays: dict[str, list[np.ndarray]] = {}
-    all_group_ids: dict[str, list[np.ndarray]] = {}
+    # all these dicts are keyed by group hdf5 name
+    group_lengths: dict[str, list[int]] = {group_type: [] for group_type in internals.group_types}
+    sort_arrays: dict[str, list[np.ndarray]] = {group_type: [] for group_type in internals.group_types}
+    all_group_ids: dict[str, list[np.ndarray]] = {group_type: [] for group_type in internals.group_types}
+    physics_chunks: dict[str, dict[str, list[np.ndarray]]] = {group_type: {} for group_type in internals.group_types}
+
     membership_chunks: dict[str, dict[str, list[np.ndarray]]] = {
         group_type: {
             column_name: []
             for column_name in internals.membership_columns.get(group_type, {})
             if column_name
-            != "central_galaxy_index"  # this has to be done by merge_intermediates so isn't in data at this point, TODO: deprecate
+            != "central_galaxy_index"  # this is done post-sort (due to hierarchy pointer columns), see build_galaxy_membership_arrays
         }
         for group_type in internals.group_types
     }
-    physics_chunks: dict[str, dict[str, list[np.ndarray]]] = {}
     cumulative_halos = 0
 
-    for rank_data in all_rank_data:  # the rank_data dataclass is keyed by hdf5 names
+    # NOTE: this is where the functionality begins
+    for rank_data in all_rank_data:  # the rank_data dataclass is also (thankfully) keyed by hdf5 names
         for group_type in internals.group_types:
             group_params = internals.group_types[group_type]
             hdf5_name = group_params["hdf5_group"]
 
             if hdf5_name not in rank_data.groups:
-                group_lengths.setdefault(group_type, []).append(0)
+                group_lengths[group_type].append(0)
                 continue
 
             kind = group_params["kind"]
-            sort_column = SORT_COLUMN_BY_KIND[kind].rsplit("/", 1)[
-                -1
-            ]  # the rank data doesn't include hdf5 group prefixes
+            sort_column = SORT_COLUMN_BY_KIND[
+                kind
+            ]  # the rank data dict doesn't include hdf5 group prefixes (e.g. properties/core/)
 
             group = rank_data.groups[hdf5_name]
             n_groups = len(group.group_ids)
-            group_lengths.setdefault(group_type, []).append(n_groups)
-            sort_arrays.setdefault(group_type, []).append(group.physics_columns[sort_column])
+            group_lengths[group_type].append(n_groups)
+            sort_arrays[group_type].append(group.physics_columns[sort_column])
 
             if n_groups == 0:
                 logger.warning(f"No groups found for {group_type}.")
@@ -281,7 +293,7 @@ def unpack_data(
             for column_name in membership_chunks[group_type]:
                 if column_name in group.membership_columns:
                     chunk = group.membership_columns[column_name]
-                elif column_name in FILL_VALUES:
+                elif column_name in FILL_VALUES:  # this is for no-subhalo path catalogue consistency (snapshot HaloIDs)
                     column_meta = internals.membership_columns[group_type][column_name]
                     chunk = np.full(n_groups, FILL_VALUES[column_name], dtype=np.dtype(column_meta.dtype))
 
@@ -292,11 +304,12 @@ def unpack_data(
 
             # physics
             for column_name, column_data in group.physics_columns.items():
-                physics_chunks.setdefault(group_type, {}).setdefault(column_name, []).append(column_data)
+                physics_chunks[group_type].setdefault(column_name, []).append(
+                    column_data
+                )  # need setdefault here (otherwise keyerror)
 
-            all_group_ids.setdefault(group_type, []).append(
-                group.group_ids
-            )  # match type annotation for now, TODO: just a dict
+            # group IDs
+            all_group_ids[group_type].append(group.group_ids)
 
         cumulative_halos += group_lengths["halos"][
             -1
@@ -312,30 +325,40 @@ def unpack_data(
     return unpacked_data
 
 
-def sort_and_resolve(
+def resolve_global_ordering(
     unpacked: UnpackedRankData,
 ) -> tuple[dict[str, np.ndarray], dict[tuple[str, str], np.ndarray]]:
     """
-    Sorts and resolves the concatenated per-rank data (for catalogue invariance).
+    Generates the global sorting order, then resolves the per-rank data to correspond to this global ordering; this ensures when data is written to the output file, it appears in an order which does not change between serial, parallel, or varying parallel (mpiexec -n 4 vs 6, etc.) run configurations. Returns:
+
+    - sort_orders: dict keyed by group type which contains the sort mask
+    - resolved: membership columns in final catalogue order (necessary because of pointer columns parent/field_halo_index)
     """
+    # determine global ordering
     sort_orders: dict[str, np.ndarray] = {}
     for group_type in unpacked.sort_arrays:
-        merged = np.concatenate(unpacked.sort_arrays[group_type])
+        merged = np.concatenate(
+            unpacked.sort_arrays[group_type]
+        )  # sort_arrays is needed because galaxies/halos use baryonic/total mass
         global_ids = np.concatenate(unpacked.group_ids[group_type])
         depth_chunks = unpacked.membership_chunks.get(group_type, {}).get("depth")
 
         if depth_chunks:
             depth = np.concatenate(depth_chunks)
-            sort_orders[group_type] = np.lexsort(
-                (global_ids, depth, -merged)
-            )  # lexsort sorts by last key first, so in this case, halos
+            sort_orders[group_type] = (
+                np.lexsort(  # sorting by the original sort array, with depth as a tiebreaker (subhalo vs halo), then global ID
+                    (global_ids, depth, -merged)
+                )
+            )  # NOTE: lexsort sorts by last key first
         else:
-            sort_orders[group_type] = np.lexsort((global_ids, -merged))
+            sort_orders[group_type] = np.lexsort(
+                (global_ids, -merged)
+            )  # just global IDs for galaxies as a tiebreaker (no hierarchy)
 
     if "halos" in sort_orders:
         inverse_halo_order = np.argsort(sort_orders["halos"], kind="stable")
 
-    # now resolve the per-rank orders into the final descending order
+    # resolve the per-rank membership pointer columns into the final catalogue order
     resolved: dict[tuple[str, str], np.ndarray] = {}
 
     for group_type, columns in unpacked.membership_chunks.items():
@@ -353,7 +376,7 @@ def sort_and_resolve(
     return sort_orders, resolved
 
 
-def write_catalogue_physics(
+def write_group_data_to_catalogue(
     output_path: Path,
     sort_orders: dict[str, np.ndarray],
     resolved: dict[tuple[str, str], np.ndarray],
@@ -361,9 +384,9 @@ def write_catalogue_physics(
     internals: Internals,
 ) -> None:
     """
-    Writes the final catalogue.
+    Writes group-level data to the final output catalogue.
     """
-    with h5py.File(output_path, "w") as f_out:
+    with h5py.File(output_path, "w") as f_out:  # this is the first write site (future writes must use "a")
         for group_type in internals.group_types:
             group_params = internals.group_types[group_type]
             hdf5_name = group_params["hdf5_group"]
@@ -375,21 +398,22 @@ def write_catalogue_physics(
             out_grp = f_out.create_group(hdf5_name)
             n_total = len(order)
 
+            # write group-level physics data
             for column_name, chunks in physics_chunks.get(group_type, {}).items():
                 merged = np.concatenate(chunks)[order]
                 column_meta = internals.output_columns[column_name]
                 label = column_meta.label
                 label_group = out_grp.require_group(f"properties/{label}")
                 ds = label_group.create_dataset(column_name, data=merged, compression=1)
+                # write metadata
                 ds.attrs["unit"] = column_meta.unit
                 ds.attrs["description"] = column_meta.description
 
             # ^ see above, final IDs need to be sequential and therefore it is done with np.arange
             out_grp.create_dataset(internals.group_types[group_type]["key"], data=np.arange(n_total), compression=1)
 
-            # likewise, membership columns are in internals.yaml
+            # write group-level membership data
             membership_grp = out_grp.require_group("membership")
-
             for column_name, column_meta in internals.membership_columns.get(group_type, {}).items():
                 if (group_type, column_name) not in resolved:
                     continue  # central_galaxy_index handled below
@@ -400,10 +424,10 @@ def write_catalogue_physics(
                 dataset.attrs["unit"] = column_meta.unit
                 dataset.attrs["description"] = column_meta.description
 
-        # now another loop galaxy memberships (required halos to be done already)
+        # now write the galaxy membership arrays (requires halo info available), not in internals.yaml like particle membership
         if "halos" in sort_orders and ("galaxies", "parent_halo_index") in resolved:
             n_halos = len(sort_orders["halos"])
-            galaxy_indices, galaxy_offsets, galaxy_lengths, central_galaxy_index = _build_galaxy_membership_csr(
+            galaxy_indices, galaxy_offsets, galaxy_lengths, central_galaxy_index = build_galaxy_membership_arrays(
                 resolved[("galaxies", "parent_halo_index")], resolved[("halos", "parent")], n_halos
             )
 
@@ -418,29 +442,3 @@ def write_catalogue_physics(
             )
             central_dataset.attrs["unit"] = central_meta.unit
             central_dataset.attrs["description"] = central_meta.description
-
-
-def clean_intermediates(
-    intermediate_dir: Path,
-    output_dir: Path,
-    n_ranks: int,
-    config: OctavianConfig,
-) -> None:
-    """
-    Cleans the working directory by removing intermediate analysis catalogues and compressing the log into one file/removing the log, depending on what was specified in config.yaml.
-    """
-    if config.keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
-        merged_log = output_dir / "octavian.log"
-        with open(merged_log, "w") as out:
-            for i in range(n_ranks):
-                rank_log = intermediate_dir / f"octavian_rank{i}.log"
-                if rank_log.exists():
-                    out.write(rank_log.read_text())
-                    rank_log.unlink()
-            logger.info(f"Merged then cleaned up {n_ranks} log files.")
-    else:
-        for i in range(n_ranks):
-            (intermediate_log_path(directory=intermediate_dir, rank=i)).unlink(
-                missing_ok=True
-            )  # remove intermediate logs
-        logger.info(f"Removed {n_ranks} log files.")
