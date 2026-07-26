@@ -6,8 +6,9 @@ from .write_data import (
     RankPackedData as RankPackedData,
 )
 from .merge_intermediates import (
-    merge_intermediate_catalogues_2 as merge_intermediate_catalogues_2,
+    write_catalogue_parallel as write_catalogue_parallel,
     clean_intermediates as clean_intermediates,
+    merge_intermediate_catalogues_2 as merge_intermediate_catalogues_2,
 )
 from .data_structures import (
     SimulationData as SimulationData,

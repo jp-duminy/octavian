@@ -117,6 +117,7 @@ class AHFHaloSource(HaloSource):
         return SubhaloInformation(
             host_halo_ids=host_halo_ids,
             parent_index=parent_index,
+            global_index=np.arange(sub_mask.sum(), dtype=np.int64),
             depth=depths[sub_mask],
             n_bound=n_particles[sub_mask],
         )

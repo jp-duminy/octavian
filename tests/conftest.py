@@ -21,6 +21,7 @@ from octavian.data_management import (
     build_reader,
     generate_rank_assignments,
     assign_rank_halo_assignments,
+    write_catalogue_parallel,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -70,8 +71,7 @@ def mock_catalogue(
 
     rank_halo_assignments = assign_rank_halo_assignments(halo_assignments=all_halo_assignments, all_indices=all_indices)
 
-    _packed_data = execute_pipeline(
-        output_path=output_path,
+    packed_data = execute_pipeline(
         config=config,
         internals=internals,
         reader=reader,
@@ -79,6 +79,8 @@ def mock_catalogue(
         halo_assignments=rank_halo_assignments[0],  # only runs in serial
         global_subhalo_info=subhalo_info,
     )
+
+    write_catalogue_parallel(packed_data=packed_data, catalogue_path=output_path, internals=internals, comm=None)
 
     assert output_path.exists()
 

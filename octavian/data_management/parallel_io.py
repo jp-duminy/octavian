@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 # others
 import numpy as np
 from dataclasses import replace
+from mpi4py.MPI import INT64_T
 
 # octavian
 from octavian.log import get_logger
@@ -40,7 +41,6 @@ def generate_rank_assignments(
     """
     logger.info(f"Constructing per-rank indices for {n_ranks} ranks.")
     logger.debug(f"FOF6D weight: {config.fof6d_weight}, Aggregate Properties weight: {config.properties_weight}")
-
     ptype_counts = {}
 
     for ptype, halo_ids in halo_assignments.halo_ids.items():
@@ -142,6 +142,7 @@ def assign_local_subhalos(
     new_subhalo_info = replace(
         subhalo_info,  # NOTE: n_total_halos should not be replaced
         host_halo_ids=subhalo_info.host_halo_ids[keep],
+        global_index=subhalo_info.global_index[keep],
         parent_index=np.where(
             subhalo_info.parent_index[keep] < 0, -1, global_to_local_map[subhalo_info.parent_index[keep]]
         ),
@@ -198,7 +199,7 @@ def gather_datasets(
     all_lightweight: list[RankPackedData] = comm.gather(
         lightweight, root=0
     )  # lightweight means everything except the indices array (which is n_particles big, everything else is n_groups big)
-
+    gathered_membership: dict[tuple[str, str], np.ndarray] = {}  # strings are hdf5 name/ptype
     for group_params in internals.group_types.values():
         hdf5_name = group_params["hdf5_group"]
 
@@ -213,7 +214,6 @@ def gather_datasets(
                 )  # if for whatever reason a list is missing, not doing this will wrong the offsets in parallel
 
             if rank == 0:
-                gathered_membership: dict[tuple[str, str], np.ndarray] = {}  # strings are hdf5 name/ptype
                 per_rank_counts = []
 
                 for rank_lightweight in all_lightweight:
@@ -224,13 +224,14 @@ def gather_datasets(
                         count = 0
                     per_rank_counts.append(count)
 
-                displacements = np.concatenate(([0], np.cumsum(per_rank_counts[:-1])))
+                per_rank_counts = np.array(per_rank_counts, dtype=np.int64)
+                displacements = np.concatenate(([0], np.cumsum(per_rank_counts[:-1]))).astype(np.int64)
                 memory_block = np.empty(
                     sum(per_rank_counts), dtype=DTYPES["csr_indices"]
                 )  # Gatherv needs a pre-allocated block of memory to write to
                 gathered_membership[(hdf5_name, ptype)] = memory_block
                 comm.Gatherv(
-                    send_indices, [memory_block, per_rank_counts, displacements], root=0
+                    send_indices, [memory_block, per_rank_counts, displacements, INT64_T], root=0
                 )  # fills gathered_membership by writing to memory_block
 
             else:

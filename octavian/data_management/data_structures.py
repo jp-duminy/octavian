@@ -656,7 +656,7 @@ def build_halo_store(
         field_to_row = np.full(shape=(unique_hids.max() + 1), fill_value=-1, dtype=np.int64)
         field_to_row[unique_hids] = np.arange(n_halos)
 
-        combined_ids = np.concatenate([unique_hids, np.arange(n_subhalos, dtype=np.int64)])
+        combined_ids = np.concatenate([unique_hids, subhalo_info.global_index], dtype=np.int64)
         store = GroupStore(group_ids=combined_ids, group_key=halo_key, kind=group_kind)
 
         for ptype in particles:

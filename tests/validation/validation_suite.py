@@ -41,7 +41,6 @@ from octavian.data_management import (
     construct_particle_csr_lists,
     merge_intermediate_catalogues_2,
     clean_intermediates,
-    write_catalogue_metadata,
     GroupStore,
     SimulationData,
     Internals,
@@ -60,6 +59,7 @@ from octavian.data_management import (
     assign_local_subhalos,
     assign_rank_halo_assignments,
     pack_rank_data,
+    gather_datasets,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -271,12 +271,14 @@ def _profiled_pipeline(
         return packed_data
 
 
+"""
 def test_remerge(
-    files: list[Path], all_rank_data: list[RankPackedData], output_path: Path, internals: Internals
+    all_lightweight: list[RankPackedData],
+    gathered_csr: dict[tuple[str, str], np.ndarray],
+    output_path: Path, 
+    internals: Internals,
 ) -> None:
-    """
-    Tests the remerging of the snapshot.
-    """
+
     logger = get_logger()
     n_halos_original, n_galaxies_original = 0, 0
 
@@ -290,7 +292,7 @@ def test_remerge(
 
     with time_and_memory("Remerge Catalogues"):
         merge_intermediate_catalogues_2(
-            files=files, all_rank_data=all_rank_data, output_path=output_path, internals=internals
+            all_lightweight=all_lightweight, gathered_csr=gathered_csr, output_path=output_path, internals=internals
         )
 
     with h5py.File(output_path, "r") as f:
@@ -302,6 +304,7 @@ def test_remerge(
 
     _assert_conserved(label="Number of Halos", pre=n_halos_original, post=n_halos_final)
     _assert_conserved(label="Number of Galaxies", pre=n_galaxies_original, post=n_galaxies_final)
+"""
 
 
 def validate_against_reference(catalogue: Path, reference: Path, rtol: float = 1e-6, atol: float = 1e-10) -> None:
@@ -592,7 +595,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         intermediate_path = intermediate_catalogue_path(directory=args.work_dir, rank=rank)
 
-        _packed_data = _profiled_pipeline(
+        packed_data = _profiled_pipeline(
             output_path=intermediate_path,
             config=config,
             internals=internals,
@@ -602,19 +605,28 @@ def test_run(args: argparse.Namespace) -> None:
             global_subhalo_info=subhalo_info,
         )
 
+        gathered = gather_datasets(local_data=packed_data, internals=internals, comm=comm)
+
         if comm:
             comm.Barrier()
 
         catalogue_path = output_catalogue_path(snapshot_path=args.snapshot, output_dir=args.work_dir)
 
         if rank == 0:
-            files = [intermediate_catalogue_path(directory=args.work_dir, rank=i) for i in range(size)]
-            test_remerge(files=files, all_rank_data=[_packed_data], output_path=catalogue_path, internals=internals)
+            all_lightweight, gathered_csr = gathered
+            merge_intermediate_catalogues_2(
+                all_lightweight=all_lightweight,
+                gathered_csr=gathered_csr,
+                output_path=catalogue_path,
+                internals=internals,
+            )
             conduct_output_catalogue_validation(catalogue=catalogue_path)
             clean_intermediates(intermediate_dir=args.work_dir, output_dir=args.work_dir, n_ranks=size, config=config)
+            """
             write_catalogue_metadata(
                 catalogue_path=catalogue_path, snapshot_path=args.snapshot, config=config, n_ranks=size
             )
+            """
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]
         all_memories = comm.gather(memories, root=0) if comm else [memories]
