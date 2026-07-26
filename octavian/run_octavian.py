@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
 
 from octavian.data_management import (
-    construct_particle_csr_lists,
+    construct_membership_arrays,
     write_catalogue_parallel,
     write_catalogue_metadata,
     GroupStore,
@@ -145,9 +145,10 @@ def execute_pipeline(
     else:
         particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
-    particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals, indices=particle_indices)
-
-    packed_data = pack_rank_data(data=simulation_data, particle_lists=particle_lists, internals=internals)
+    membership_arrays = construct_membership_arrays(data=simulation_data, internals=internals, indices=particle_indices)
+    packed_data = pack_rank_data(
+        data=simulation_data, particle_membership_arrays=membership_arrays, internals=internals
+    )
 
     return packed_data
 

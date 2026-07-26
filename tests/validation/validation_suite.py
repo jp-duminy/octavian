@@ -38,7 +38,7 @@ from cycler import cycler
 # octavian pipeline stages
 from octavian.data_management import (
     write_catalogue_parallel,
-    construct_particle_csr_lists,
+    construct_membership_arrays,
     GroupStore,
     SimulationData,
     Internals,
@@ -247,17 +247,17 @@ def _profiled_pipeline(
         else:
             particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
-        particle_lists = construct_particle_csr_lists(
+        membership_arrays = construct_membership_arrays(
             data=simulation_data, internals=internals, indices=particle_indices
         )
 
         packed_data = pack_rank_data(
             data=simulation_data,
-            particle_lists=particle_lists,
+            particle_membership_arrays=membership_arrays,
             internals=internals,
         )
 
-        return packed_data
+    return packed_data
 
 
 def validate_against_reference(catalogue: Path, reference: Path, rtol: float = 1e-6, atol: float = 1e-10) -> None:

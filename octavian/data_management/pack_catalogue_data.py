@@ -93,19 +93,19 @@ class RankPackedData:
         )
 
 
-def construct_particle_csr_lists(
+def construct_membership_arrays(
     data: SimulationData, internals: Internals, indices: dict[str, np.ndarray]
-) -> dict[str, dict[str, dict]]:
+) -> dict[str, dict[str, MembershipArrays]]:
     """
     Extracts particle lists from SimulationData (matching GroupStore & ParticleStore) and converts them to the CSR format for hdf5.
     """
-    logger.info("Constructing particle membership lists.")
+    logger.info("Constructing particle membership arrays.")
 
-    result = {group: {} for group in data.groups}
+    result: dict[str, dict[str, MembershipArrays]] = {group_name: {} for group_name in data.groups}
 
     for (
-        group_name
-    ) in data.groups:  # NOTE: sorts both halos & galaxies as opposed to previous function which took group_name
+        group_name  # I really have no idea why ruff insists on the line looking like this.
+    ) in data.groups:
         group_store = data.groups[group_name]
         particles = data.particles
 
@@ -114,23 +114,20 @@ def construct_particle_csr_lists(
                 continue
 
             offsets, sorted_local = group_store.csr_membership[ptype]
-            lengths = np.diff(offsets).astype(DTYPES["csr_lengths"])
-            snapshot_indices = indices[ptype][sorted_local].astype(DTYPES["csr_indices"])
 
-            result[group_name][ptype] = {
-                "indices": snapshot_indices,
-                "offsets": offsets.astype(DTYPES["csr_offsets"]),
-                "lengths": lengths,
-            }
+            result[group_name][ptype] = MembershipArrays(
+                indices=indices[ptype][sorted_local].astype(DTYPES["csr_indices"]),
+                offsets=offsets.astype(DTYPES["csr_offsets"]),
+            )
 
-    logger.info("Constructed membership lists.")
+    logger.info("Constructed particle-level membership arrays.")
 
     return result
 
 
 def pack_rank_data(
     data: SimulationData,
-    particle_lists: dict[str, dict[str, dict]],
+    particle_membership_arrays: dict[str, dict[str, MembershipArrays]],
     internals: Internals,
 ) -> RankPackedData:
     """
@@ -149,18 +146,12 @@ def pack_rank_data(
         group_store = data.groups[group_name]
 
         # particle-group membership
-        particle_membership: dict[str, np.ndarray] = {}
+        particle_membership: dict[str, MembershipArrays] = {}
         for ptype in group_params["ptypes"]:
-            if ptype not in particle_lists[group_name]:
+            if ptype not in particle_membership_arrays[group_name]:
                 logger.debug(f"{ptype} is not in the particle lists.")
                 continue
-
-            pl = particle_lists[group_name][ptype]
-            membership_arrays = MembershipArrays(
-                indices=pl["indices"],
-                offsets=pl["offsets"],
-            )
-            particle_membership[ptype] = membership_arrays
+            particle_membership[ptype] = particle_membership_arrays[group_name][ptype]
 
         # group-group membership
         membership_columns: dict[str, np.ndarray] = {}
@@ -174,14 +165,16 @@ def pack_rank_data(
         # physics data
         physics_columns: dict[
             str, np.ndarray
-        ] = {}  # write all properties as flat columns; the file-write does hdf5 hierarchies
+        ] = {}  # write all properties as flat "physics" columns; the file-write does hdf5 hierarchies
         for column_name in group_store.columns:
             if column_name.startswith(
                 "_"
             ):  # the convention I went with was to use a _ prefix for columns which go on GroupStore but not catalogue
                 continue
 
-            if column_name not in internals.output_columns:
+            if (
+                column_name not in internals.output_columns
+            ):  # make sure whatever property you want in the catalogue is in internals.yaml
                 continue
 
             physics_columns[column_name] = group_store[column_name]

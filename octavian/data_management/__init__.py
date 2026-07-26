@@ -1,5 +1,5 @@
 from .pack_catalogue_data import (
-    construct_particle_csr_lists as construct_particle_csr_lists,
+    construct_membership_arrays as construct_membership_arrays,
     write_catalogue_metadata as write_catalogue_metadata,
     pack_rank_data as pack_rank_data,
     RankPackedData as RankPackedData,
