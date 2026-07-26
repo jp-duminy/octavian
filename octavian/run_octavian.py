@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 from octavian.data_management import (
     construct_membership_arrays,
-    write_catalogue_parallel,
+    write_catalogue,
     write_catalogue_metadata,
     GroupStore,
     SimulationData,
@@ -47,7 +47,7 @@ from octavian.aggregate_properties import (
     run_local_environment,
     assign_membership,
 )
-from octavian.log import configure_logger, get_logger
+from octavian.log import configure_logger, get_logger, clean_logs
 
 # data handling
 from pathlib import Path
@@ -220,7 +220,7 @@ def run_octavian(
 
     catalogue_path = output_catalogue_path(directory=output_dir)
 
-    write_catalogue_parallel(
+    write_catalogue(
         packed_data=packed_data,
         catalogue_path=catalogue_path,
         internals=internals,
@@ -233,3 +233,4 @@ def run_octavian(
             config=config,
             n_ranks=size,
         )
+        clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)

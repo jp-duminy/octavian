@@ -37,7 +37,7 @@ from cycler import cycler
 
 # octavian pipeline stages
 from octavian.data_management import (
-    write_catalogue_parallel,
+    write_catalogue,
     construct_membership_arrays,
     GroupStore,
     SimulationData,
@@ -61,7 +61,7 @@ from octavian.data_management import (
 from octavian.external_halo_sources import (
     build_halo_source,
 )
-from octavian.log import configure_logger, get_logger
+from octavian.log import configure_logger, get_logger, clean_logs
 from octavian.galaxy_finding import find_galaxies
 from octavian.aggregate_properties import (
     run_ptype_specific_properties,
@@ -560,7 +560,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         catalogue_path = output_catalogue_path(snapshot_path=args.snapshot, output_dir=args.work_dir)
 
-        write_catalogue_parallel(
+        write_catalogue(
             packed_data=packed_data,
             catalogue_path=catalogue_path,
             internals=internals,
@@ -572,6 +572,7 @@ def test_run(args: argparse.Namespace) -> None:
             write_catalogue_metadata(
                 catalogue_path=catalogue_path, snapshot_path=args.snapshot, config=config, n_ranks=size
             )
+            clean_logs(log_dir=args.work_dir, n_ranks=size, keep_logs=config.keep_logs)
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]
         all_memories = comm.gather(memories, root=0) if comm else [memories]
@@ -600,15 +601,6 @@ def test_run(args: argparse.Namespace) -> None:
             )
             plot_gsmf(catalogue=catalogue_path, boxsize=25, minstars=32)
             validate_against_reference(catalogue=catalogue_path, reference=args.reference)
-
-
-def _assert_conserved(label: str, pre: int, post: int):
-    """
-    Helper function to check whether the counts are preserved.
-    """
-    logger = get_logger()
-    logger.info(f"{label}: pre-merge={pre} / post-merge={post}")
-    assert pre == post, f"{label} mismatch: {post - pre:+d}"
 
 
 def current_memory_gb() -> float:

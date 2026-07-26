@@ -5,8 +5,7 @@ from .pack_catalogue_data import (
     RankPackedData as RankPackedData,
 )
 from .parallel_writing import (
-    write_catalogue_parallel as write_catalogue_parallel,
-    clean_intermediates as clean_intermediates,
+    write_catalogue as write_catalogue,
 )
 from .data_structures import (
     SimulationData as SimulationData,

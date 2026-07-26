@@ -21,7 +21,7 @@ from octavian.data_management import (
     build_reader,
     generate_rank_assignments,
     assign_rank_halo_assignments,
-    write_catalogue_parallel,
+    write_catalogue,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -80,7 +80,7 @@ def mock_catalogue(
         global_subhalo_info=subhalo_info,
     )
 
-    write_catalogue_parallel(packed_data=packed_data, catalogue_path=output_path, internals=internals, comm=None)
+    write_catalogue(packed_data=packed_data, catalogue_path=output_path, internals=internals, comm=None)
 
     assert output_path.exists()
 

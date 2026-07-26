@@ -68,3 +68,29 @@ def merged_log_path(directory: Path) -> Path:
     Returns the Path object pointing to the merged log filename.
     """
     return directory / "output_log.log"
+
+
+def clean_logs(
+    log_dir: Path,
+    n_ranks: int,
+    keep_logs: bool,
+) -> None:
+    """
+    Cleans the log directory by either merging per-rank logs into one or deleting them entirely.
+    """
+    logger = get_logger()
+    if keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
+        merged_log = log_dir / "octavian.log"
+        with open(merged_log, "w") as out:
+            for i in range(n_ranks):
+                rank_log = intermediate_log_path(directory=log_dir, rank=i)
+                if rank_log.exists():
+                    out.write(
+                        rank_log.read_text()
+                    )  # this writes the logs sequentially so it appears in rank order in the merged log
+                    rank_log.unlink()
+            logger.info(f"Merged then cleaned up {n_ranks} log files.")
+    else:
+        for i in range(n_ranks):
+            (intermediate_log_path(directory=log_dir, rank=i)).unlink(missing_ok=True)  # just remove intermediate logs
+        logger.info(f"Removed {n_ranks} log files.")
