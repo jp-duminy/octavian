@@ -37,10 +37,8 @@ from cycler import cycler
 
 # octavian pipeline stages
 from octavian.data_management import (
-    write_analysis_to_output_file,
+    write_catalogue_parallel,
     construct_particle_csr_lists,
-    merge_intermediate_catalogues_2,
-    clean_intermediates,
     GroupStore,
     SimulationData,
     Internals,
@@ -59,7 +57,7 @@ from octavian.data_management import (
     assign_local_subhalos,
     assign_rank_halo_assignments,
     pack_rank_data,
-    gather_datasets,
+    write_catalogue_metadata,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -253,13 +251,6 @@ def _profiled_pipeline(
 
         particle_lists = construct_particle_csr_lists(
             data=simulation_data, internals=internals, indices=particle_indices
-        )
-
-        write_analysis_to_output_file(
-            data=simulation_data,
-            particle_lists=particle_lists,
-            internals=internals,
-            output_file=output_path,
         )
 
         packed_data = pack_rank_data(
@@ -605,28 +596,23 @@ def test_run(args: argparse.Namespace) -> None:
             global_subhalo_info=subhalo_info,
         )
 
-        gathered = gather_datasets(local_data=packed_data, internals=internals, comm=comm)
-
         if comm:
             comm.Barrier()
 
         catalogue_path = output_catalogue_path(snapshot_path=args.snapshot, output_dir=args.work_dir)
 
+        write_catalogue_parallel(
+            packed_data=packed_data,
+            catalogue_path=catalogue_path,
+            internals=internals,
+            comm=comm,
+        )
+
         if rank == 0:
-            all_lightweight, gathered_csr = gathered
-            merge_intermediate_catalogues_2(
-                all_lightweight=all_lightweight,
-                gathered_csr=gathered_csr,
-                output_path=catalogue_path,
-                internals=internals,
-            )
             conduct_output_catalogue_validation(catalogue=catalogue_path)
-            clean_intermediates(intermediate_dir=args.work_dir, output_dir=args.work_dir, n_ranks=size, config=config)
-            """
             write_catalogue_metadata(
                 catalogue_path=catalogue_path, snapshot_path=args.snapshot, config=config, n_ranks=size
             )
-            """
 
         all_timings = comm.gather(timings, root=0) if comm else [timings]
         all_memories = comm.gather(memories, root=0) if comm else [memories]
