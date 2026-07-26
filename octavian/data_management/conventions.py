@@ -318,13 +318,6 @@ class SnapshotReader:
         raise NotImplementedError
 
 
-def intermediate_catalogue_path(directory: Path, rank: int) -> Path:
-    """
-    Returns the Path object pointing to the intermediate analysis catalogue filename for a rank.
-    """
-    return directory / f"rank_{rank}_analysis.hdf5"
-
-
 def output_catalogue_path(snapshot_path: Path, output_dir: Path) -> Path:
     """
     Returns the Path object pointing to the final production output analysis catalogue filename.
