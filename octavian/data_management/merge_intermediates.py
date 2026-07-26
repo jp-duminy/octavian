@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING, TypeAlias
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
     from octavian.data_management.conventions import OctavianConfig
-    from .write_data import RankPackedData
+    from .write_data import RankPackedData, MembershipArrays
+    from mpi4py.MPI import Comm
 
 # defaults
 from pathlib import Path
+from dataclasses import dataclass
 
 # others
 import h5py
@@ -41,6 +43,146 @@ FILL_VALUES: dict[str, int] = {
 }  # this is so data doesn't get sent through the pipeline if it doesn't exist (but we still need corresponding sentinel values for the tree pointers)
 
 
+@dataclass(slots=True)
+class UnpackedRankData:
+    """
+    Group-level membership and physics data arrays unpacked from the PackedRankData class.
+
+    - sort_arrays: the array (total mass, but with specific halo/data key for total/baryon) to sort groups by
+    - membership_chunks: per-rank membership data
+    - group_ids: all group IDs
+    - physics_chunks: per-rank physics data
+
+    Key by HDF5 output group name (likewise for columns contained therein).
+    """
+
+    sort_arrays: dict[str, list[np.ndarray]]
+    membership_chunks: dict[str, dict[str, list[np.ndarray]]]
+    group_ids: dict[str, list[np.ndarray]]
+    physics_chunks: dict[str, dict[str, list[np.ndarray]]]
+
+
+def write_catalogue_parallel(
+    packed_data: RankPackedData,
+    catalogue_path: Path,
+    internals: Internals,
+    comm: Comm | None,
+) -> None:
+    """
+    Drop in for merge_intermediate_catalogues 2 (write catalogue in parallel). Docstring unfinished.
+    """
+    rank = (
+        comm.Get_rank() if comm is not None else 0
+    )  # duplicates what's in run_octavian.py for conftest.py to work too
+    n_ranks = comm.Get_size() if comm is not None else 1
+
+    lightweight_data = packed_data.without_indices()  # indices array is sizen n_particles (others are n_groups)
+
+    all_lightweight: list[RankPackedData] = (
+        comm.gather(lightweight_data, root=0) if comm is not None else [lightweight_data]
+    )  # comm.gather is safe on the smaller datasets
+
+    if rank == 0:
+        logger.info(f"Synthesising analysis data from {len(all_lightweight)} ranks into output catalogue.")
+        unpacked = unpack_data(all_rank_data=all_lightweight, internals=internals)
+        sort_orders, resolved = sort_and_resolve(unpacked=unpacked)
+
+        write_catalogue_physics(
+            output_path=catalogue_path,
+            sort_orders=sort_orders,
+            resolved=resolved,
+            physics_chunks=unpacked.physics_chunks,
+            internals=internals,
+        )
+
+        per_rank_write_positions: dict[tuple[str, str], list[np.ndarray]] = {}
+
+        for group_type in internals.group_types:
+            group_params = internals.group_types[group_type]
+            hdf5_name = group_params["hdf5_group"]
+
+            for ptype in group_params["ptypes"]:
+                key = (hdf5_name, ptype)
+                rank_lengths = []
+
+                for rank_data in (
+                    all_lightweight
+                ):  # there is a fair bit of nestage in the dataclass here but hopefully this reads okay
+                    if hdf5_name in rank_data.groups and ptype in rank_data.groups[hdf5_name].particle_lists:
+                        rank_lengths.append(
+                            np.diff(rank_data.groups[hdf5_name].particle_lists[ptype].offsets)
+                        )  # diff(offsets) gives (n-1) lengths array
+                    else:
+                        rank_lengths.append(
+                            np.empty(0, dtype=DTYPES["csr_lengths"])
+                        )  # if data isn't on a rank (think high-z snaps) the ordering must be preserved
+
+                flat_lengths = np.concatenate(rank_lengths)
+                order = sort_orders[group_type]
+                sorted_lengths = flat_lengths[order]
+                sorted_offsets = np.empty(len(sorted_lengths) + 1, dtype=DTYPES["csr_offsets"])
+                sorted_offsets[0] = 0
+                np.cumsum(
+                    sorted_lengths, out=sorted_offsets[1:]
+                )  # doing np.concat with dtype arg doesn't work for the prepended 0 list
+
+                inverse_order = np.argsort(order, stable=True)
+                write_displacements = sorted_offsets[:-1][
+                    inverse_order
+                ]  # inverse_order[global_index] = sorted_position
+                nonzero_mask = sorted_lengths > 0
+                nonzero_displacements = sorted_offsets[:-1][nonzero_mask]
+                unique_count = len(np.unique(nonzero_displacements))
+                assert unique_count == len(nonzero_displacements), (
+                    f"{key}: {len(nonzero_displacements) - unique_count} duplicate displacements among nonzero-length groups"
+                )
+
+                rank_group_counts = [len(rl) for rl in rank_lengths]
+                per_rank_write_positions[key] = np.split(
+                    write_displacements, np.cumsum(rank_group_counts[:-1])
+                )  # gives per-rank boundaries
+
+                with h5py.File(catalogue_path, "a") as f:  # use "a" not "w"  (group data written above ^)
+                    membership_grp = f[hdf5_name]["membership"]
+                    membership_grp.create_dataset(f"{ptype}_offsets", data=sorted_offsets, compression=1)
+                    membership_grp.create_dataset(f"{ptype}_lengths", data=sorted_lengths, compression=1)
+                    membership_grp.create_dataset(
+                        f"{ptype}_indices", shape=(sorted_offsets[-1],), dtype=DTYPES["csr_indices"]
+                    )  # indices initialised to empty
+
+    rank_write_positions: dict[tuple[str, str], np.ndarray] = {}
+    rank_membership_data: dict[tuple[str, str], MembershipArrays] = {}
+
+    # each rank is given its HDF5 file displacements so it knows where to write the indices array to
+    for group_type in internals.group_types:
+        group_params = internals.group_types[group_type]
+        hdf5_name = group_params["hdf5_group"]
+
+        for ptype in group_params["ptypes"]:
+            key = (hdf5_name, ptype)
+            send_data = per_rank_write_positions[key] if rank == 0 else None
+            rank_write_positions[key] = comm.scatter(send_data, root=0) if comm is not None else send_data[0]
+
+            if hdf5_name in packed_data.groups and ptype in packed_data.groups[hdf5_name].particle_lists:
+                rank_membership_data[key] = packed_data.groups[hdf5_name].particle_lists[ptype]
+
+    # ranks take turns writing their indices array (globally-ordered) to the output catalogue
+    for writer_rank in range(n_ranks):
+        if rank == writer_rank and rank_membership_data:  # == writer_rank so ranks don't overwrite each others' data
+            with h5py.File(catalogue_path, "a") as f:  # also use "a" not "w"!
+                for (hdf5_name, ptype), csr in rank_membership_data.items():
+                    displacements = rank_write_positions[(hdf5_name, ptype)]
+                    dataset = f[hdf5_name][f"membership/{ptype}_indices"]
+                    for group_idx in range(len(displacements)):
+                        start, end = csr.offsets[group_idx], csr.offsets[group_idx + 1]
+                        if end > start:
+                            dataset[displacements[group_idx] : displacements[group_idx] + (end - start)] = csr.indices[
+                                start:end
+                            ]
+        if comm is not None:
+            comm.Barrier()  # remember to Barrier() because each rank needs to finish its write first
+
+
 def merge_intermediate_catalogues_2(
     all_lightweight: list[RankPackedData],
     gathered_csr: dict[tuple[str, str], np.ndarray],
@@ -51,19 +193,19 @@ def merge_intermediate_catalogues_2(
     Wrapper around microkernels which do the job of the old monolith.
     """
     logger.info(f"Synthesising analysis data from {len(all_lightweight)} ranks into output catalogue.")
-    sort_arrays, membership_chunks, all_group_ids, physics_chunks = unpack_data(
-        all_rank_data=all_lightweight, internals=internals
-    )
-    sort_orders, resolved = sort_and_resolve(sort_arrays, membership_chunks, all_group_ids)
+    unpacked = unpack_data(all_rank_data=all_lightweight, internals=internals)
+    sort_orders, resolved = sort_and_resolve(unpacked=unpacked)
+    """
     write_catalogue(
         output_path=output_path,
         sort_orders=sort_orders,
         resolved=resolved,
-        physics_chunks=physics_chunks,
+        physics_chunks=unpacked.physics_chunks,
         gathered_csr=gathered_csr,
         all_lightweight=all_lightweight,
         internals=internals,
     )
+    """
     logger.info("Created merged analysis catalogue.")
 
 
@@ -197,9 +339,7 @@ def _concat_rank_files(
 def unpack_data(
     all_rank_data: list[RankPackedData],
     internals: Internals,
-) -> tuple[
-    GroupLengths, SortArrays, MembershipChunks, dict[str, list[np.ndarray]], dict[str, dict[str, list[np.ndarray]]]
-]:
+) -> UnpackedRankData:
     """
     Will finish docstring once returns are done.
     """
@@ -266,22 +406,27 @@ def unpack_data(
             -1
         ]  # use the previous rank's contribution so the next knows where to start
 
-    return group_lengths, sort_arrays, membership_chunks, all_group_ids
+    unpacked_data = UnpackedRankData(
+        sort_arrays=sort_arrays,
+        membership_chunks=membership_chunks,
+        group_ids=all_group_ids,
+        physics_chunks=physics_chunks,
+    )
+
+    return unpacked_data
 
 
 def sort_and_resolve(
-    sort_arrays: SortArrays,
-    membership_chunks: MembershipChunks,
-    all_group_ids: dict[str, list[np.ndarray]],
+    unpacked: UnpackedRankData,
 ) -> tuple[dict[str, np.ndarray], dict[tuple[str, str], np.ndarray]]:
     """
     Sorts and resolves the concatenated per-rank data (for catalogue invariance).
     """
     sort_orders: dict[str, np.ndarray] = {}
-    for group_type in sort_arrays:
-        merged = np.concatenate(sort_arrays[group_type])
-        global_ids = np.concatenate(all_group_ids[group_type])
-        depth_chunks = membership_chunks.get(group_type, {}).get("depth")
+    for group_type in unpacked.sort_arrays:
+        merged = np.concatenate(unpacked.sort_arrays[group_type])
+        global_ids = np.concatenate(unpacked.group_ids[group_type])
+        depth_chunks = unpacked.membership_chunks.get(group_type, {}).get("depth")
 
         if depth_chunks:
             depth = np.concatenate(depth_chunks)
@@ -297,7 +442,7 @@ def sort_and_resolve(
     # now resolve the per-rank orders into the final descending order
     resolved: dict[tuple[str, str], np.ndarray] = {}
 
-    for group_type, columns in membership_chunks.items():
+    for group_type, columns in unpacked.membership_chunks.items():
         if group_type not in sort_orders:
             continue
 
@@ -312,13 +457,11 @@ def sort_and_resolve(
     return sort_orders, resolved
 
 
-def write_catalogue(
+def write_catalogue_physics(
     output_path: Path,
     sort_orders: dict[str, np.ndarray],
     resolved: dict[tuple[str, str], np.ndarray],
     physics_chunks: dict[str, dict[str, list[np.ndarray]]],
-    gathered_csr: dict[tuple[str, str], np.ndarray],
-    all_lightweight: list[RankPackedData],
     internals: Internals,
 ) -> None:
     """
@@ -360,22 +503,6 @@ def write_catalogue(
                 )
                 dataset.attrs["unit"] = column_meta.unit
                 dataset.attrs["description"] = column_meta.description
-
-            # particle membership lists are handled explicitly
-            for ptype in group_params["ptypes"]:
-                key = (hdf5_name, ptype)
-                if key not in gathered_csr:
-                    continue
-
-                rank_lengths = [
-                    np.diff(r.groups[hdf5_name].particle_lists[ptype].offsets)
-                    for r in all_lightweight
-                    if hdf5_name in r.groups and ptype in r.groups[hdf5_name].particle_lists
-                ]
-                indices, offsets, lengths = _reorder_csr_lists([gathered_csr[key]], rank_lengths, order)
-                membership_grp.create_dataset(f"{ptype}_indices", data=indices, compression=1)
-                membership_grp.create_dataset(f"{ptype}_offsets", data=offsets, compression=1)
-                membership_grp.create_dataset(f"{ptype}_lengths", data=lengths, compression=1)
 
         # now another loop galaxy memberships (required halos to be done already)
         if "halos" in sort_orders and ("galaxies", "parent_halo_index") in resolved:

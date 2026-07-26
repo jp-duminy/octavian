@@ -16,9 +16,8 @@ if TYPE_CHECKING:
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
 
 from octavian.data_management import (
-    write_analysis_to_output_file,
     construct_particle_csr_lists,
-    merge_intermediate_catalogues_2,
+    write_catalogue_parallel,
     write_catalogue_metadata,
     GroupStore,
     SimulationData,
@@ -38,7 +37,6 @@ from octavian.data_management import (
     assign_rank_halo_assignments,
     assign_local_subhalos,
     pack_rank_data,
-    gather_datasets,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -71,7 +69,6 @@ def get_mpi_communicator() -> MPI.Comm | None:
 
 
 def execute_pipeline(
-    output_path: Path,
     config: OctavianConfig,
     internals: Internals,
     constants: OctavianConstants,
@@ -151,13 +148,6 @@ def execute_pipeline(
 
     particle_lists = construct_particle_csr_lists(data=simulation_data, internals=internals, indices=particle_indices)
 
-    write_analysis_to_output_file(
-        data=simulation_data,
-        particle_lists=particle_lists,
-        internals=internals,
-        output_file=output_path,
-    )
-
     packed_data = pack_rank_data(data=simulation_data, particle_lists=particle_lists, internals=internals)
 
     return packed_data
@@ -231,18 +221,15 @@ def run_octavian(
         global_subhalo_info=subhalo_info,
     )
 
-    gathered = gather_datasets(local_data=packed_data, internals=internals, comm=comm)
-
     catalogue_path = output_catalogue_path(directory=output_dir)
 
+    write_catalogue_parallel(
+        packed_data=packed_data,
+        catalogue_path=catalogue_path,
+        internals=internals,
+        comm=comm,
+    )
     if rank == 0:
-        all_lightweight, gathered_csr = gathered
-        merge_intermediate_catalogues_2(
-            all_lightweight=all_lightweight,
-            gathered_csr=gathered_csr,
-            output_path=catalogue_path,
-            internals=internals,
-        )
         write_catalogue_metadata(
             catalogue_path=catalogue_path,
             snapshot_path=snapshot_path,

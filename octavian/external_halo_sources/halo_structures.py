@@ -38,6 +38,7 @@ class SubhaloInformation:
     host_halo_ids: np.ndarray  # top-level HaloID
     parent_index: np.ndarray  # immediate parent subhalo index
     depth: np.ndarray  # >= 1
+    global_index: np.ndarray
     n_bound: np.ndarray
 
 
