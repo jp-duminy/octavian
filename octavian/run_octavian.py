@@ -33,7 +33,6 @@ from octavian.data_management import (
     get_releasable_columns,
     generate_rank_assignments,
     output_catalogue_path,
-    intermediate_catalogue_path,
     assign_rank_halo_assignments,
     assign_local_subhalos,
     pack_rank_data,
@@ -209,10 +208,7 @@ def run_octavian(
 
     reader.set_indices(indices=rank_indices)
 
-    intermediate_output = intermediate_catalogue_path(directory=intermediate_dir, rank=rank)
-
     packed_data = execute_pipeline(
-        output_path=intermediate_output,
         config=config,
         internals=internals,
         constants=oc,

@@ -4,29 +4,21 @@ I/O functions for reading in parallel from the same .hdf5 snapshot file.
 
 """
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.data_structures import ParticleStore
     from octavian.data_management.conventions import OctavianConfig
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
-    from .pipeline_management import Internals
-    from mpi4py.MPI import Comm
 
 # others
 import numpy as np
 from dataclasses import replace
-from mpi4py.MPI import INT64_T
 
 # octavian
 from octavian.log import get_logger
-from .conventions import DTYPES
-from .write_data import RankPackedData
 
 logger = get_logger()
-GatheredData: TypeAlias = tuple[
-    list[RankPackedData], dict[tuple[str, str], np.ndarray]
-]  # this is to mask the hideous nature of this type annotation
 
 
 def generate_rank_assignments(
@@ -173,70 +165,3 @@ def assign_rank_halo_assignments(
         per_rank_assignments.append(replace(halo_assignments, halo_ids=sliced_hids, subhalo_ids=sliced_subhids))
 
     return per_rank_assignments
-
-
-def gather_datasets(
-    local_data: RankPackedData,
-    internals: Internals,
-    comm: Comm | None,
-) -> GatheredData | None:
-    """
-    Gathers data from other ranks (docstring unfinished).
-    """
-    if comm is None:
-        gathered_csr: dict[tuple[str, str], np.ndarray] = {}
-        for group_params in internals.group_types.values():
-            hdf5_name = group_params["hdf5_group"]
-            local_group = local_data.groups.get(hdf5_name)
-            if not local_group:
-                continue
-            for ptype, membership in local_group.particle_lists.items():
-                gathered_csr[(hdf5_name, ptype)] = membership.indices
-        return [local_data.without_indices()], gathered_csr  # match type check
-
-    rank = comm.Get_rank()
-    lightweight = local_data.without_indices()
-    all_lightweight: list[RankPackedData] = comm.gather(
-        lightweight, root=0
-    )  # lightweight means everything except the indices array (which is n_particles big, everything else is n_groups big)
-    gathered_membership: dict[tuple[str, str], np.ndarray] = {}  # strings are hdf5 name/ptype
-    for group_params in internals.group_types.values():
-        hdf5_name = group_params["hdf5_group"]
-
-        for ptype in group_params["ptypes"]:
-            local_group = local_data.groups.get(hdf5_name)
-
-            if local_group and ptype in local_group.particle_lists:
-                send_indices = local_group.particle_lists[ptype].indices
-            else:
-                send_indices = np.empty(
-                    0, dtype=DTYPES["csr_indices"]
-                )  # if for whatever reason a list is missing, not doing this will wrong the offsets in parallel
-
-            if rank == 0:
-                per_rank_counts = []
-
-                for rank_lightweight in all_lightweight:
-                    rank_group = rank_lightweight.groups.get(hdf5_name)
-                    if rank_group and ptype in rank_group.particle_lists:
-                        count = rank_group.particle_lists[ptype].offsets[-1]  # final offset = total number of particles
-                    else:
-                        count = 0
-                    per_rank_counts.append(count)
-
-                per_rank_counts = np.array(per_rank_counts, dtype=np.int64)
-                displacements = np.concatenate(([0], np.cumsum(per_rank_counts[:-1]))).astype(np.int64)
-                memory_block = np.empty(
-                    sum(per_rank_counts), dtype=DTYPES["csr_indices"]
-                )  # Gatherv needs a pre-allocated block of memory to write to
-                gathered_membership[(hdf5_name, ptype)] = memory_block
-                comm.Gatherv(
-                    send_indices, [memory_block, per_rank_counts, displacements, INT64_T], root=0
-                )  # fills gathered_membership by writing to memory_block
-
-            else:
-                comm.Gatherv(send_indices, None, root=0)
-
-    if rank == 0:
-        return all_lightweight, gathered_membership
-    return None

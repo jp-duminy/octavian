@@ -53,7 +53,6 @@ from octavian.data_management import (
     get_releasable_columns,
     generate_rank_assignments,
     output_catalogue_path,
-    intermediate_catalogue_path,
     assign_local_subhalos,
     assign_rank_halo_assignments,
     pack_rank_data,
@@ -166,7 +165,6 @@ def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ra
 
 
 def _profiled_pipeline(
-    output_path: Path,
     config: OctavianConfig,
     internals: Internals,
     constants: OctavianConstants,
@@ -260,42 +258,6 @@ def _profiled_pipeline(
         )
 
         return packed_data
-
-
-"""
-def test_remerge(
-    all_lightweight: list[RankPackedData],
-    gathered_csr: dict[tuple[str, str], np.ndarray],
-    output_path: Path, 
-    internals: Internals,
-) -> None:
-
-    logger = get_logger()
-    n_halos_original, n_galaxies_original = 0, 0
-
-    for path in files:
-        with h5py.File(path, "r") as f:
-            n_halos_original += len(f["halo_data"]["HaloID"])
-            n_galaxies_original += len(f["galaxy_data"]["GalID"])
-
-    logger.info(f"Halos pre-merge: {n_halos_original}")
-    logger.info(f"Galaxies pre-merge: {n_galaxies_original}")
-
-    with time_and_memory("Remerge Catalogues"):
-        merge_intermediate_catalogues_2(
-            all_lightweight=all_lightweight, gathered_csr=gathered_csr, output_path=output_path, internals=internals
-        )
-
-    with h5py.File(output_path, "r") as f:
-        n_galaxies_final = len(f["galaxy_data"]["GalID"])
-        n_halos_final = len(f["halo_data"]["HaloID"])
-
-    logger.info(f"Halos post-merge: {n_halos_final}")
-    logger.info(f"Galaxies post-merge: {n_galaxies_final}")
-
-    _assert_conserved(label="Number of Halos", pre=n_halos_original, post=n_halos_final)
-    _assert_conserved(label="Number of Galaxies", pre=n_galaxies_original, post=n_galaxies_final)
-"""
 
 
 def validate_against_reference(catalogue: Path, reference: Path, rtol: float = 1e-6, atol: float = 1e-10) -> None:
@@ -584,10 +546,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         reader.set_indices(indices=rank_indices)
 
-        intermediate_path = intermediate_catalogue_path(directory=args.work_dir, rank=rank)
-
         packed_data = _profiled_pipeline(
-            output_path=intermediate_path,
             config=config,
             internals=internals,
             constants=oc,

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, TypeAlias
 if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
     from octavian.data_management.conventions import OctavianConfig
-    from .write_data import RankPackedData, MembershipArrays
+    from .pack_catalogue_data import RankPackedData, MembershipArrays
     from mpi4py.MPI import Comm
 
 # defaults
@@ -23,7 +23,7 @@ import h5py
 import numpy as np
 
 # octavian
-from octavian.data_management.conventions import DTYPES, intermediate_catalogue_path
+from octavian.data_management.conventions import DTYPES
 from octavian.log import get_logger, intermediate_log_path
 
 GroupLengths: TypeAlias = dict[str, list[int]]  # temporary to avoid horrific type annotations
@@ -183,32 +183,6 @@ def write_catalogue_parallel(
             comm.Barrier()  # remember to Barrier() because each rank needs to finish its write first
 
 
-def merge_intermediate_catalogues_2(
-    all_lightweight: list[RankPackedData],
-    gathered_csr: dict[tuple[str, str], np.ndarray],
-    output_path: Path,
-    internals: Internals,
-) -> None:
-    """
-    Wrapper around microkernels which do the job of the old monolith.
-    """
-    logger.info(f"Synthesising analysis data from {len(all_lightweight)} ranks into output catalogue.")
-    unpacked = unpack_data(all_rank_data=all_lightweight, internals=internals)
-    sort_orders, resolved = sort_and_resolve(unpacked=unpacked)
-    """
-    write_catalogue(
-        output_path=output_path,
-        sort_orders=sort_orders,
-        resolved=resolved,
-        physics_chunks=unpacked.physics_chunks,
-        gathered_csr=gathered_csr,
-        all_lightweight=all_lightweight,
-        internals=internals,
-    )
-    """
-    logger.info("Created merged analysis catalogue.")
-
-
 def _resolve_pointer_column(chunks: list[np.ndarray], inverse_halo_order: np.ndarray, order: np.ndarray) -> np.ndarray:
     """
     Concatenates per-rank pointers and reindexes them into final merged catalogue order.
@@ -256,84 +230,6 @@ def _build_galaxy_membership_csr(
     central_galaxy_index[non_empty] = indices[offsets[:-1][non_empty]]
 
     return indices, offsets, lengths, central_galaxy_index
-
-
-def _concat_rank_files(
-    files: list[Path],
-    internals: Internals,
-) -> tuple[GroupLengths, SortArrays, MembershipChunks, dict[str, list[np.ndarray]]]:
-    """
-    Temporary function to do the first part of merge_intermediates (concatenating per-rank file data.). Type checking this is horrific.
-    """
-    group_lengths: dict[str, list[int]] = {}
-    sort_arrays: dict[str, list[np.ndarray]] = {}
-    membership_chunks: dict[str, dict[str, list[np.ndarray]]] = {
-        group_type: {
-            column_name: []
-            for column_name in internals.membership_columns.get(group_type, {})
-            if column_name
-            != "central_galaxy_index"  # this has to be done by merge_intermediates so isn't in data at this point
-        }
-        for group_type in internals.group_types
-    }
-    cumulative_halos = 0
-
-    for file in files:
-        with h5py.File(file, "r") as f:
-            for group_type in internals.group_types:
-                group_params = internals.group_types[group_type]
-                hdf5_name = group_params["hdf5_group"]
-
-                if hdf5_name not in f:
-                    group_lengths.setdefault(group_type, []).append(0)
-                    continue
-
-                kind = group_params["kind"]
-                sort_column = SORT_COLUMN_BY_KIND[kind].rsplit("/", 1)[-1]  # the rank data doesn't include hdf5
-
-                grp = f[hdf5_name]
-                n_groups = len(grp[group_params["key"]])
-                group_lengths.setdefault(group_type, []).append(n_groups)
-                sort_arrays.setdefault(group_type, []).append(grp[sort_column][:])
-
-                if n_groups == 0:
-                    logger.warning(f"No groups found for {group_type} in {file}.")
-                    continue
-
-                for column_name in membership_chunks[group_type]:
-                    dataset_path = f"membership/{column_name}"
-
-                    if dataset_path in grp:
-                        chunk = grp[dataset_path][:]
-                    elif column_name in FILL_VALUES:
-                        column_meta = internals.membership_columns[group_type][column_name]
-                        chunk = np.full(n_groups, FILL_VALUES[column_name], dtype=np.dtype(column_meta.dtype))
-                    else:
-                        raise KeyError(
-                            f"{file} is missing membership columns {dataset_path!r} (which is declared in internals.yaml)"
-                        )
-
-                    if column_name in HALO_POINTER_COLUMNS:
-                        chunk = np.where(chunk == -1, -1, chunk + cumulative_halos)
-
-                    membership_chunks[group_type][column_name].append(chunk)
-
-            cumulative_halos += group_lengths["halos"][-1]
-
-    all_group_ids: dict[str, list[np.ndarray]] = {}
-    for group_type in sort_arrays:
-        key = internals.group_types[group_type]["key"]
-        group_ids = []
-
-        for file, length in zip(files, group_lengths[group_type]):
-            if length == 0:
-                continue
-            with h5py.File(file, "r") as f:
-                group_ids.append(f[internals.group_types[group_type]["hdf5_group"]][key][:])
-
-        all_group_ids[group_type] = group_ids
-
-    return group_lengths, sort_arrays, membership_chunks, all_group_ids
 
 
 def unpack_data(
@@ -533,10 +429,6 @@ def clean_intermediates(
     """
     Cleans the working directory by removing intermediate analysis catalogues and compressing the log into one file/removing the log, depending on what was specified in config.yaml.
     """
-    for i in range(n_ranks):  # remove intermediate analysis files
-        (intermediate_catalogue_path(directory=intermediate_dir, rank=i)).unlink(missing_ok=True)
-    logger.info(f"Removed {n_ranks} intermediate analysis catalogues.")
-
     if config.keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
         merged_log = output_dir / "octavian.log"
         with open(merged_log, "w") as out:
@@ -552,37 +444,3 @@ def clean_intermediates(
                 missing_ok=True
             )  # remove intermediate logs
         logger.info(f"Removed {n_ranks} log files.")
-
-
-def _discover_datasets(group: h5py.Group, exclude_suffixes: tuple[str, ...]) -> set[str]:
-    """
-    Uses h5py's visititems to go into sub-groups (e.g. properties/core) etc. and populate column fields.
-    """
-    datasets: set[str] = set()
-    group.visititems(
-        lambda name, obj: (
-            datasets.add(name) if isinstance(obj, h5py.Dataset) and not name.endswith(exclude_suffixes) else None
-        )
-    )
-    return datasets
-
-
-def _reorder_csr_lists(
-    all_indices: list[np.ndarray], all_lengths: list[np.ndarray], order: np.ndarray
-) -> tuple[np.ndarray, ...]:
-    """
-    Helper to reorders CSR-format particle lists according to the group sort order (which should be largest mass descending).
-    """
-    flat_lengths = np.concatenate(all_lengths)
-    flat_offsets = np.concatenate([[0], np.cumsum(flat_lengths)]).astype(
-        DTYPES["csr_offsets"]
-    )  # this is technically the same as line above
-    flat_indices = np.concatenate(all_indices)
-
-    reordered_lengths = flat_lengths[order]
-    reordered_indices = np.concatenate(
-        [flat_indices[flat_offsets[i] : flat_offsets[i] + flat_lengths[i]] for i in order]
-    )
-    reordered_offsets = np.concatenate([[0], np.cumsum(reordered_lengths)]).astype(DTYPES["csr_offsets"])
-
-    return reordered_indices, reordered_offsets, reordered_lengths
