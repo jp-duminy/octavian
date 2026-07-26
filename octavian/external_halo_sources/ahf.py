@@ -46,6 +46,7 @@ class AHFHaloSource(HaloSource):
             ahf_ids=raw_ahf_ids, raw_host_ids=raw_host_ids
         )  # this uses searchsorted so no need for the contiguous ID helper
 
+        field_of = compute_field_index(parent_ids=parent_indices)
         depths = compute_depths(parent_ids=parent_indices)
 
         is_field = parent_indices == -1
@@ -56,7 +57,7 @@ class AHFHaloSource(HaloSource):
         sub_lookup = np.full(len(raw_ahf_ids), fill_value=-1, dtype=np.int64)
         sub_lookup[~is_field] = np.arange((~is_field).sum(), dtype=np.int64)
 
-        return parent_indices, depths, n_particles, field_lookup, sub_lookup
+        return parent_indices, depths, n_particles, field_lookup, sub_lookup, field_of
 
     @cached_property
     def _particles(self) -> tuple[np.ndarray, ...]:
@@ -65,7 +66,7 @@ class AHFHaloSource(HaloSource):
         Returns (unique_pids, field_halo_indices, deepest_halo_indices), sorted by unique_pids.
         """
         particles_array = np.loadtxt(self.particles_path, skiprows=1, dtype=np.int64)
-        _, depths, _, _, _ = self._halos_catalogue
+        _, depths, _, _, _, _ = self._halos_catalogue
 
         pids, halo_indices = parse_ahf_particles(ahf_particle_array=particles_array, n_halos=len(depths))
 
@@ -75,8 +76,8 @@ class AHFHaloSource(HaloSource):
         """
         Returns a HaloAssignments dataclass containing the assignments made by AHF.
         """
-        _, depths, _, field_lookup, sub_lookup = self._halos_catalogue
-        unique_pids, field_halo_indices, deepest_halo_indices = self._particles
+        _, depths, _, field_lookup, sub_lookup, field_of = self._halos_catalogue
+        unique_pids, deepest_halo_indices = self._particles
 
         halo_assignments: dict[str, np.ndarray] = {}
         subhalo_assignments: dict[str, np.ndarray] = {}
@@ -87,7 +88,7 @@ class AHFHaloSource(HaloSource):
             positional_hids, positional_subhids = match_ahf_particle_ids(
                 snapshot_pids=snapshot_pids,
                 unique_ahf_pids=unique_pids,
-                field_halo_indices=field_halo_indices,
+                field_of=field_of,
                 deepest_halo_indices=deepest_halo_indices,
                 depths=depths,
             )
@@ -97,13 +98,20 @@ class AHFHaloSource(HaloSource):
 
         n_total_halos = int((depths == 0).sum())
 
+        sub_info = self.read_subhalo_info()
+        for ptype, sub_ids in subhalo_assignments.items():
+            in_sub = sub_ids != -1
+            assert np.array_equal(sub_info.host_halo_ids[sub_ids[in_sub]], halo_assignments[ptype][in_sub]), (
+                f"{ptype}: particle HaloID disagrees with its subhalo's host tree."
+            )
+
         return HaloAssignments(halo_ids=halo_assignments, n_total_halos=n_total_halos, subhalo_ids=subhalo_assignments)
 
     def read_subhalo_info(self) -> SubhaloInformation:
         """
         Returns the AHF subhalo information, sliced to subhalo-only rows in contiguous SubhaloID order.
         """
-        parent_indices, depths, n_particles, field_lookup, sub_lookup = self._halos_catalogue
+        parent_indices, depths, n_particles, field_lookup, sub_lookup, field_of = self._halos_catalogue
 
         sub_mask = depths > 0
 
@@ -112,7 +120,7 @@ class AHFHaloSource(HaloSource):
         parent_is_field = depths[sub_parents] == 0
 
         parent_index = np.where(parent_is_field, -1, sub_lookup[sub_parents])
-        host_halo_ids = field_lookup[compute_field_index(parent_ids=parent_indices)[sub_mask]]
+        host_halo_ids = field_lookup[field_of[sub_mask]]
 
         return SubhaloInformation(
             host_halo_ids=host_halo_ids,
@@ -180,21 +188,17 @@ def deduplicate_ahf_particles(
     sorted_pids = pids[sort_order]
     sorted_halo_indices = halo_indices[sort_order]
 
-    first_appearance = np.empty(len(sorted_pids), dtype=np.bool_)
-    first_appearance[0] = True
-    first_appearance[1:] = sorted_pids[1:] != sorted_pids[:-1]
-
     last_appearance = np.empty(len(sorted_pids), dtype=np.bool_)
     last_appearance[-1] = True
     last_appearance[:-1] = sorted_pids[:-1] != sorted_pids[1:]
 
-    return sorted_pids[last_appearance], sorted_halo_indices[first_appearance], sorted_halo_indices[last_appearance]
+    return sorted_pids[last_appearance], sorted_halo_indices[last_appearance]
 
 
 def match_ahf_particle_ids(
     snapshot_pids: np.ndarray,
     unique_ahf_pids: np.ndarray,
-    field_halo_indices: np.ndarray,
+    field_of: np.ndarray,
     deepest_halo_indices: np.ndarray,
     depths: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -211,10 +215,9 @@ def match_ahf_particle_ids(
     aligned_subhids = np.full(shape=len(snapshot_pids), fill_value=-1, dtype=np.int64)
 
     matched_insertion = insertion_idx[matched]
-
-    aligned_hids[matched] = field_halo_indices[matched_insertion]
-
     deepest = deepest_halo_indices[matched_insertion]
+
+    aligned_hids[matched] = field_of[deepest]
     aligned_subhids[matched] = np.where(depths[deepest] > 0, deepest, -1)
 
     return aligned_hids, aligned_subhids
