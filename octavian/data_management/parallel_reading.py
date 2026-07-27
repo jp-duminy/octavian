@@ -86,9 +86,12 @@ def build_redistribution_map(
     halo_to_rank: np.ndarray,
     slab_halo_ids: np.ndarray,
     comm: Comm,
-) -> RedistributionMap:
+) -> tuple[RedistributionMap, np.ndarray]:
     """
-    Constructs the global RedistributionMap object for a slab of a dataset.
+    Constructs the global RedistributionMap object for a slab of a dataset. Returns:
+
+    - redistribution_map: a RedistributionMap object
+    - mask: mask for the slab to filter sentinel/below min_dm_per_halo haloes
     """
     in_halo = (
         slab_halo_ids != -1
@@ -113,7 +116,7 @@ def build_redistribution_map(
         rec_counts=rec_counts,
     )
 
-    return redistribution_map
+    return redistribution_map, mask
 
 
 def generate_rank_assignments_2(
@@ -249,6 +252,29 @@ def generate_rank_assignments(
             result[r][ptype] = filtered_indices[sorted_indices[offsets[r] : offsets[r + 1]]]
 
     return result
+
+
+def generate_slabs(
+    rank: int,
+    n_ranks: int,
+    particle_counts: dict[str, int],
+) -> dict[str, slice]:
+    """
+    Returns a slice of size [this_rank:next_rank] particles to be read from the raw snapshot.
+    """
+    slabs: dict[str, slice] = {}
+
+    for ptype, n_particles in particle_counts.items():
+        remainder = n_particles % n_ranks  # need to account for the remainder in division
+        base_allocation = n_particles // n_ranks
+
+        particles_per_rank = base_allocation + 1 if rank < remainder else base_allocation
+
+        start = rank * base_allocation + min(rank, remainder)
+        end = start + particles_per_rank
+        slabs[ptype] = slice(start, end)
+
+    return slabs
 
 
 def assign_local_subhalos(
