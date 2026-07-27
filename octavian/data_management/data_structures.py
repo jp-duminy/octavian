@@ -12,6 +12,9 @@ if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
     from octavian.data_management.conventions import OctavianConstants, OctavianConfig
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
+    from .parallel_reading import RedistributionMap, redistribute_particles
+    from mpi4py.MPI import Comm
+
 from octavian.log import get_logger
 
 # defaults
@@ -83,6 +86,7 @@ class GizmoReader(SnapshotReader):
         self.snapshot_path = snapshot_path
         self.constants = constants
         self.indices: dict[str, np.ndarray] | None = None
+        self.maps: dict[str, np.ndarray] | None = None
 
         self.read_header()
         self.unit_conversions = {
@@ -96,6 +100,21 @@ class GizmoReader(SnapshotReader):
         Stores the indice mask which allows a rank to access its assigned portion of the snapshot.
         """
         self.indices = indices  # avoids passing "indices=" into functions
+
+    def set_maps(
+        self,
+        slabs: dict[str, slice],
+        masks: dict[str, np.ndarray],
+        maps: dict[str, RedistributionMap],
+        comm: Comm | None,
+    ) -> None:
+        """
+        Stores the global particle redistribution map and comm for MPI file reads.
+        """
+        self.slabs = slabs
+        self.masks = masks
+        self.maps = maps
+        self.comm = comm
 
     def read_header(self) -> SimulationAttributes:
         """
@@ -111,6 +130,12 @@ class GizmoReader(SnapshotReader):
             a = header["Time"]
             redshift = header["Redshift"]
             n_star, n_gas = header["NumPart_Total"][4], header["NumPart_Total"][0]
+
+            self.n_particles_total = header["NumPart_Total"]
+            self.particle_counts = {
+                ptype_name: int(self.n_particles_total[int(hdf5_key[-1])])
+                for hdf5_key, ptype_name in self.ptype_map.items()
+            }
 
         flat_lambda_cdm = FlatLambdaCDM(H0=100 * h, Om0=omega_matter)  # always flatlambdacdm for gizmo
 
@@ -143,34 +168,49 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map[dataset]
 
+        # read the rank's slab
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_hdf5_array = f[hdf5_group][hdf5_name][:]
+            raw_array = f[hdf5_group][hdf5_name][self.slabs[ptype]]
+            filtered_array = raw_array[self.masks[ptype]]
 
-        if dataset == "metallicity":  # I think it's okay to have these as conditionals by way of being explicit
-            raw_hdf5_array = raw_hdf5_array[:, 0]
+        if dataset == "metallicity":  # for the metallicity (n, 11) columns: need a slice
+            filtered_array = filtered_array[:, 0]
 
         if dataset == "helium_fraction":
-            raw_hdf5_array = raw_hdf5_array[:, 1]
+            filtered_array = filtered_array[:, 1]
 
-        if dataset == "age":
-            raw_hdf5_array = derive_stellar_age(
-                formation_time=raw_hdf5_array,
+        if (
+            dataset == "age"
+        ):  # age has an early return because its unit conversion is handled by the function internally (this dataset is different)
+            filtered_array = derive_stellar_age(
+                formation_time=filtered_array,
                 time_gyr=self.simulation_attributes.time_gyr,
                 cosmology=self.simulation_attributes.cosmology,
             )
-            if self.indices is not None:
-                raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
 
-            return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+            if self.maps is not None:
+                result = redistribute_particles(
+                    local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
+                )
+            else:
+                result = filtered_array
 
+            return result.astype(DTYPES.get(dataset, np.float64))
+
+        # apply unit conversion factor (after data is filtered and masked, so the operation is cheaper)
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
-        if conversion_factor != 1.0:  # skip unnecessary multiplication on (potentially giant) arrays
-            raw_hdf5_array = raw_hdf5_array * conversion_factor
+        if conversion_factor != 1.0:  # skip unit conversion multiplication if unnecessary
+            filtered_array *= conversion_factor
 
-        if self.indices is not None:
-            raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
+        # mpi vs serial
+        if self.maps is not None:
+            result = redistribute_particles(
+                local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
+            )
+        else:
+            result = filtered_array
 
-        return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+        return result.astype(DTYPES.get(dataset, np.float64))  # change dtype at the end
 
     def read_halo_ids(self, ptype: str) -> np.ndarray:
         """
@@ -179,16 +219,21 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            halo_ids = f[hdf5_group]["HaloID"][:].astype(
+            raw_halo_ids = f[hdf5_group]["HaloID"][self.slabs[ptype]].astype(
                 DTYPES.get("HaloID", np.int64)
             )  # change dtype here otherwise you get int overflow
+            filtered_halo_ids = raw_halo_ids[self.masks[ptype]]
 
-            if self.indices is not None:
-                halo_ids = halo_ids[self.indices[ptype]]
+        filtered_halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
 
-        halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
+        if self.maps is not None:
+            result = redistribute_particles(
+                local_data=filtered_halo_ids, redistribution_map=self.maps[ptype], comm=self.comm
+            )
+        else:
+            result = filtered_halo_ids
 
-        return halo_ids
+        return result
 
     def read_particle_ids(self, ptype: str) -> np.ndarray:
         """
@@ -197,12 +242,18 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            particle_ids = f[hdf5_group]["ParticleIDs"][:].astype(DTYPES.get("pid", np.int64))
+            particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
 
-            if self.indices is not None:
-                particle_ids = particle_ids[self.indices[ptype]]
+        filtered_particle_ids = particle_ids[self.masks[ptype]]
 
-        return particle_ids
+        if self.maps is not None:
+            result = redistribute_particles(
+                local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
+            )
+        else:
+            result = filtered_particle_ids
+
+        return result.astype(DTYPES.get("pid", np.int64))
 
     def read_temperature(self, ptype: str = "gas") -> np.ndarray:
         """
@@ -267,6 +318,7 @@ class SwiftReader(SnapshotReader):
         self.snapshot_path = snapshot_path
         self.constants = constants
         self.indices: dict[str, np.ndarray] | None = None
+        self.maps: dict[str, RedistributionMap] | None = None
 
         self.read_header()
 
@@ -275,6 +327,21 @@ class SwiftReader(SnapshotReader):
         Stores the indice mask which allows a rank to access its assigned portion of the snapshot.
         """
         self.indices = indices  # avoids passing "indices=" into functions
+
+    def set_maps(
+        self,
+        slabs: dict[str, slice],
+        masks: dict[str, np.ndarray],
+        maps: dict[str, RedistributionMap],
+        comm: Comm | None,
+    ) -> None:
+        """
+        Stores the global particle redistribution map and comm for MPI file reads.
+        """
+        self.slabs = slabs
+        self.masks = masks
+        self.maps = maps
+        self.comm = comm
 
     def available_ptypes(self) -> list[str]:
         """
@@ -301,6 +368,12 @@ class SwiftReader(SnapshotReader):
 
             n_star = header["NumPart_Total"][4]
             n_gas = header["NumPart_Total"][0]
+
+            self.n_particles_total = header["NumPart_Total"]
+            self.particle_counts = {
+                ptype_name: int(self.n_particles_total[int(hdf5_key[-1])])
+                for hdf5_key, ptype_name in self.ptype_map.items()
+            }
 
             h = cosmo["h"].item()
             a = cosmo["Scale-factor"].item()
@@ -341,36 +414,48 @@ class SwiftReader(SnapshotReader):
             hdf5_dataset = f[hdf5_group][hdf5_name]
 
             if dataset == "fHI":
-                masses = f[hdf5_group]["Masses"][:]
-                HI_masses = f[hdf5_group]["AtomicHydrogenMasses"][:]
+                masses = f[hdf5_group]["Masses"][self.slabs[ptype]]
+                filtered_masses = masses[self.masks[ptype]]
+                HI_masses = f[hdf5_group]["AtomicHydrogenMasses"][self.slabs[ptype]]
+                filtered_HI_masses = HI_masses[self.masks[ptype]]
 
-                if self.indices is not None:
-                    masses = masses[self.indices[ptype]]
-                    HI_masses = HI_masses[self.indices[ptype]]
+                if self.maps is not None:
+                    result_HI_mass = redistribute_particles(
+                        local_data=filtered_HI_masses, redistribution_map=self.maps[ptype], comm=self.comm
+                    )
+                    result_mass = redistribute_particles(
+                        local_data=filtered_masses, redistribution_map=self.maps[ptype], comm=self.comm
+                    )
+                else:
+                    result_HI_mass = filtered_HI_masses
+                    result_mass = filtered_masses
 
-                return (HI_masses / masses).astype(DTYPES.get(dataset, np.float64))
+                return (result_HI_mass / result_mass).astype(DTYPES.get(dataset, np.float64))
 
             else:
-                raw_hdf5_array = hdf5_dataset[:]
+                raw_array = hdf5_dataset[self.slabs[ptype]]
+                filtered_array = raw_array[self.masks[ptype]]
                 a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
                 cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
 
         if dataset == "helium_fraction":
-            raw_hdf5_array = raw_hdf5_array[:, 1]
+            filtered_array = filtered_array[:, 1]
 
         if dataset == "age":
-            raw_hdf5_array = derive_stellar_age(
-                formation_time=raw_hdf5_array,
+            filtered_array = derive_stellar_age(
+                formation_time=filtered_array,
                 time_gyr=self.simulation_attributes.time_gyr,
                 cosmology=self.simulation_attributes.cosmology,
             )
-            if self.indices is not None:
-                raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
 
-            return raw_hdf5_array.astype(DTYPES.get(dataset, np.float64))
+            if self.maps is not None:
+                result = redistribute_particles(
+                    local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
+                )
+            else:
+                result = filtered_array
 
-        if self.indices is not None:
-            raw_hdf5_array = raw_hdf5_array[self.indices[ptype]]
+            return result.astype(DTYPES.get(dataset, np.float64))
 
         target_units = CODE_UNITS[dataset]
         target_cgs_units = (1.0 * target_units.unit).cgs.value
@@ -379,7 +464,16 @@ class SwiftReader(SnapshotReader):
 
         unit_factor = (a_correction * h_correction) * (cgs_factor / target_cgs_units)
 
-        result = raw_hdf5_array * unit_factor
+        if unit_factor != 1.0:
+            filtered_array *= unit_factor
+
+        # mpi vs serial
+        if self.maps is not None:
+            result = redistribute_particles(
+                local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
+            )
+        else:
+            result = filtered_array
 
         return result.astype(DTYPES.get(dataset, np.float64))
 
@@ -390,15 +484,21 @@ class SwiftReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            halo_ids = f[hdf5_group]["FOFGroupIDs"][:].astype(DTYPES.get("HaloID", np.int64))
-            if self.indices is not None:
-                halo_ids = halo_ids[self.indices[ptype]]
+            raw_halo_ids = f[hdf5_group]["FOFGroupIDs"][self.slabs[ptype]].astype(DTYPES.get("HaloID", np.int64))
+            filtered_halo_ids = raw_halo_ids[self.masks[ptype]]
 
-        sentinel_mask = halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
-        halo_ids -= 1  # SWIFT is also 1-indexed
-        halo_ids[sentinel_mask] = -1
+        sentinel_mask = filtered_halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
+        filtered_halo_ids -= 1  # SWIFT is also 1-indexed
+        filtered_halo_ids[sentinel_mask] = -1
 
-        return halo_ids
+        if self.maps is not None:
+            result = redistribute_particles(
+                local_data=filtered_halo_ids, redistribution_map=self.maps[ptype], comm=self.comm
+            )
+        else:
+            result = filtered_halo_ids
+
+        return result
 
     def read_particle_ids(self, ptype: str) -> np.ndarray:
         """
@@ -407,12 +507,17 @@ class SwiftReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            particle_ids = f[hdf5_group]["ParticleIDs"][:].astype(DTYPES.get("pid", np.int64))
+            raw_particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
+            filtered_particle_ids = raw_particle_ids[self.masks[ptype]]
 
-            if self.indices is not None:
-                particle_ids = particle_ids[self.indices[ptype]]
+        if self.maps is not None:
+            result = redistribute_particles(
+                local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
+            )
+        else:
+            result = filtered_particle_ids
 
-        return particle_ids
+        return result.astype(DTYPES.get("pid", np.int64))
 
     def read_temperature(self, ptype: str = "gas"):
         """

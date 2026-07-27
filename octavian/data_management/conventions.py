@@ -5,6 +5,12 @@ Also contains backend dataclasses.
 
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .parallel_reading import RedistributionMap
+    from mpi4py.MPI import Comm
+
 # default packages
 from dataclasses import dataclass, field
 from yaml import safe_load
@@ -278,6 +284,18 @@ class SnapshotReader:
     def set_indices(self, indices: dict[str, np.ndarray]) -> None:
         """
         Sets the indices (if in parallel) dictionary to the per-rank read masks.
+        """
+        raise NotImplementedError
+
+    def set_maps(
+        self,
+        slabs: dict[str, slice],
+        masks: dict[str, np.ndarray],
+        maps: dict[str, RedistributionMap],
+        comm: Comm | None,
+    ) -> None:
+        """
+        Sets the per-rank slabs; global particle redistribution map; corresponding halo threshold masks; and  and comm for MPI reading.
         """
         raise NotImplementedError
 
