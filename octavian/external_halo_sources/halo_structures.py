@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management import SnapshotReader
+    from mpi4py.MPI import Comm
 from dataclasses import dataclass
 import numpy as np
 from numba import njit
@@ -66,6 +67,28 @@ class HaloSource:
         """
         return None
 
+    def distribute_raw_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray]:
+        """
+        Distributes the global raw IDs (MPI).
+        """
+        raise NotImplementedError
+
+    def distribute_raw_subhalo_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_subhalo_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray] | None:
+        """
+        Distributes the global raw subhalo IDs (MPI).
+        """
+        raise NotImplementedError
+
 
 class SnapshotHaloSource(HaloSource):
     """
@@ -76,7 +99,7 @@ class SnapshotHaloSource(HaloSource):
 
         self.reader = reader
 
-    def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
+    def read_halo_ids(self, ptypes: list[str], comm=None, global_ids=None) -> HaloAssignments:
         """
         Iterates over ptypes with the reader to produce HaloAssignments.
         """
@@ -91,6 +114,23 @@ class SnapshotHaloSource(HaloSource):
         return HaloAssignments(
             halo_ids=halo_ids, n_total_halos=n_total_halos, subhalo_ids=None
         )  # on-the-fly currently does not do subhalos
+
+    def distribute_raw_ids(self, slabs: dict[str, slice], comm=None, global_ids=None) -> dict[str, np.ndarray]:
+        """
+        Iterates over ptypes to produce slabs of HaloIDs per-ptype.
+        """
+        raw_ids: dict[str, np.ndarray] = {}
+
+        for pt in self.reader.available_ptypes():
+            raw_ids[pt] = self.reader.read_halo_ids(ptype=pt, slab=slabs[pt])  # these are already contiguous
+
+        return raw_ids
+
+    def distribute_raw_subhalo_ids(self, slabs: dict[str, slice]) -> None:
+        """
+        Exists for compatibility with AHF.
+        """
+        return None
 
 
 @njit

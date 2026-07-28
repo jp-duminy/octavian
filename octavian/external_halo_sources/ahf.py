@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management import SnapshotReader
+    from mpi4py.MPI import Comm
 
 import numpy as np
 from pathlib import Path
@@ -25,6 +26,8 @@ from .halo_structures import (
     compute_depths,
     apply_lookup,
 )
+
+from octavian.data_management.parallel_reading import generate_slabs
 
 
 class AHFHaloSource(HaloSource):
@@ -129,6 +132,55 @@ class AHFHaloSource(HaloSource):
             depth=depths[sub_mask],
             n_bound=n_particles[sub_mask],
         )
+
+    def distribute_raw_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray]:
+        """
+        Distributes the raw IDs to other ranks (docstring unfinished).
+        """
+        if comm is None or comm.size == 1:
+            return {ptype: ids[slabs[ptype]].copy() for ptype, ids in global_ids.items()}
+
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+        result: dict[str, np.ndarray] = {}
+
+        if rank == 0:
+            all_slabs = {
+                dest: generate_slabs(rank=dest, n_ranks=size, particle_counts=self.reader.particle_counts)
+                for dest in range(size)
+            }
+
+        for ptype_index, ptype in enumerate(global_ids if rank == 0 else slabs):
+            slab = slabs[ptype]
+            slab_length = slab.stop - slab.start
+
+            if rank == 0:
+                result[ptype] = global_ids[ptype][slab].copy()  # .copy() instead of sending to itself
+
+                for dest in range(1, size):
+                    comm.Send(global_ids[ptype][all_slabs[dest][ptype]], dest=dest, tag=ptype_index)
+            else:
+                memory_block = np.empty(slab_length, dtype=np.int64)
+                comm.Recv(memory_block, source=0, tag=ptype_index)
+                result[ptype] = memory_block
+
+        return result
+
+    def distribute_raw_subhalo_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_subhalo_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray]:
+        """
+        Wrapper around distribute_raw_ids but for subhalos (made so SnapshotHaloSource and AHFHaloSource can match).
+        """
+        return self.distribute_raw_ids(slabs=slabs, comm=comm, global_ids=global_subhalo_ids)
 
 
 def parse_ahf_halos(ahf_halos_path: Path) -> tuple[np.ndarray, ...]:

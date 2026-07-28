@@ -279,7 +279,8 @@ class SnapshotReader:
     inverse_ptype_map: dict[str, str] = NotImplemented
     dataset_map: dict[str, dict[str, str]] = NotImplemented
     simulation_attributes: SimulationAttributes = NotImplemented
-    indices: dict[str, np.ndarray] | None = NotImplemented
+    global_indices: dict[str, np.ndarray] | None = NotImplemented
+    particle_counts: dict[str, int] | None = NotImplemented
 
     def set_indices(self, indices: dict[str, np.ndarray]) -> None:
         """
@@ -317,7 +318,7 @@ class SnapshotReader:
         """
         raise NotImplementedError
 
-    def read_halo_ids(self, ptype: str) -> np.ndarray:
+    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
         Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
         """

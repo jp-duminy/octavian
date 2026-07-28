@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from octavian.data_management.pipeline_management import Internals
     from octavian.data_management.conventions import OctavianConstants, OctavianConfig
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
-    from .parallel_reading import RedistributionMap, redistribute_particles
+    from .parallel_reading import RedistributionMap
     from mpi4py.MPI import Comm
 
 from octavian.log import get_logger
@@ -35,6 +35,8 @@ from octavian.data_management.conventions import (
     SnapshotReader,
     gizmo_unit_conversion_factor,
 )
+
+from .parallel_reading import redistribute_particles
 
 from .csr import (
     build_group_csr,
@@ -85,7 +87,7 @@ class GizmoReader(SnapshotReader):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
-        self.indices: dict[str, np.ndarray] | None = None
+        self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, np.ndarray] | None = None
 
         self.read_header()
@@ -115,6 +117,16 @@ class GizmoReader(SnapshotReader):
         self.masks = masks
         self.maps = maps
         self.comm = comm
+        self.global_indices: dict[str, np.ndarray] = {}
+
+        assert slabs.keys() == masks.keys()
+
+        for ptype in masks:
+            slab = slabs[ptype]
+            global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
+            self.global_indices[ptype] = redistribute_particles(
+                local_data=global_indices, redistribution_map=maps[ptype], comm=comm
+            )
 
     def read_header(self) -> SimulationAttributes:
         """
@@ -212,28 +224,20 @@ class GizmoReader(SnapshotReader):
 
         return result.astype(DTYPES.get(dataset, np.float64))  # change dtype at the end
 
-    def read_halo_ids(self, ptype: str) -> np.ndarray:
+    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
         Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavian's -1.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_halo_ids = f[hdf5_group]["HaloID"][self.slabs[ptype]].astype(
+            raw_halo_ids = f[hdf5_group]["HaloID"][slab].astype(
                 DTYPES.get("HaloID", np.int64)
             )  # change dtype here otherwise you get int overflow
-            filtered_halo_ids = raw_halo_ids[self.masks[ptype]]
 
-        filtered_halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
+        raw_halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
 
-        if self.maps is not None:
-            result = redistribute_particles(
-                local_data=filtered_halo_ids, redistribution_map=self.maps[ptype], comm=self.comm
-            )
-        else:
-            result = filtered_halo_ids
-
-        return result
+        return raw_halo_ids
 
     def read_particle_ids(self, ptype: str) -> np.ndarray:
         """
@@ -242,9 +246,11 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
-
-        filtered_particle_ids = particle_ids[self.masks[ptype]]
+            if self.maps is None:
+                filtered_particle_ids = f[hdf5_group]["ParticleIDs"][:]
+            else:
+                particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
+                filtered_particle_ids = particle_ids[self.masks[ptype]]
 
         if self.maps is not None:
             result = redistribute_particles(
@@ -317,7 +323,7 @@ class SwiftReader(SnapshotReader):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
-        self.indices: dict[str, np.ndarray] | None = None
+        self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, RedistributionMap] | None = None
 
         self.read_header()
@@ -342,6 +348,14 @@ class SwiftReader(SnapshotReader):
         self.masks = masks
         self.maps = maps
         self.comm = comm
+        self.global_indices: dict[str, np.ndarray] = {}
+
+        for ptype in masks:
+            slab = slabs[ptype]
+            global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
+            self.global_indices[ptype] = redistribute_particles(
+                local_data=global_indices, redistribution_map=maps[ptype], comm=comm
+            )
 
     def available_ptypes(self) -> list[str]:
         """
@@ -477,28 +491,20 @@ class SwiftReader(SnapshotReader):
 
         return result.astype(DTYPES.get(dataset, np.float64))
 
-    def read_halo_ids(self, ptype: str):
+    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
         Reads (placeholder) FOFGroupIDs as HaloIDs if the external doesn't exist. SWIFT sentinel value is the uint32 max.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_halo_ids = f[hdf5_group]["FOFGroupIDs"][self.slabs[ptype]].astype(DTYPES.get("HaloID", np.int64))
-            filtered_halo_ids = raw_halo_ids[self.masks[ptype]]
+            raw_halo_ids = f[hdf5_group]["FOFGroupIDs"][slab].astype(DTYPES.get("HaloID", np.int64))
 
-        sentinel_mask = filtered_halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
-        filtered_halo_ids -= 1  # SWIFT is also 1-indexed
-        filtered_halo_ids[sentinel_mask] = -1
+        sentinel_mask = raw_halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
+        raw_halo_ids -= 1  # SWIFT is also 1-indexed
+        raw_halo_ids[sentinel_mask] = -1
 
-        if self.maps is not None:
-            result = redistribute_particles(
-                local_data=filtered_halo_ids, redistribution_map=self.maps[ptype], comm=self.comm
-            )
-        else:
-            result = filtered_halo_ids
-
-        return result
+        return raw_halo_ids
 
     def read_particle_ids(self, ptype: str) -> np.ndarray:
         """
@@ -507,8 +513,11 @@ class SwiftReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
-            filtered_particle_ids = raw_particle_ids[self.masks[ptype]]
+            if self.maps is None:
+                filtered_particle_ids = f[hdf5_group]["ParticleIDs"][:]
+            else:
+                raw_particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
+                filtered_particle_ids = raw_particle_ids[self.masks[ptype]]
 
         if self.maps is not None:
             result = redistribute_particles(

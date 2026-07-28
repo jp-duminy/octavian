@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from mpi4py import MPI
     from octavian.data_management import SnapshotReader, RankPackedData
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
+    from octavian.data_management.parallel_reading import RedistributionMap
 
 from octavian.data_management import (
     construct_membership_arrays,
@@ -31,11 +32,13 @@ from octavian.data_management import (
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
-    generate_rank_assignments,
     output_catalogue_path,
-    assign_rank_halo_assignments,
+    redistribute_particles,
     assign_local_subhalos,
     pack_rank_data,
+    generate_rank_assignments_2,
+    generate_slabs,
+    build_redistribution_map,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -140,8 +143,8 @@ def execute_pipeline(
                 if col in particles[ptype]:
                     particles[ptype].release(col)
 
-    if reader.indices is not None:
-        particle_indices = reader.indices
+    if reader.global_indices is not None:
+        particle_indices = reader.global_indices
     else:
         particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
@@ -179,35 +182,61 @@ def run_octavian(
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
 
+    halo_source = build_halo_source(config=config, reader=reader)
+
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
         # HaloID assignments
-        halo_source = build_halo_source(config=config, reader=reader)
+
         all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
         subhalo_info = halo_source.read_subhalo_info()
 
-        # rank particle allocations
-        all_indices = generate_rank_assignments(
-            halo_assignments=all_halo_assignments,
-            config=config,
-            n_ranks=size,
-        )
+        halo_to_rank = generate_rank_assignments_2(halo_assignments=all_halo_assignments, config=config, n_ranks=size)
 
-        rank_halo_assignments = assign_rank_halo_assignments(
-            halo_assignments=all_halo_assignments, all_indices=all_indices
-        )
+        halo_to_rank_length = len(halo_to_rank)
+        assert halo_to_rank.dtype == np.int64
 
-    else:
-        all_indices = None  # NOTE: to avoid syntax error (in practice these are not hit)
+    else:  # avoid MPI syntax error
+        halo_to_rank = None
         subhalo_info = None
-        rank_halo_assignments = None
+        halo_to_rank_length = 0
 
-    rank_indices = comm.scatter(all_indices, root=0) if comm else all_indices[0]
-    rank_halo_assignments = comm.scatter(rank_halo_assignments, root=0) if comm else rank_halo_assignments[0]
+    halo_to_rank_length = comm.bcast(halo_to_rank_length, root=0)  # this is just an int so bcast
+
+    if rank != 0:
+        halo_to_rank = np.empty(halo_to_rank_length, dtype=np.int64)  # malloc
+
+    comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
     subhalo_info = (
         comm.bcast(subhalo_info, root=0) if comm else subhalo_info
-    )  # need comm.bcast here as subhalo_info is global (ranks mask in execute_pipeline)
+    )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
 
-    reader.set_indices(indices=rank_indices)
+    slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
+
+    raw_halo_ids = halo_source.distribute_raw_ids(
+        slabs=slabs, comm=comm, global_ids=all_halo_assignments.halo_ids if rank == 0 else None
+    )
+    raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(
+        slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.subhalo_ids if rank == 0 else None
+    )
+
+    masks: dict[str, np.ndarray] = {}
+    maps: dict[str, RedistributionMap] = {}
+    local_halo_ids: dict[str, np.ndarray] = {}
+    local_subhalo_ids: dict[str, np.ndarray] = {}
+
+    for ptype in raw_halo_ids:
+        maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
+        local_halo_ids[ptype] = redistribute_particles(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
+        if raw_subhalo_ids is not None:
+            local_subhalo_ids[ptype] = redistribute_particles(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
+
+    rank_halo_assignments = HaloAssignments(
+        halo_ids=local_halo_ids,
+        n_total_halos=len(halo_to_rank),
+        subhalo_ids=local_subhalo_ids,
+    )
+
+    reader.set_maps(slabs=slabs, masks=masks, maps=maps, comm=comm)
 
     packed_data = execute_pipeline(
         config=config,

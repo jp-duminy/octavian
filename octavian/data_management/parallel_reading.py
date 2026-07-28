@@ -287,7 +287,13 @@ def assign_local_subhalos(
     if subhalo_info is None:
         return None
 
-    max_hid = max(int(particles[ptype]["HaloID"].max()) for ptype in particles)
+    all_hids = [particles[ptype]["HaloID"] for ptype in particles]
+    non_empty = [hids for hids in all_hids if len(hids) > 0]
+
+    if not non_empty:
+        return None
+
+    max_hid = max(int(hids.max()) for hids in non_empty)
     present = np.zeros(
         shape=(max_hid + 1), dtype=bool
     )  # the reason we don't use np datatypes here is np.bool was deprecated (unsure of the deeper reasons why)
