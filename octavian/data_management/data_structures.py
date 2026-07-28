@@ -36,7 +36,7 @@ from octavian.data_management.conventions import (
     gizmo_unit_conversion_factor,
 )
 
-from .parallel_reading import redistribute_particles
+from .parallel_reading import redistribute_data
 
 from .csr import (
     build_group_csr,
@@ -124,7 +124,7 @@ class GizmoReader(SnapshotReader):
         for ptype in masks:
             slab = slabs[ptype]
             global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
-            self.global_indices[ptype] = redistribute_particles(
+            self.global_indices[ptype] = redistribute_data(
                 local_data=global_indices, redistribution_map=maps[ptype], comm=comm
             )
 
@@ -201,7 +201,7 @@ class GizmoReader(SnapshotReader):
             )
 
             if self.maps is not None:
-                result = redistribute_particles(
+                result = redistribute_data(
                     local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
                 )
             else:
@@ -216,9 +216,7 @@ class GizmoReader(SnapshotReader):
 
         # mpi vs serial
         if self.maps is not None:
-            result = redistribute_particles(
-                local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
-            )
+            result = redistribute_data(local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm)
         else:
             result = filtered_array
 
@@ -253,7 +251,7 @@ class GizmoReader(SnapshotReader):
                 filtered_particle_ids = particle_ids[self.masks[ptype]]
 
         if self.maps is not None:
-            result = redistribute_particles(
+            result = redistribute_data(
                 local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
             )
         else:
@@ -353,7 +351,7 @@ class SwiftReader(SnapshotReader):
         for ptype in masks:
             slab = slabs[ptype]
             global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
-            self.global_indices[ptype] = redistribute_particles(
+            self.global_indices[ptype] = redistribute_data(
                 local_data=global_indices, redistribution_map=maps[ptype], comm=comm
             )
 
@@ -434,10 +432,10 @@ class SwiftReader(SnapshotReader):
                 filtered_HI_masses = HI_masses[self.masks[ptype]]
 
                 if self.maps is not None:
-                    result_HI_mass = redistribute_particles(
+                    result_HI_mass = redistribute_data(
                         local_data=filtered_HI_masses, redistribution_map=self.maps[ptype], comm=self.comm
                     )
-                    result_mass = redistribute_particles(
+                    result_mass = redistribute_data(
                         local_data=filtered_masses, redistribution_map=self.maps[ptype], comm=self.comm
                     )
                 else:
@@ -463,7 +461,7 @@ class SwiftReader(SnapshotReader):
             )
 
             if self.maps is not None:
-                result = redistribute_particles(
+                result = redistribute_data(
                     local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
                 )
             else:
@@ -483,9 +481,7 @@ class SwiftReader(SnapshotReader):
 
         # mpi vs serial
         if self.maps is not None:
-            result = redistribute_particles(
-                local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
-            )
+            result = redistribute_data(local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm)
         else:
             result = filtered_array
 
@@ -520,7 +516,7 @@ class SwiftReader(SnapshotReader):
                 filtered_particle_ids = raw_particle_ids[self.masks[ptype]]
 
         if self.maps is not None:
-            result = redistribute_particles(
+            result = redistribute_data(
                 local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
             )
         else:

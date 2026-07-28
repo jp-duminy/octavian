@@ -67,7 +67,7 @@ class HaloSource:
         """
         return None
 
-    def distribute_raw_ids(
+    def distribute_raw_halo_ids(
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
@@ -115,7 +115,7 @@ class SnapshotHaloSource(HaloSource):
             halo_ids=halo_ids, n_total_halos=n_total_halos, subhalo_ids=None
         )  # on-the-fly currently does not do subhalos
 
-    def distribute_raw_ids(self, slabs: dict[str, slice], comm=None, global_ids=None) -> dict[str, np.ndarray]:
+    def distribute_raw_halo_ids(self, slabs: dict[str, slice], comm=None, global_ids=None) -> dict[str, np.ndarray]:
         """
         Iterates over ptypes to produce slabs of HaloIDs per-ptype.
         """
