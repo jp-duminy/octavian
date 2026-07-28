@@ -133,21 +133,25 @@ class AHFHaloSource(HaloSource):
             n_bound=n_particles[sub_mask],
         )
 
-    def distribute_raw_ids(
+    def distribute_raw_halo_ids(
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Distributes the raw IDs to other ranks (docstring unfinished).
+        Distributes rank 0's raw halo ID information to the other ranks so they know the HaloIDs of the particles on their slab. Returns:
+
+        - local_halo_ids: dict keyed per-ptype containing the rank's HaloID arrays
+
+        # TODO: can move to comm.Scatter on MPI-4 architectures rather than sequential send/receive.
         """
         if comm is None or comm.size == 1:
             return {ptype: ids[slabs[ptype]].copy() for ptype, ids in global_ids.items()}
 
         rank = comm.Get_rank()
         size = comm.Get_size()
-        result: dict[str, np.ndarray] = {}
+        local_halo_ids: dict[str, np.ndarray] = {}
 
         if rank == 0:
             all_slabs = {
@@ -155,21 +159,23 @@ class AHFHaloSource(HaloSource):
                 for dest in range(size)
             }
 
-        for ptype_index, ptype in enumerate(global_ids if rank == 0 else slabs):
+        for ptype_index, ptype in enumerate(
+            global_ids if rank == 0 else slabs
+        ):  # NOTE: done with send/receive as comm.scatter is capped to < int32 elements (https://github.com/PyLops/pylops-mpi/issues/115) kept for backwards-compatibility with MPI-3 as I am unsure what versions clusters use
             slab = slabs[ptype]
             slab_length = slab.stop - slab.start
 
             if rank == 0:
-                result[ptype] = global_ids[ptype][slab].copy()  # .copy() instead of sending to itself
+                local_halo_ids[ptype] = global_ids[ptype][slab].copy()  # .copy() instead of sending to itself
 
                 for dest in range(1, size):
                     comm.Send(global_ids[ptype][all_slabs[dest][ptype]], dest=dest, tag=ptype_index)
             else:
                 memory_block = np.empty(slab_length, dtype=np.int64)
                 comm.Recv(memory_block, source=0, tag=ptype_index)
-                result[ptype] = memory_block
+                local_halo_ids[ptype] = memory_block
 
-        return result
+        return local_halo_ids
 
     def distribute_raw_subhalo_ids(
         self,
@@ -178,9 +184,11 @@ class AHFHaloSource(HaloSource):
         global_subhalo_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Wrapper around distribute_raw_ids but for subhalos (made so SnapshotHaloSource and AHFHaloSource can match).
+        Wrapper around distribute_raw_halo_ids, but for subhalos (made so SnapshotHaloSource and AHFHaloSource can match). Returns:
+
+        - local_subhalo_ids: dict keyed per-ptype containing the rank's SubhaloID arrays
         """
-        return self.distribute_raw_ids(slabs=slabs, comm=comm, global_ids=global_subhalo_ids)
+        return self.distribute_raw_halo_ids(slabs=slabs, comm=comm, global_ids=global_subhalo_ids)
 
 
 def parse_ahf_halos(ahf_halos_path: Path) -> tuple[np.ndarray, ...]:

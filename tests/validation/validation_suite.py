@@ -52,11 +52,10 @@ from octavian.data_management import (
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
-    generate_rank_assignments,
     output_catalogue_path,
     assign_local_subhalos,
-    generate_rank_assignments_2,
-    redistribute_particles,
+    generate_rank_halo_assignments,
+    redistribute_data,
     generate_slabs,
     pack_rank_data,
     write_catalogue_metadata,
@@ -130,43 +129,35 @@ memories = {}
 results = []
 
 
-def test_rank_assignments(config: OctavianConfig, args: argparse.Namespace, n_ranks: int) -> None:
+def test_rank_assignments(
+    halo_to_rank: np.ndarray,
+    all_halo_assignments: HaloAssignments,
+    n_ranks: int,
+) -> None:
     """
-    Tests whether parallel IO rank assignments correctly parallelise the snapshot and return self-consistent counts, as well as correctly discard non-halo particles/halos below min_dm_per_halo.
+    Tests whether halo-to-rank assignments from generate_rank_halo_assignments() are self-consistent.
     """
     logger = get_logger()
+    per_halo_weight = np.zeros(len(halo_to_rank), dtype=np.int64)
+    assert np.all((halo_to_rank >= 0) & (halo_to_rank < n_ranks)), (
+        "rank_halo_assignments failed: haloes assigned to invalid ranks."
+    )
 
-    oc = OctavianConstants()
-    reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
-    halo_source = build_halo_source(config=config, reader=reader)
-
-    all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
-    assignments = generate_rank_assignments(halo_assignments=all_halo_assignments, config=config, n_ranks=n_ranks)
-
-    halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
-    for ptype in reader.available_ptypes():
-        halo_ids = halo_assignments.halo_ids[ptype]
-        # conservation + exclusivity
-        all_assigned = np.concatenate([assignments[r][ptype] for r in range(n_ranks)])
-        assert len(all_assigned) == len(np.unique(all_assigned)), f"{ptype}: duplicate indices across ranks."
-
-        # no sentinels
-        assigned_hids = halo_ids[all_assigned]
-        assert np.all(assigned_hids != -1), (
-            f"{ptype}: particles unassigned to halo present in rank assignments (validate whether expected)."
+    for ptype in all_halo_assignments.halo_ids:
+        valid_hids = all_halo_assignments.halo_ids[ptype]
+        valid_hids = valid_hids[valid_hids != -1]
+        assert np.all(valid_hids < len(halo_to_rank)), (
+            "rank_halo_assignments failed: halo_to_rank is longer than the number of valid haloes."
         )
+        per_halo_weight += np.bincount(valid_hids, minlength=len(halo_to_rank))
 
-        # halo completeness — every halo's particles on exactly one rank
-        for rank_idx in range(n_ranks):
-            rank_hids = halo_ids[assignments[rank_idx][ptype]]
-            rank_halos = set(np.unique(rank_hids))
-            for other_rank in range(rank_idx + 1, n_ranks):
-                other_hids = halo_ids[assignments[other_rank][ptype]]
-                other_halos = set(np.unique(other_hids))
-                overlap = rank_halos & other_halos
-                assert len(overlap) == 0, f"{ptype}: halo(s) {overlap} appear on both ranks {rank_idx} and {other_rank}"
+    rank_weights = np.bincount(halo_to_rank, weights=per_halo_weight, minlength=n_ranks)
+    mean_weight = rank_weights.sum() / n_ranks
+    assert np.all(rank_weights <= 1.5 * mean_weight), (
+        "rank_halo_assignments failed: one rank is assigned a disproportionate amount of computational weight."
+    )
 
-    logger.info("Rank assignments passes tests.")
+    logger.info("Rank-halo assignments are self consistent.")
 
 
 def _profiled_pipeline(
@@ -529,15 +520,13 @@ def test_run(args: argparse.Namespace) -> None:
             all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
             subhalo_info = halo_source.read_subhalo_info()
 
-            all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
-            subhalo_info = halo_source.read_subhalo_info()
-
-            halo_to_rank = generate_rank_assignments_2(
+            halo_to_rank = generate_rank_halo_assignments(
                 halo_assignments=all_halo_assignments, config=config, n_ranks=size
             )
-
+            test_rank_assignments(halo_to_rank=halo_to_rank, all_halo_assignments=all_halo_assignments, n_ranks=size)
             halo_to_rank_length = len(halo_to_rank)
             assert halo_to_rank.dtype == np.int64
+
         else:
             halo_to_rank = None
             subhalo_info = None
@@ -555,7 +544,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
 
-        raw_halo_ids = halo_source.distribute_raw_ids(
+        raw_halo_ids = halo_source.distribute_raw_halo_ids(
             slabs=slabs, comm=comm, global_ids=all_halo_assignments.halo_ids if rank == 0 else None
         )
         raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(
@@ -569,11 +558,9 @@ def test_run(args: argparse.Namespace) -> None:
 
         for ptype in raw_halo_ids:
             maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
-            local_halo_ids[ptype] = redistribute_particles(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
+            local_halo_ids[ptype] = redistribute_data(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
             if raw_subhalo_ids is not None:
-                local_subhalo_ids[ptype] = redistribute_particles(
-                    raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm
-                )
+                local_subhalo_ids[ptype] = redistribute_data(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
 
         rank_halo_assignments = HaloAssignments(
             halo_ids=local_halo_ids,
@@ -582,12 +569,6 @@ def test_run(args: argparse.Namespace) -> None:
         )
 
         reader.set_maps(slabs=slabs, masks=masks, maps=maps, comm=comm)
-
-        for ptype in rank_halo_assignments.halo_ids:
-            hids = rank_halo_assignments.halo_ids[ptype]
-            logger.info(
-                f"{ptype}: n_particles={len(hids)}, n_in_halo={(hids != -1).sum()}, n_unique_halos={np.unique(hids[hids != -1]).size}"
-            )
 
         packed_data = _profiled_pipeline(
             config=config,

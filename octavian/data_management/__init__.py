@@ -34,13 +34,11 @@ from .conventions import (
     output_catalogue_path as output_catalogue_path,
 )
 from .parallel_reading import (
-    generate_rank_assignments as generate_rank_assignments,
-    generate_rank_assignments_2 as generate_rank_assignments_2,
+    generate_rank_halo_assignments as generate_rank_halo_assignments,
     assign_local_subhalos as assign_local_subhalos,
-    assign_rank_halo_assignments as assign_rank_halo_assignments,
     generate_slabs as generate_slabs,
     build_redistribution_map as build_redistribution_map,
-    redistribute_particles as redistribute_particles,
+    redistribute_data as redistribute_data,
 )
 
 from .csr import (

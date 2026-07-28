@@ -25,10 +25,10 @@ from octavian.data_management import (
     OctavianConstants,
     load_internals,
     build_reader,
-    generate_rank_assignments_2,
+    generate_rank_halo_assignments,
     generate_slabs,
     build_redistribution_map,
-    redistribute_particles,
+    redistribute_data,
     write_catalogue,
 )
 from octavian.external_halo_sources import (
@@ -70,7 +70,7 @@ def mock_catalogue(
     all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     subhalo_info = halo_source.read_subhalo_info()
 
-    halo_to_rank = generate_rank_assignments_2(
+    halo_to_rank = generate_rank_halo_assignments(
         halo_assignments=all_halo_assignments,
         config=config,
         n_ranks=1,
@@ -78,7 +78,7 @@ def mock_catalogue(
 
     slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
 
-    raw_halo_ids = halo_source.distribute_raw_ids(slabs=slabs)
+    raw_halo_ids = halo_source.distribute_raw_halo_ids(slabs=slabs)
     raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(slabs=slabs)
 
     masks: dict[str, np.ndarray] = {}
@@ -91,9 +91,9 @@ def mock_catalogue(
             f"{ptype}: raw_halo_ids_len={len(raw_halo_ids[ptype])}, slab_len={slabs[ptype].stop - slabs[ptype].start}"
         )
         maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
-        local_halo_ids[ptype] = redistribute_particles(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
+        local_halo_ids[ptype] = redistribute_data(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
         if local_subhalo_ids is not None:
-            local_subhalo_ids[ptype] = redistribute_particles(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
+            local_subhalo_ids[ptype] = redistribute_data(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
 
     rank_halo_assignments = HaloAssignments(
         halo_ids=local_halo_ids,

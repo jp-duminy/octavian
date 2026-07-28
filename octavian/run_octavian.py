@@ -33,10 +33,10 @@ from octavian.data_management import (
     resolve_dependencies,
     get_releasable_columns,
     output_catalogue_path,
-    redistribute_particles,
+    redistribute_data,
     assign_local_subhalos,
     pack_rank_data,
-    generate_rank_assignments_2,
+    generate_rank_halo_assignments,
     generate_slabs,
     build_redistribution_map,
 )
@@ -172,28 +172,31 @@ def run_octavian(
     intermediate_dir = output_dir / "Intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)
 
-    configure_logger(rank=rank, output_level="INFO", log_dir=intermediate_dir)
+    # initialise logger for console output
+    configure_logger(
+        rank=rank, output_level="INFO", log_dir=intermediate_dir
+    )  # TODO: make this take the config-assigned level
     logger = get_logger()
-
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
 
+    # initialise snapshot/halo readers, constants, config, internal metadata
     config = OctavianConfig.from_yaml(config_path=config_path)
     internals = load_internals(internals_filepath=internals_path, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
-
     halo_source = build_halo_source(config=config, reader=reader)
 
+    # parallelism: rank 0 determines which halos need to go to which rank
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-        # HaloID assignments
-
         all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
         subhalo_info = halo_source.read_subhalo_info()
-
-        halo_to_rank = generate_rank_assignments_2(halo_assignments=all_halo_assignments, config=config, n_ranks=size)
-
+        halo_to_rank = generate_rank_halo_assignments(
+            halo_assignments=all_halo_assignments, config=config, n_ranks=size
+        )
         halo_to_rank_length = len(halo_to_rank)
-        assert halo_to_rank.dtype == np.int64
+        assert halo_to_rank.dtype == np.int64, (
+            "Bcast is receiving wrong dtype (bit corruption)."
+        )  # broadcasting is done on assumption it deals with 64-bit data
 
     else:  # avoid MPI syntax error
         halo_to_rank = None
@@ -210,15 +213,18 @@ def run_octavian(
         comm.bcast(subhalo_info, root=0) if comm else subhalo_info
     )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
 
+    # ranks determine which slab of each dataset they will read
     slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
 
-    raw_halo_ids = halo_source.distribute_raw_ids(
+    # rank 0 tells other ranks what the (Sub)HaloIDs of the particles on their slabs are
+    raw_halo_ids = halo_source.distribute_raw_halo_ids(
         slabs=slabs, comm=comm, global_ids=all_halo_assignments.halo_ids if rank == 0 else None
     )
     raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(
         slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.subhalo_ids if rank == 0 else None
     )
 
+    # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
     masks: dict[str, np.ndarray] = {}
     maps: dict[str, RedistributionMap] = {}
     local_halo_ids: dict[str, np.ndarray] = {}
@@ -226,9 +232,9 @@ def run_octavian(
 
     for ptype in raw_halo_ids:
         maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
-        local_halo_ids[ptype] = redistribute_particles(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
+        local_halo_ids[ptype] = redistribute_data(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
         if raw_subhalo_ids is not None:
-            local_subhalo_ids[ptype] = redistribute_particles(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
+            local_subhalo_ids[ptype] = redistribute_data(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
 
     rank_halo_assignments = HaloAssignments(
         halo_ids=local_halo_ids,
@@ -236,8 +242,11 @@ def run_octavian(
         subhalo_ids=local_subhalo_ids,
     )
 
-    reader.set_maps(slabs=slabs, masks=masks, maps=maps, comm=comm)
+    reader.set_maps(
+        slabs=slabs, masks=masks, maps=maps, comm=comm
+    )  # store this info on the reader for reading datasets
 
+    # analysis pipeline (FOF6D, properties)
     packed_data = execute_pipeline(
         config=config,
         internals=internals,
