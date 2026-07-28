@@ -35,8 +35,12 @@ from .conventions import (
 )
 from .parallel_reading import (
     generate_rank_assignments as generate_rank_assignments,
+    generate_rank_assignments_2 as generate_rank_assignments_2,
     assign_local_subhalos as assign_local_subhalos,
     assign_rank_halo_assignments as assign_rank_halo_assignments,
+    generate_slabs as generate_slabs,
+    build_redistribution_map as build_redistribution_map,
+    redistribute_particles as redistribute_particles,
 )
 
 from .csr import (

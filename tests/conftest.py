@@ -6,10 +6,16 @@ This is for automated CI/CD (did your commit break anything in the analysis?). P
 
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from octavian.data_management.parallel_reading import RedistributionMap
+
 from pathlib import Path
 import h5py
 import pytest
 from collections.abc import Generator
+import numpy as np
 from dataclasses import replace
 
 from octavian.run_octavian import execute_pipeline, get_mpi_communicator
@@ -19,12 +25,15 @@ from octavian.data_management import (
     OctavianConstants,
     load_internals,
     build_reader,
-    generate_rank_assignments,
-    assign_rank_halo_assignments,
+    generate_rank_assignments_2,
+    generate_slabs,
+    build_redistribution_map,
+    redistribute_particles,
     write_catalogue,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
+    HaloAssignments,
 )
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
@@ -61,22 +70,45 @@ def mock_catalogue(
     all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
     subhalo_info = halo_source.read_subhalo_info()
 
-    all_indices = generate_rank_assignments(
+    halo_to_rank = generate_rank_assignments_2(
         halo_assignments=all_halo_assignments,
         config=config,
         n_ranks=1,
     )
 
-    reader.set_indices(indices=all_indices[0])  # only runs in serial
+    slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
 
-    rank_halo_assignments = assign_rank_halo_assignments(halo_assignments=all_halo_assignments, all_indices=all_indices)
+    raw_halo_ids = halo_source.distribute_raw_ids(slabs=slabs)
+    raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(slabs=slabs)
+
+    masks: dict[str, np.ndarray] = {}
+    maps: dict[str, RedistributionMap] = {}
+    local_halo_ids: dict[str, np.ndarray] = {}
+    local_subhalo_ids: dict[str, np.ndarray] | None = {} if raw_subhalo_ids is not None else None
+
+    for ptype in raw_halo_ids:
+        print(
+            f"{ptype}: raw_halo_ids_len={len(raw_halo_ids[ptype])}, slab_len={slabs[ptype].stop - slabs[ptype].start}"
+        )
+        maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
+        local_halo_ids[ptype] = redistribute_particles(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
+        if local_subhalo_ids is not None:
+            local_subhalo_ids[ptype] = redistribute_particles(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
+
+    rank_halo_assignments = HaloAssignments(
+        halo_ids=local_halo_ids,
+        n_total_halos=len(halo_to_rank),
+        subhalo_ids=local_subhalo_ids,
+    )
+
+    reader.set_maps(slabs=slabs, masks=masks, maps=maps, comm=comm)
 
     packed_data = execute_pipeline(
         config=config,
         internals=internals,
         reader=reader,
         constants=oc,
-        halo_assignments=rank_halo_assignments[0],  # only runs in serial
+        halo_assignments=rank_halo_assignments,  # only runs in serial
         global_subhalo_info=subhalo_info,
     )
 
