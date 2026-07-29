@@ -19,9 +19,9 @@ if TYPE_CHECKING:
 import numpy as np
 
 from octavian.aggregate_properties.aggregate_helpers import (
-    sum_per_group,
-    max_value_per_group,
-    max_idx_per_group,
+    sum_per_group_2,
+    max_value_per_group_2,
+    max_idx_per_group_2,
     guarded_divide,
 )
 from octavian.log import get_logger
@@ -49,7 +49,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
         # gas
         if "gas" in particles:
             gas = particles["gas"]
-            gas_pidx, gas_gidx = group_store.expand_csr_membership(ptype="gas")
+            gas_offsets, gas_idx = group_store.get_particle_csr(ptype="gas")
 
             nH, fHI, fH2 = _prepare_hydrogen_fractions(
                 rho=gas["rho"], fHI=gas["fHI"], fH2=gas["fH2"], XH=config.XH, proton_mass=constants.PROTON_MASS_G
@@ -60,25 +60,27 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             gas["mass_H2"] = mass_H2
 
             gas_results = compute_gas_properties(
-                masses=gas["mass"][gas_pidx],
-                masses_HI=mass_HI[gas_pidx],
-                masses_H2=mass_H2[gas_pidx],
-                metallicities=gas["metallicity"][gas_pidx],
-                temperatures=gas["temperature"][gas_pidx],
-                sfrs=gas["sfr"][gas_pidx],
+                masses=gas["mass"],
+                masses_HI=mass_HI,
+                masses_H2=mass_H2,
+                metallicities=gas["metallicity"],
+                temperatures=gas["temperature"],
+                sfrs=gas["sfr"],
                 gas_mass=group_store["mass_gas"],
-                group_idx=gas_gidx,
+                offsets=gas_offsets,
+                idx_sorted=gas_idx,
                 n_groups=n_groups,
             )
             group_store.write_batch(results=gas_results)
 
             if group_store.kind == "halo":
                 cgm_results = compute_cgm_properties(
-                    masses=gas["mass"][gas_pidx],
-                    metallicities=gas["metallicity"][gas_pidx],
-                    temperatures=gas["temperature"][gas_pidx],
-                    nH=nH[gas_pidx],
-                    group_idx=gas_gidx,
+                    masses=gas["mass"],
+                    metallicities=gas["metallicity"],
+                    temperatures=gas["temperature"],
+                    nH=nH,
+                    offsets=gas_offsets,
+                    idx_sorted=gas_idx,
                     n_groups=n_groups,
                     nHlim=config.nH_lim,
                 )
@@ -87,13 +89,14 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
         # stars
         if "star" in particles:
             star = particles["star"]
-            star_pidx, star_gidx = group_store.expand_csr_membership(ptype="star")
+            star_offsets, star_idx = group_store.get_particle_csr(ptype="star")
             star_results = compute_star_properties(
-                masses=star["mass"][star_pidx],
-                metallicities=star["metallicity"][star_pidx],
-                ages=star["age"][star_pidx],
+                masses=star["mass"],
+                metallicities=star["metallicity"],
+                ages=star["age"],
                 star_mass=group_store["mass_star"],
-                group_idx=star_gidx,
+                offsets=star_offsets,
+                idx_sorted=star_idx,
                 n_groups=n_groups,
             )
             group_store.write_batch(results=star_results)
@@ -101,11 +104,12 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
         # black holes
         if "bh" in particles:
             bh = particles["bh"]
-            bh_pidx, bh_gidx = group_store.expand_csr_membership(ptype="bh")
+            bh_offsets, bh_idx = group_store.get_particle_csr(ptype="bh")
             bh_results = compute_bh_properties(
-                masses=bh["mass"][bh_pidx],
-                bhmdots=bh["bhmdot"][bh_pidx],
-                group_idx=bh_gidx,
+                masses=bh["mass"],
+                bhmdots=bh["bhmdot"],
+                offsets=bh_offsets,
+                idx_sorted=bh_idx,
                 n_groups=n_groups,
                 edd_factor=constants.EDD_FACTOR,
             )
@@ -144,7 +148,8 @@ def compute_gas_properties(
     temperatures: np.ndarray,
     sfrs: np.ndarray,
     gas_mass: np.ndarray,
-    group_idx: np.ndarray,
+    offsets: np.ndarray,
+    idx_sorted: np.ndarray,
     n_groups: int,
 ) -> dict[str, np.ndarray]:
     """
@@ -159,12 +164,18 @@ def compute_gas_properties(
     """
     results: dict[str, np.ndarray] = {}
 
-    mass_HI = sum_per_group(values=masses_HI, group_idx=group_idx, n_groups=n_groups)
-    mass_H2 = sum_per_group(values=masses_H2, group_idx=group_idx, n_groups=n_groups)
-    sfr = sum_per_group(values=sfrs, group_idx=group_idx, n_groups=n_groups)
-    metal_mass = sum_per_group(values=(metallicities * masses), group_idx=group_idx, n_groups=n_groups)
-    metal_sfr = sum_per_group(values=(metallicities * sfrs), group_idx=group_idx, n_groups=n_groups)
-    temp_mass = sum_per_group(values=(temperatures * masses), group_idx=group_idx, n_groups=n_groups)
+    mass_HI = sum_per_group_2(values=masses_HI, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    mass_H2 = sum_per_group_2(values=masses_H2, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    sfr = sum_per_group_2(values=sfrs, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    metal_mass = sum_per_group_2(
+        values=(metallicities * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )
+    metal_sfr = sum_per_group_2(
+        values=(metallicities * sfrs), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )
+    temp_mass = sum_per_group_2(
+        values=(temperatures * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )
 
     results["mass_HI"] = mass_HI
     results["mass_H2"] = mass_H2
@@ -180,8 +191,9 @@ def compute_cgm_properties(
     masses: np.ndarray,
     temperatures: np.ndarray,
     metallicities: np.ndarray,
-    group_idx: np.ndarray,
     nH: np.ndarray,
+    offsets: np.ndarray,
+    idx_sorted: np.ndarray,
     n_groups: int,
     nHlim: float,
 ) -> dict[str, np.ndarray]:
@@ -195,17 +207,23 @@ def compute_cgm_properties(
     results: dict[str, np.ndarray] = {}
 
     cgm_criterion = nH < nHlim
-    cgm_idx = group_idx[cgm_criterion]
-    cgm_masses = masses[cgm_criterion]
-    cgm_temperatures = temperatures[cgm_criterion]
-    cgm_metallicities = metallicities[cgm_criterion]
+    cgm_masses = np.where(cgm_criterion, masses, 0.0)  # cannot mask directly on inclusive csr: must use np.where
+    cgm_temperatures = np.where(cgm_criterion, temperatures, 0.0)
+    cgm_metallicities = np.where(cgm_criterion, metallicities, 0.0)
 
-    cgm_mass = sum_per_group(values=cgm_masses, group_idx=cgm_idx, n_groups=n_groups)
-    cgm_temp_mass = sum_per_group(values=(cgm_temperatures * cgm_masses), group_idx=cgm_idx, n_groups=n_groups)
-    cgm_temp_metal = sum_per_group(
-        values=(cgm_temperatures * cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups
+    cgm_mass = sum_per_group_2(values=cgm_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    cgm_temp_mass = sum_per_group_2(
+        values=(cgm_temperatures * cgm_masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
-    cgm_metal_mass = sum_per_group(values=(cgm_masses * cgm_metallicities), group_idx=cgm_idx, n_groups=n_groups)
+    cgm_temp_metal = sum_per_group_2(
+        values=(cgm_temperatures * cgm_masses * cgm_metallicities),
+        offsets=offsets,
+        idx_sorted=idx_sorted,
+        n_groups=n_groups,
+    )
+    cgm_metal_mass = sum_per_group_2(
+        values=(cgm_masses * cgm_metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )
 
     results["temp_mass_weighted_cgm"] = guarded_divide(numerator=cgm_temp_mass, denominator=cgm_mass)
     results["temp_metal_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_metal_mass)
@@ -220,7 +238,8 @@ def compute_star_properties(
     metallicities: np.ndarray,
     ages: np.ndarray,
     star_mass: np.ndarray,
-    group_idx: np.ndarray,
+    offsets: np.ndarray,
+    idx_sorted: np.ndarray,
     n_groups: int,
 ) -> dict[str, np.ndarray]:
     """
@@ -231,9 +250,13 @@ def compute_star_properties(
     """
     results: dict[str, np.ndarray] = {}
 
-    metal_mass = sum_per_group(values=(masses * metallicities), group_idx=group_idx, n_groups=n_groups)
-    age_mass = sum_per_group(values=(ages * masses), group_idx=group_idx, n_groups=n_groups)
-    age_metal = sum_per_group(values=(ages * masses * metallicities), group_idx=group_idx, n_groups=n_groups)
+    metal_mass = sum_per_group_2(
+        values=(masses * metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )
+    age_mass = sum_per_group_2(values=(ages * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    age_metal = sum_per_group_2(
+        values=(ages * masses * metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )
 
     results["metallicity_stellar"] = guarded_divide(numerator=metal_mass, denominator=star_mass)
     results["age_mass_weighted"] = guarded_divide(numerator=age_mass, denominator=star_mass)
@@ -243,7 +266,12 @@ def compute_star_properties(
 
 
 def compute_bh_properties(
-    masses: np.ndarray, bhmdots: np.ndarray, group_idx: np.ndarray, n_groups: int, edd_factor: float
+    masses: np.ndarray,
+    bhmdots: np.ndarray,
+    offsets: np.ndarray,
+    idx_sorted: np.ndarray,
+    n_groups: int,
+    edd_factor: float,
 ) -> dict[str, np.ndarray]:
     """
     Computes black-hole specific properties, returning a dict of:
@@ -254,13 +282,15 @@ def compute_bh_properties(
     """
     results: dict[str, np.ndarray] = {}
 
-    max_idx = max_idx_per_group(values=masses, group_idx=group_idx, n_groups=n_groups)  # also assigns -1 as sentinel
+    max_idx = max_idx_per_group_2(
+        values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
+    )  # also assigns -1 as sentinel
     with_bh = max_idx >= 0
 
     mass = np.full(shape=n_groups, fill_value=np.nan)  # split across line for when more properties are added
     bhmdot = np.full(shape=n_groups, fill_value=np.nan)
 
-    max_mass = max_value_per_group(values=masses, group_idx=group_idx, n_groups=n_groups)
+    max_mass = max_value_per_group_2(values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
     max_mass = np.where(np.isfinite(max_mass), max_mass, 0.0)  # mask out -inf for no-bh groups
 
     mass[with_bh] = masses[max_idx[with_bh]]
