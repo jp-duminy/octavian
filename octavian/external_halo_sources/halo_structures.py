@@ -126,7 +126,7 @@ class SnapshotHaloSource(HaloSource):
 
         return raw_ids
 
-    def distribute_raw_subhalo_ids(self, slabs: dict[str, slice]) -> None:
+    def distribute_raw_subhalo_ids(self, slabs: dict[str, slice], comm=None, global_subhalo_ids=None) -> None:
         """
         Exists for compatibility with AHF.
         """
