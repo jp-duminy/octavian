@@ -19,9 +19,9 @@ if TYPE_CHECKING:
 import numpy as np
 
 from octavian.aggregate_properties.aggregate_helpers import (
-    sum_per_group_2,
-    max_value_per_group_2,
-    max_idx_per_group_2,
+    sum_per_group,
+    max_value_per_group,
+    max_idx_per_group,
     guarded_divide,
 )
 from octavian.log import get_logger
@@ -164,18 +164,14 @@ def compute_gas_properties(
     """
     results: dict[str, np.ndarray] = {}
 
-    mass_HI = sum_per_group_2(values=masses_HI, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
-    mass_H2 = sum_per_group_2(values=masses_H2, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
-    sfr = sum_per_group_2(values=sfrs, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
-    metal_mass = sum_per_group_2(
+    mass_HI = sum_per_group(values=masses_HI, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    mass_H2 = sum_per_group(values=masses_H2, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    sfr = sum_per_group(values=sfrs, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    metal_mass = sum_per_group(
         values=(metallicities * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
-    metal_sfr = sum_per_group_2(
-        values=(metallicities * sfrs), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
-    )
-    temp_mass = sum_per_group_2(
-        values=(temperatures * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
-    )
+    metal_sfr = sum_per_group(values=(metallicities * sfrs), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    temp_mass = sum_per_group(values=(temperatures * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
 
     results["mass_HI"] = mass_HI
     results["mass_H2"] = mass_H2
@@ -211,17 +207,17 @@ def compute_cgm_properties(
     cgm_temperatures = np.where(cgm_criterion, temperatures, 0.0)
     cgm_metallicities = np.where(cgm_criterion, metallicities, 0.0)
 
-    cgm_mass = sum_per_group_2(values=cgm_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
-    cgm_temp_mass = sum_per_group_2(
+    cgm_mass = sum_per_group(values=cgm_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    cgm_temp_mass = sum_per_group(
         values=(cgm_temperatures * cgm_masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
-    cgm_temp_metal = sum_per_group_2(
+    cgm_temp_metal = sum_per_group(
         values=(cgm_temperatures * cgm_masses * cgm_metallicities),
         offsets=offsets,
         idx_sorted=idx_sorted,
         n_groups=n_groups,
     )
-    cgm_metal_mass = sum_per_group_2(
+    cgm_metal_mass = sum_per_group(
         values=(cgm_masses * cgm_metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
 
@@ -250,11 +246,11 @@ def compute_star_properties(
     """
     results: dict[str, np.ndarray] = {}
 
-    metal_mass = sum_per_group_2(
+    metal_mass = sum_per_group(
         values=(masses * metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
-    age_mass = sum_per_group_2(values=(ages * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
-    age_metal = sum_per_group_2(
+    age_mass = sum_per_group(values=(ages * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    age_metal = sum_per_group(
         values=(ages * masses * metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
 
@@ -282,7 +278,7 @@ def compute_bh_properties(
     """
     results: dict[str, np.ndarray] = {}
 
-    max_idx = max_idx_per_group_2(
+    max_idx = max_idx_per_group(
         values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )  # also assigns -1 as sentinel
     with_bh = max_idx >= 0
@@ -290,7 +286,7 @@ def compute_bh_properties(
     mass = np.full(shape=n_groups, fill_value=np.nan)  # split across line for when more properties are added
     bhmdot = np.full(shape=n_groups, fill_value=np.nan)
 
-    max_mass = max_value_per_group_2(values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    max_mass = max_value_per_group(values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
     max_mass = np.where(np.isfinite(max_mass), max_mass, 0.0)  # mask out -inf for no-bh groups
 
     mass[with_bh] = masses[max_idx[with_bh]]

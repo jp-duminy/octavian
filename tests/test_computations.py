@@ -9,23 +9,23 @@ For the heavier compute functions which have more intricate logic, it is not pos
 import numpy as np
 
 from octavian.aggregate_properties.aggregate_computations import (
-    compute_kinematics_2,
-    compute_rotational_quantities_2,
-    compute_enclosed_mass_radii_2,
-    compute_virial_quantities_2,
-    compute_centre_of_mass_2,
-    compute_vmax_and_rmax_2,
-    compute_radii_2,
+    compute_kinematics,
+    compute_rotational_quantities,
+    compute_enclosed_mass_radii,
+    compute_virial_quantities,
+    compute_centre_of_mass,
+    compute_vmax_and_rmax,
+    compute_radii,
 )
 
 from octavian.aggregate_properties.aggregate_helpers import (
-    sum_per_group_2,
-    count_per_group_2,
-    max_value_per_group_2,
-    min_value_per_group_2,
-    min_idx_per_group_2,
-    max_idx_per_group_2,
-    first_idx_per_group_2,
+    sum_per_group,
+    count_per_group,
+    max_value_per_group,
+    min_value_per_group,
+    min_idx_per_group,
+    max_idx_per_group,
+    first_idx_per_group,
 )
 
 from octavian.data_management import (
@@ -62,7 +62,7 @@ def test_count_per_group() -> None:
     Tests aggregate helper count_per_group (bincount wrapper).
     """
     expected = [np.count_nonzero(GROUP_IDX == g) for g in range(N_GROUPS)]
-    result = count_per_group_2(offsets=OFFSETS, n_groups=N_GROUPS)
+    result = count_per_group(offsets=OFFSETS, n_groups=N_GROUPS)
 
     np.testing.assert_array_equal(expected, result, err_msg="count_per_group failed.")
 
@@ -72,7 +72,7 @@ def test_sum_per_group() -> None:
     Tests aggregate helper sum_per_group (bincount wrapper) with the masses array.
     """
     expected = [np.sum(masses[GROUP_IDX == g]) for g in range(N_GROUPS)]
-    result = sum_per_group_2(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
+    result = sum_per_group(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_allclose(
         expected, result, rtol=1e-14, err_msg="sum_per_group failed."
@@ -84,12 +84,12 @@ def test_value_per_group() -> None:
     Tests aggregate helpers max/min_value_per_group with the masses array.
     """
     max_expected = [np.max(masses[GROUP_IDX == g]) for g in range(N_GROUPS)]
-    max_result = max_value_per_group_2(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
+    max_result = max_value_per_group(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_allclose(max_expected, max_result, rtol=1e-14, err_msg="max_value_per_group failed.")
 
     min_expected = [np.min(masses[GROUP_IDX == g]) for g in range(N_GROUPS)]
-    min_result = min_value_per_group_2(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
+    min_result = min_value_per_group(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_allclose(min_expected, min_result, rtol=1e-14, err_msg="min_value_per_group failed.")
 
@@ -99,12 +99,12 @@ def test_idx_per_group() -> None:
     Tests aggregate helpers max/min_idx_per_group with the masses array.
     """
     max_expected = [np.flatnonzero(GROUP_IDX == g)[np.argmax(masses[GROUP_IDX == g])] for g in range(N_GROUPS)]
-    max_result = max_idx_per_group_2(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
+    max_result = max_idx_per_group(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_array_equal(max_expected, max_result, err_msg="max_idx_per_group failed.")
 
     min_expected = [np.flatnonzero(GROUP_IDX == g)[np.argmin(masses[GROUP_IDX == g])] for g in range(N_GROUPS)]
-    min_result = min_idx_per_group_2(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
+    min_result = min_idx_per_group(values=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_array_equal(min_expected, min_result, err_msg="min_idx_per_group failed.")
 
@@ -114,7 +114,7 @@ def test_first_idx_per_group() -> None:
     Tests aggregate helper first_idx_per_group.
     """
     first_expected = [np.flatnonzero(GROUP_IDX == g)[0] for g in range(N_GROUPS)]
-    first_result = first_idx_per_group_2(offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
+    first_result = first_idx_per_group(offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_array_equal(first_expected, first_result, err_msg="first_idx_per_group failed.")
 
@@ -127,7 +127,7 @@ def test_radii() -> None:
     delta -= BOXSIZE * np.round(delta / BOXSIZE)
     expected = np.linalg.norm(delta, axis=1)
 
-    result = compute_radii_2(
+    result = compute_radii(
         positions=pos,
         ref_pos=ref_pos,
         offsets=OFFSETS,
@@ -160,7 +160,7 @@ def test_com() -> None:
         expected_pos[g] = (anchor_pos[g] + np.average(delta, weights=masses[mask], axis=0)) % BOXSIZE
         expected_vel[g] = np.average(vel[mask], weights=masses[mask], axis=0)
 
-    result_pos, result_vel = compute_centre_of_mass_2(
+    result_pos, result_vel = compute_centre_of_mass(
         positions=pos,
         velocities=vel,
         masses=masses,
@@ -203,7 +203,7 @@ def test_kinematics() -> None:
     delta = pos - ref_pos[GROUP_IDX]
     delta -= BOXSIZE * np.round(delta / BOXSIZE)
 
-    result_L, result_ke, result_disp = compute_kinematics_2(
+    result_L, result_ke, result_disp = compute_kinematics(
         positions=pos,
         velocities=vel,
         masses=masses,
@@ -257,7 +257,7 @@ def test_rotational_quantities() -> None:
                 v_circ = L_dot[i] / (R_cyl[i] * m[i])
                 expected_krot[g] += 0.5 * m[i] * v_circ**2
 
-    result_counter, result_krot = compute_rotational_quantities_2(
+    result_counter, result_krot = compute_rotational_quantities(
         positions=pos,
         velocities=vel,
         masses=masses,
@@ -284,7 +284,7 @@ def test_enclosed_mass_radii() -> None:
 
     quantiles = np.array([0.2, 0.5, 0.8])
 
-    result = compute_enclosed_mass_radii_2(
+    result = compute_enclosed_mass_radii(
         radii=radii, masses=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS, quantiles=quantiles
     )
 
@@ -308,7 +308,7 @@ def test_virial_quantities() -> None:
     rhocrit = 1e-29
     factors = np.array([200.0, 500.0])
 
-    result_r, result_m = compute_virial_quantities_2(
+    result_r, result_m = compute_virial_quantities(
         radii=radii,
         masses=masses,
         offsets=OFFSETS,
@@ -335,7 +335,7 @@ def test_vmax_rmax() -> None:
     delta -= BOXSIZE * np.round(delta / BOXSIZE)
     radii = np.linalg.norm(delta, axis=1)
 
-    result_vmax, result_rmax = compute_vmax_and_rmax_2(
+    result_vmax, result_rmax = compute_vmax_and_rmax(
         radii=radii, masses=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, G=oc.G_VCIRC, n_groups=N_GROUPS
     )
 
