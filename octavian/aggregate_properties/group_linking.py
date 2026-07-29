@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from octavian.data_management import ParticleStore, GroupStore, SimulationData
     from octavian.external_halo_sources import SubhaloInformation
-from octavian.data_management import DTYPES
-from .aggregate_helpers import first_idx_per_group
+from octavian.data_management import DTYPES, build_group_csr
+from .aggregate_helpers import first_idx_per_group_2
 
 import numpy as np
 from numba import njit
@@ -85,7 +85,8 @@ def assign_galaxy_field_indices(
     all_gids, all_hids = all_gids[in_galaxy], all_hids[in_galaxy]
 
     galaxy_idx = galaxies.get_indexer(group_id=all_gids)
-    first_particle_idx = first_idx_per_group(group_idx=galaxy_idx, n_groups=galaxies.n_groups)
+    offsets, idx_sorted = build_group_csr(group_idx=galaxy_idx, n_groups=galaxies.n_groups)
+    first_particle_idx = first_idx_per_group_2(offsets=offsets, idx_sorted=idx_sorted, n_groups=galaxies.n_groups)
     valid = first_particle_idx >= 0
 
     if not valid.all():
