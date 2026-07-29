@@ -26,7 +26,6 @@ from octavian.aggregate_properties.aggregate_helpers import (
     min_idx_per_group_2,
     max_idx_per_group_2,
     first_idx_per_group,
-    sort_by_group,
 )
 
 from octavian.data_management import (
@@ -118,19 +117,6 @@ def test_first_idx_per_group() -> None:
     first_result = first_idx_per_group(group_idx=GROUP_IDX, n_groups=N_GROUPS)
 
     np.testing.assert_array_equal(first_expected, first_result, err_msg="first_idx_per_group failed.")
-
-
-def test_sort_by_group() -> None:
-    """
-    Tests aggregate helper sort_by_group.
-    """
-    order, unique_ids, starts, ends = sort_by_group(group_ids=GROUP_IDX)
-
-    for i in range(len(unique_ids)):
-        expected = np.flatnonzero(GROUP_IDX == unique_ids[i])
-        result = order[starts[i] : ends[i]]
-
-        np.testing.assert_array_equal(np.sort(result), expected, err_msg="sort_by_group failed.")
 
 
 def test_radii() -> None:

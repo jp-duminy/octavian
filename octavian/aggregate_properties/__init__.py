@@ -1,6 +1,3 @@
-from .aggregate_helpers import (
-    sort_by_group as sort_by_group,
-)
 from .properties_core import (
     run_core_properties as run_core_properties,
 )
