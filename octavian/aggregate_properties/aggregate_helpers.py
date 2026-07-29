@@ -15,17 +15,8 @@ from numba import (
 # NOTE: as of 25/06/26, do not njit the bincount wrappers, numba does not support minlength parameter
 
 
-def sum_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array where each element is a sum of the quantity of interest (values) per group (bincount wrapper).
-
-    The output is a an array of the total values of the quantity of interest for each group.
-    """
-    return np.bincount(group_idx, weights=values, minlength=n_groups)  # minlength handles empty groups
-
-
 @njit(cache=True, parallel=True)
-def sum_per_group_2(
+def sum_per_group(
     values: np.ndarray,
     offsets: np.ndarray,
     idx_sorted: np.ndarray,
@@ -46,15 +37,8 @@ def sum_per_group_2(
     return sum_per_group
 
 
-def count_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array where each element is the number of occurences per group (bincount wrapper).
-    """
-    return np.bincount(group_idx, minlength=n_groups)  # minlength handles empty groups
-
-
 @njit(cache=True, parallel=True)
-def count_per_group_2(
+def count_per_group(
     offsets: np.ndarray,
     n_groups: int,
 ) -> np.ndarray:
@@ -71,26 +55,8 @@ def count_per_group_2(
     return count_per_group
 
 
-@njit(cache=True)
-def max_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array of the maximum value (of quantity of interest 'values') for each group.
-
-    np.max() only works on a total array.
-    """
-    result = np.full(shape=n_groups, fill_value=-np.inf)
-
-    for i in range(len(values)):
-        g = group_idx[i]  # corresponding group for each value
-
-        if values[i] > result[g]:  # any real value > -np.inf
-            result[g] = values[i]
-
-    return result
-
-
 @njit(cache=True, parallel=True)
-def max_value_per_group_2(values: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, n_groups: int) -> np.ndarray:
+def max_value_per_group(values: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns:
 
@@ -108,26 +74,8 @@ def max_value_per_group_2(values: np.ndarray, offsets: np.ndarray, idx_sorted: n
     return max_value_per_group
 
 
-@njit(cache=True)
-def min_value_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array of the minimum value (of quantity of interest 'values') for each group.
-
-    np.min() only works on a total array.
-    """
-    result = np.full(shape=n_groups, fill_value=np.inf)
-
-    for i in range(len(values)):
-        g = group_idx[i]  # corresponding group for each value
-
-        if values[i] < result[g]:  # any real value < np.inf
-            result[g] = values[i]
-
-    return result
-
-
 @njit(cache=True, parallel=True)
-def min_value_per_group_2(values: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, n_groups: int) -> np.ndarray:
+def min_value_per_group(values: np.ndarray, offsets: np.ndarray, idx_sorted: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns:
 
@@ -145,26 +93,8 @@ def min_value_per_group_2(values: np.ndarray, offsets: np.ndarray, idx_sorted: n
     return min_value_per_group
 
 
-@njit(cache=True)
-def max_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array of the indices of the member with the maximum value (of quantity of interest 'values') in each group.
-    """
-    result_val = np.full(shape=n_groups, fill_value=-np.inf)
-    result_idx = np.full(shape=n_groups, fill_value=-1, dtype=np.int64)  # -1 sentinel value
-
-    for i in range(len(values)):
-        g = group_idx[i]  # corresponding group for each value
-
-        if values[i] > result_val[g]:  # any real value > -np.inf
-            result_val[g] = values[i]
-            result_idx[g] = i
-
-    return result_idx
-
-
 @njit(cache=True, parallel=True)
-def max_idx_per_group_2(
+def max_idx_per_group(
     values: np.ndarray,
     offsets: np.ndarray,
     idx_sorted: np.ndarray,
@@ -189,26 +119,8 @@ def max_idx_per_group_2(
     return max_idx_per_group
 
 
-@njit(cache=True)
-def min_idx_per_group(values: np.ndarray, group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array of the indices of the member with the minimum value (of quantity of interest 'values') in each group.
-    """
-    result_val = np.full(shape=n_groups, fill_value=np.inf)
-    result_idx = np.full(shape=n_groups, fill_value=-1, dtype=np.int64)  # -1 sentinel value
-
-    for i in range(len(values)):
-        g = group_idx[i]  # corresponding group for each value
-
-        if values[i] < result_val[g]:  # any real value < np.inf
-            result_val[g] = values[i]
-            result_idx[g] = i
-
-    return result_idx
-
-
 @njit(cache=True, parallel=True)
-def min_idx_per_group_2(
+def min_idx_per_group(
     values: np.ndarray,
     offsets: np.ndarray,
     idx_sorted: np.ndarray,
@@ -233,24 +145,8 @@ def min_idx_per_group_2(
     return min_idx_per_group
 
 
-@njit(cache=True)
-def first_idx_per_group(group_idx: np.ndarray, n_groups: int) -> np.ndarray:
-    """
-    Returns an array of the indices of the first member of each group.
-    """
-    result = np.full(shape=n_groups, fill_value=-1, dtype=np.int64)
-
-    for i in range(len(group_idx)):
-        g = group_idx[i]
-
-        if result[g] == -1:
-            result[g] = i
-
-    return result
-
-
 @njit(cache=True, parallel=True)
-def first_idx_per_group_2(offsets: np.ndarray, idx_sorted: np.ndarray, n_groups: int) -> np.ndarray:
+def first_idx_per_group(offsets: np.ndarray, idx_sorted: np.ndarray, n_groups: int) -> np.ndarray:
     """
     Returns:
 

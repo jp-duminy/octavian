@@ -23,20 +23,20 @@ import numpy as np
 from octavian.log import get_logger
 
 from octavian.aggregate_properties.aggregate_computations import (
-    compute_kinematics_2,
-    compute_rotational_quantities_2,
-    compute_enclosed_mass_radii_2,
-    compute_virial_quantities_2,
-    compute_centre_of_mass_2,
-    compute_vmax_and_rmax_2,
-    compute_radii_2,
+    compute_kinematics,
+    compute_rotational_quantities,
+    compute_enclosed_mass_radii,
+    compute_virial_quantities,
+    compute_centre_of_mass,
+    compute_vmax_and_rmax,
+    compute_radii,
 )
 
 from octavian.aggregate_properties.aggregate_helpers import (
-    sum_per_group_2,
-    count_per_group_2,
-    min_idx_per_group_2,
-    first_idx_per_group_2,
+    sum_per_group,
+    count_per_group,
+    min_idx_per_group,
+    first_idx_per_group,
     guarded_arcsin,
     guarded_divide,
 )
@@ -184,7 +184,7 @@ def run_core_ptype_pass(
         )
         store.write_batch(results=derived, suffix=ptype)
 
-        radii = compute_radii_2(
+        radii = compute_radii(
             positions=data["pos"],  # these pop out in group order
             ref_pos=ref_pos,
             offsets=offsets,
@@ -255,7 +255,7 @@ def run_halo_stages(
         data = particles[ptype]
         offsets, idx_sorted = halos.get_particle_csr(ptype=ptype)
 
-        radii = compute_radii_2(
+        radii = compute_radii(
             positions=data["pos"],
             ref_pos=ref_pos,
             offsets=offsets,
@@ -319,7 +319,7 @@ def run_galaxy_stages(
         data = particles[ptype]
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
 
-        counter_rot, ke_rot = compute_rotational_quantities_2(
+        counter_rot, ke_rot = compute_rotational_quantities(
             positions=data["pos"],
             velocities=data["vel"],
             masses=data["mass"],
@@ -373,7 +373,7 @@ def _combined_quantiles(
         data = particles[ptype]
         offsets, idx_sorted = store.get_particle_csr(ptype)
 
-        radii = compute_radii_2(
+        radii = compute_radii(
             positions=data["pos"],
             ref_pos=ref_pos,
             offsets=offsets,
@@ -475,7 +475,7 @@ def _prepare_global_minimum_potential(
         positions = data["pos"]
         velocities = data["vel"]
 
-        min_idx = min_idx_per_group_2(values=potentials, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+        min_idx = min_idx_per_group(values=potentials, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
         has_min = min_idx >= 0
         ptype_min_pot = np.full(n_groups, np.inf)
         ptype_min_pot[has_min] = potentials[min_idx[has_min]]
@@ -506,8 +506,8 @@ def _compute_counts_and_mass(
     """
     results: dict[str, np.ndarray] = {}
 
-    results[f"n_{ptype}"] = count_per_group_2(offsets=offsets, n_groups=n_groups)
-    results[f"mass_{ptype}"] = sum_per_group_2(values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    results[f"n_{ptype}"] = count_per_group(offsets=offsets, n_groups=n_groups)
+    results[f"mass_{ptype}"] = sum_per_group(values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
 
     return results
 
@@ -530,14 +530,14 @@ def _compute_centre_of_mass(
     """
     results: dict[str, np.ndarray] = {}
 
-    anchor_idx = first_idx_per_group_2(
+    anchor_idx = first_idx_per_group(
         offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )  # HACK: anchor can be any particle, so use first member of each group
     anchor_positions = np.full((n_groups, 3), np.nan)
     valid_anchors = anchor_idx >= 0
     anchor_positions[valid_anchors] = positions[anchor_idx[valid_anchors]]
 
-    com_positions, com_velocities = compute_centre_of_mass_2(
+    com_positions, com_velocities = compute_centre_of_mass(
         positions=positions,
         velocities=velocities,
         masses=masses,
@@ -574,7 +574,7 @@ def _compute_ptype_kinematics(
     - _dispersion_sum
     - _ke_tot
     """
-    L, ke_tot, dispersion_sum = compute_kinematics_2(
+    L, ke_tot, dispersion_sum = compute_kinematics(
         positions=positions,
         velocities=velocities,
         masses=masses,
@@ -616,7 +616,7 @@ def _compute_radial_quantities(
     """
     results: dict[str, np.ndarray] = {}
 
-    radial_results = compute_enclosed_mass_radii_2(
+    radial_results = compute_enclosed_mass_radii(
         radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups, quantiles=quantiles
     )
 
@@ -646,7 +646,7 @@ def _compute_mass_profile_quantities(
     """
     results: dict[str, np.ndarray] = {}
 
-    virial_radius, virial_mass = compute_virial_quantities_2(
+    virial_radius, virial_mass = compute_virial_quantities(
         radii=radii,
         masses=masses,
         offsets=offsets,
@@ -660,7 +660,7 @@ def _compute_mass_profile_quantities(
         results[f"radius_{factor}c"] = virial_radius[:, f]
         results[f"mass_{factor}c"] = virial_mass[:, f]
 
-    vmax, rmax = compute_vmax_and_rmax_2(
+    vmax, rmax = compute_vmax_and_rmax(
         radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted, G=constants.G_VCIRC, n_groups=n_groups
     )
 
