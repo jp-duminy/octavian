@@ -25,7 +25,7 @@ from octavian.aggregate_properties.aggregate_helpers import (
     min_value_per_group_2,
     min_idx_per_group_2,
     max_idx_per_group_2,
-    first_idx_per_group,
+    first_idx_per_group_2,
 )
 
 from octavian.data_management import (
@@ -114,7 +114,7 @@ def test_first_idx_per_group() -> None:
     Tests aggregate helper first_idx_per_group.
     """
     first_expected = [np.flatnonzero(GROUP_IDX == g)[0] for g in range(N_GROUPS)]
-    first_result = first_idx_per_group(group_idx=GROUP_IDX, n_groups=N_GROUPS)
+    first_result = first_idx_per_group_2(offsets=OFFSETS, idx_sorted=IDX_SORTED, n_groups=N_GROUPS)
 
     np.testing.assert_array_equal(first_expected, first_result, err_msg="first_idx_per_group failed.")
 
