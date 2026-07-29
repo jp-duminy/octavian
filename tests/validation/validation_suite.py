@@ -422,7 +422,7 @@ def plot_gsmf(catalogue: Path, boxsize: float, minstars: int = 32) -> None:
         ax.set_yscale("log")
         ax.set_xlabel(r"$\log_{10}(M_\star / M_\odot)$")
         ax.set_ylabel(r"$\Phi$ [dex$^{-1}$ Mpc$^{-3}$ $h^3$]")
-        ax.set_title("Galaxy Stellar Mass Function: z=0, all fixes, new algo (no self-pairs)")
+        ax.set_title(f"Galaxy Stellar Mass Function for {catalogue.name}")
         fig.tight_layout()
         fig.savefig(fname="gsmf.png", dpi=300)
 
@@ -626,7 +626,7 @@ def test_run(args: argparse.Namespace) -> None:
                 args=args,
             )
             plot_gsmf(catalogue=catalogue_path, boxsize=25, minstars=32)
-            # validate_against_reference(catalogue=catalogue_path, reference=args.reference)
+            validate_against_reference(catalogue=catalogue_path, reference=args.reference)
 
 
 def current_memory_gb() -> float:
