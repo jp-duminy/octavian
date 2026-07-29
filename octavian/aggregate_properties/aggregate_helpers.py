@@ -286,38 +286,3 @@ def guarded_arcsin(values: np.ndarray) -> np.ndarray:
         return np.arcsin(
             np.clip(values, -1.0, 1.0), out=np.zeros_like(values, dtype=np.float64), where=np.isfinite(values)
         )
-
-
-def sort_by_group(group_ids: np.ndarray) -> tuple[np.ndarray, ...]:
-    """
-    Constructs slices of the bulk for efficient data processing.
-
-    - sorts array by group_ids
-    - finds where each group starts and ends
-
-    Meaning we now have a flat array for quick vectorised operations.
-    Similar to the CSR format that forms the basis of Octavian's I/O.
-    """
-    # guard (in practice, should not happen)
-    if len(group_ids) == 0:
-        return np.array([], dtype=np.int64), np.array([]), np.array([], dtype=np.int64), np.array([], dtype=np.int64)
-
-    order = np.argsort(group_ids, kind="stable")  # stable sort avoids non-deterministic sorting
-    sorted_ids = group_ids[order]
-    changes = np.flatnonzero(np.diff(sorted_ids))  # find where the difference is nonzero (where a new group starts)
-
-    # find where each group starts
-    start = np.empty(len(changes) + 1, dtype=np.int64)  # np.diff shifts the array left; compensate
-    start[0] = 0
-    start[1:] = changes + 1
-
-    # find where each group ends
-    end = np.empty(len(start), dtype=np.int64)
-    end[:-1] = start[1:]  # group ends at the next group's starting index
-    end[-1] = len(
-        group_ids
-    )  # no such boundary exists from start[] but can find it from number of particles (len(group_ids))
-
-    unique_ids = sorted_ids[start]
-
-    return order, unique_ids, start, end
