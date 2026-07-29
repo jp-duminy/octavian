@@ -228,7 +228,7 @@ def run_octavian(
     masks: dict[str, np.ndarray] = {}
     maps: dict[str, RedistributionMap] = {}
     local_halo_ids: dict[str, np.ndarray] = {}
-    local_subhalo_ids: dict[str, np.ndarray] = {}
+    local_subhalo_ids: dict[str, np.ndarray] | None = {} if raw_subhalo_ids is not None else None
 
     for ptype in raw_halo_ids:
         maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
