@@ -119,8 +119,9 @@ def assign_galaxy_halo_indices(
     all_galaxy_idx = []
 
     for ptype in available_baryonic_ptypes:
-        particle_idx, group_idx = galaxies.expand_csr_membership(ptype)
-        all_subhids.append(particles[ptype]["SubhaloID"][particle_idx])
+        offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
+        all_subhids.append(particles[ptype]["SubhaloID"][idx_sorted])
+        group_idx = np.repeat(np.arange(galaxies.n_groups), np.diff(offsets))
         all_galaxy_idx.append(group_idx)
 
     subhids, galaxy_idx = np.concatenate(all_subhids), np.concatenate(all_galaxy_idx)

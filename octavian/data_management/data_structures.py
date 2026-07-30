@@ -655,7 +655,9 @@ class GroupStore:
         self.kind = kind
 
         max_id = group_ids.max() if self.n_groups > 0 else 0
-        logger.debug(f"Max ID guard hit in group store for {group_key}")
+        if max_id == 0:
+            logger.debug(f"Empty GroupStore for {group_key}")
+
         self.id_to_idx = np.full(shape=max_id + 1, fill_value=-1, dtype=DTYPES["pid"])
         self.id_to_idx[group_ids] = np.arange(self.n_groups, dtype=DTYPES["csr_offsets"])
 
@@ -707,18 +709,12 @@ class GroupStore:
 
     def get_particle_csr(self, ptype: str) -> tuple[np.ndarray, np.ndarray]:
         """
-        Returns a tuple of (offsets, sorted_indices) into the ParticleStore of the ptype.
+        For indexing particle arrays in the CSR format. Returns a tuple of:
+
+        - offsets: CSR offsets
+        - idx_sorted: indices into ParticleStore aligned to GroupStore order
         """
         return self.csr_membership[ptype]
-
-    def expand_csr_membership(self, ptype: str) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Returns a tuple of (particle_idx, group_idx) arrays which allow for multi-membership slicing (both sorted).
-        """
-        offsets, particle_idx = self.csr_membership[ptype]
-        group_idx = np.repeat(np.arange(self.n_groups, dtype=np.int64), np.diff(offsets))
-
-        return particle_idx, group_idx
 
 
 def build_galaxy_store(
