@@ -70,6 +70,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
                 offsets=gas_offsets,
                 idx_sorted=gas_idx,
                 n_groups=n_groups,
+                Tlim=config.T_lim,
             )
             group_store.write_batch(results=gas_results)
 
@@ -151,6 +152,7 @@ def compute_gas_properties(
     offsets: np.ndarray,
     idx_sorted: np.ndarray,
     n_groups: int,
+    Tlim: float,
 ) -> dict[str, np.ndarray]:
     """
     Computes gas-specific properties, returning a dict of:
@@ -159,6 +161,8 @@ def compute_gas_properties(
     - sfr
     - metallicity_{mass/sfr}_weighted
     - temp_mass_weighted
+    - mass_hot: gas mass above Tlim
+    - mass_cold: gas mass below Tlim
 
     And writes HI/H2 masses back to ParticleStore for local environment properties.
     """
@@ -173,8 +177,15 @@ def compute_gas_properties(
     metal_sfr = sum_per_group(values=(metallicities * sfrs), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
     temp_mass = sum_per_group(values=(temperatures * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
 
+    cold_masses = np.where(temperatures < Tlim, masses, 0.0)
+    mass_cold = sum_per_group(values=cold_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    hot_masses = np.where(temperatures >= Tlim, masses, 0.0)
+    mass_hot = sum_per_group(values=hot_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+
     results["mass_HI"] = mass_HI
     results["mass_H2"] = mass_H2
+    results["mass_cold"] = mass_cold
+    results["mass_hot"] = mass_hot
     results["sfr"] = sfr
     results["metallicity_mass_weighted"] = guarded_divide(numerator=metal_mass, denominator=gas_mass)
     results["metallicity_sfr_weighted"] = guarded_divide(numerator=metal_sfr, denominator=sfr)
@@ -221,6 +232,7 @@ def compute_cgm_properties(
         values=(cgm_masses * cgm_metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
 
+    results["mass_cgm"] = cgm_mass
     results["temp_mass_weighted_cgm"] = guarded_divide(numerator=cgm_temp_mass, denominator=cgm_mass)
     results["temp_metal_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_metal_mass)
     results["metallicity_mass_weighted_cgm"] = guarded_divide(numerator=cgm_metal_mass, denominator=cgm_mass)

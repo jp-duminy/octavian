@@ -587,6 +587,13 @@ def _compute_ptype_kinematics(
         boxsize=boxsize,
     )
 
+    # inertia tensors isn't derived but follows the same masking laws as combine_ptype_sums does, so do the masking here
+    counts = np.diff(offsets)  # offsets is an (n_groups+1) lengths array so np.diff shifts it to mimic counts
+    empty = counts == 0
+    small = (counts > 0) & (counts < 3)
+    inertia_tensor[empty] = np.nan
+    inertia_tensor[small] = 0
+
     results: dict[str, np.ndarray] = {}
 
     results["L"] = L
@@ -876,8 +883,9 @@ def _combine_ptype_sums(
 
         delta_vel = ptype_com_vel - combined_com_vel
         delta_vel_sq = np.sum(delta_vel**2, axis=1)
-        ptype_dispersion_sum = np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0) + ptype_mass * delta_vel_sq
 
+        # nan_to_num zeros NaNs before summing so they don't corrupt collective results
+        ptype_dispersion_sum = np.nan_to_num(group_store[f"_dispersion_sum_{pt}"], nan=0.0) + ptype_mass * delta_vel_sq
         ptype_ke = np.nan_to_num(group_store[f"_ke_tot_{pt}"], nan=0.0) + 0.5 * ptype_mass * delta_vel_sq
         ptype_L = np.nan_to_num(group_store[f"L_{pt}"], nan=0.0)
         ptype_I = np.nan_to_num(group_store[f"inertia_tensor_{pt}"], nan=0.0)
