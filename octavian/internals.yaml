@@ -59,8 +59,8 @@ stages:
     requires: [properties_core]
     needs_particle_columns: [mass, temperature, metallicity, sfr, age, bhmass, bhmdot, rho]
     outputs:
-      - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_mass_weighted", "metallicity_sfr_weighted", "temp_mass_weighted"]
-      - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm"]
+      - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_mass_weighted", "metallicity_sfr_weighted", "temp_mass_weighted", "mass_cold", "mass_hot"]
+      - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
         applies_to: [halos]
       - columns: ["metallicity_stellar", "age_mass_weighted", "age_metal_weighted"]
       - columns: ["bh_mass_max", "bhmdot", "bh_fedd"]
@@ -260,6 +260,21 @@ output_columns:
     dtype:       float64
     unit:        "K"
     description: "Metallicity-weighted CGM gas temperature"
+
+  mass_cgm:  # only haloes
+    dtype:       float64
+    unit:        "Msun"
+    description: "CGM gas mass."
+
+  mass_cold:
+    dtype:       float64
+    unit:        "Msun"
+    description: "Cold gas mass (as defined in user config Tlim)"
+
+  mass_hot:
+    dtype:       float64
+    unit:        "Msun"
+    description: "Hot gas mass (as defined in user config Tlim)"
   # end only gas
 
   # only stars
