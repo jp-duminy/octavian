@@ -282,12 +282,6 @@ class SnapshotReader:
     global_indices: dict[str, np.ndarray] | None = NotImplemented
     particle_counts: dict[str, int] | None = NotImplemented
 
-    def set_indices(self, indices: dict[str, np.ndarray]) -> None:
-        """
-        Sets the indices (if in parallel) dictionary to the per-rank read masks.
-        """
-        raise NotImplementedError
-
     def set_maps(
         self,
         slabs: dict[str, slice],
