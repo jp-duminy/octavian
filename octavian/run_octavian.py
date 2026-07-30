@@ -1,8 +1,6 @@
 """
 
-Executes Octavian analysis pipeline.
-
-NOTE: this is now calling dead code as of v0.3.0, so it will need to be refactored (easy, see validation/testing_suite.py)
+Functions for executing the end-to-end Octavian analysis pipeline.
 
 """
 
