@@ -7,11 +7,14 @@ Internal agnostic halo source infrastructure, for passing to the likewise-agnost
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import SnapshotReader
+    from octavian.data_management import SnapshotReader, OctavianConfig
     from mpi4py.MPI import Comm
 from dataclasses import dataclass
 import numpy as np
 from numba import njit
+from octavian.log import get_logger
+
+logger = get_logger()
 
 
 @dataclass(slots=True, frozen=True)
@@ -41,6 +44,30 @@ class SubhaloInformation:
     depth: np.ndarray  # >= 1
     global_index: np.ndarray
     n_bound: np.ndarray
+
+
+def build_halo_source(config: OctavianConfig, reader: SnapshotReader) -> HaloSource:
+    """
+    Construct the (Sub)HaloID parser based on what was requested in the config. Returns:
+
+    - HaloSource corresponding to the config source.
+    """
+    if config.halo_id_source == "SNAPSHOT":
+        logger.info("Using snapshot-assigned HaloIDs.")
+        return SnapshotHaloSource(reader=reader)
+    elif config.halo_id_source == "AHF":
+        from .ahf import AHFHaloSource  # I had to stick this in here to avoid a circular import
+
+        prefix = config.halo_id_filepath  # renamed for explicitness
+        logger.info("Using AHF-assigned HaloIDs.")
+        logger.info(f"Finding AHF catalogues at {prefix} .")
+        return AHFHaloSource(
+            halos_path=prefix.with_suffix(".AHF_halos"),
+            particles_path=prefix.with_suffix(".AHF_particles"),
+            reader=reader,
+        )
+    else:
+        raise ValueError("Unknown halo ID source, please check config?")
 
 
 def build_contiguous_id_lookup(ids: np.ndarray) -> np.ndarray:
