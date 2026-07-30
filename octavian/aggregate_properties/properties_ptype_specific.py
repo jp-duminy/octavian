@@ -261,7 +261,7 @@ def compute_star_properties(
     return results
 
 
-def compute_bh_properties(
+def compute_bh_properties(  # TODO: bh_props_max and sort out which dataset is read for these
     masses: np.ndarray,
     bhmdots: np.ndarray,
     offsets: np.ndarray,

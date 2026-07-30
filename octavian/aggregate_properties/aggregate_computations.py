@@ -5,6 +5,7 @@ The Octavian aggregate properties engine room.
 Vectorisation means intermediate array allocations are made by numpy. JIT-compiled numba functions avoid creating these intermediates; a good example is the centre-of-mass computations, which need intermediate position and velocity Nx3 arrays. Sometimes numba also makes inherently more sense, for example on something like angular momentum which is a cross product which would require 3 bincount calls. Over time I have moved away from pure numpy to numba where possible, numpy for simple vectorised operations.
 
 Conventions:
+
 g: group-level index
 p: particle-level index
 d: axis (x, y, z)
@@ -17,7 +18,8 @@ import numpy as np
 from numba import (
     njit,
     prange,
-)  # NOTE: prange and parallel=True can lead to non-deterministic results https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
+)  # NOTE: be careful with prange: it should parallelise over groups but not over particles, otherwise results become non-deterministic
+# https://stackoverflow.com/questions/68236463/python-numba-non-deterministic-results
 
 
 @njit(cache=True, parallel=True)
@@ -189,7 +191,7 @@ def compute_virial_quantities(
     n_groups: int,
     rhocrit: float,
     factors: list[float],
-) -> tuple[np.ndarray, ...]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns a tuple of (n_groups, n_factors) arrays for virial radius/mass at those factors respectively.
     """
@@ -229,7 +231,7 @@ def compute_vmax_and_rmax(
     idx_sorted: np.ndarray,
     G: float,
     n_groups: int,
-) -> tuple[np.ndarray, ...]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns a tuple of vmax, rmax (n_groups) arrays from the enclosed mass profile; this does do redundant recomputation from virial quantities but separation of concerns is more important.
     """
