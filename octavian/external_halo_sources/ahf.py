@@ -4,9 +4,11 @@ Parser for AHF: Amiga's Halo Finder.
 
 AHF paper: https://iopscience.iop.org/article/10.1088/0067-0049/182/2/608
 
+NOTE: the AHF parser uses np.loadtxt with a numba parser on the resulting array. The call to loadtxt is hard-coded to the structure of an AHF catalogue, and the structure of these catalogues is somewhat finicky/not too user-friendly. Therefore the parser is quite exposed to any changes AHF makes to how they store their information. If catalogues take a long time to parse, a better parsing method would perhaps be welcome.
+
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from octavian.data_management import SnapshotReader
@@ -30,15 +32,37 @@ from .halo_structures import (
 from octavian.data_management.parallel_reading import generate_slabs
 
 
+class AHFCatalogue(NamedTuple):  # for code readability
+    """
+    Container for AHF catalogue info.
+    """
+
+    parent_indices: np.ndarray
+    depths: np.ndarray
+    n_particles: np.ndarray
+    field_lookup: np.ndarray
+    sub_lookup: np.ndarray
+    field_of: np.ndarray
+
+
 class AHFHaloSource(HaloSource):
-    def __init__(self, halos_path: Path, particles_path: Path, reader: SnapshotReader):
+    """
+    AHF Amiga Halo Finder parser with object-oriented interface. Methods:
+
+    - read_halo_ids: returns HaloAssignments object
+    - read_subhalo_ids: returns SubhaloInformation object
+    - distribute_raw_halo_ids: distributes slab-based HaloID info from rank 0 to other ranks
+    - distribute_raw_subhalo_ids: distributes slab-based SubhaloID info from rank 0 to other ranks
+    """
+
+    def __init__(self, halos_path: Path, particles_path: Path, reader: SnapshotReader) -> None:
 
         self.halos_path = halos_path
         self.particles_path = particles_path
         self.reader = reader
 
-    @cached_property
-    def _halos_catalogue(self) -> tuple[np.ndarray, ...]:
+    @cached_property  # cached_property allows AHFHaloSource to parse catalogues once while meeting the inheritance requirements of a HaloSource class
+    def _halos_catalogue(self) -> AHFCatalogue:
         """
         Parses and stores AHF_halos file information, deriving raw ahf ids, parent indices, subhalo depths, and lookup arrays.
         """
@@ -60,16 +84,25 @@ class AHFHaloSource(HaloSource):
         sub_lookup = np.full(len(raw_ahf_ids), fill_value=-1, dtype=np.int64)
         sub_lookup[~is_field] = np.arange((~is_field).sum(), dtype=np.int64)
 
-        return parent_indices, depths, n_particles, field_lookup, sub_lookup, field_of
+        catalogue = AHFCatalogue(
+            parent_indices=parent_indices,
+            depths=depths,
+            n_particles=n_particles,
+            field_lookup=field_lookup,
+            sub_lookup=sub_lookup,
+            field_of=field_of,
+        )
+
+        return catalogue
 
     @cached_property
-    def _particles(self) -> tuple[np.ndarray, ...]:
+    def _particles(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Parses AHF_particles and deduplicates inclusive membership.
         Returns (unique_pids, field_halo_indices, deepest_halo_indices), sorted by unique_pids.
         """
         particles_array = np.loadtxt(self.particles_path, skiprows=1, dtype=np.int64)
-        _, depths, _, _, _, _ = self._halos_catalogue
+        depths = self._halos_catalogue.depths
 
         pids, halo_indices = parse_ahf_particles(ahf_particle_array=particles_array, n_halos=len(depths))
 
@@ -77,9 +110,11 @@ class AHFHaloSource(HaloSource):
 
     def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
         """
-        Returns a HaloAssignments dataclass containing the assignments made by AHF.
+        Interfaces with the provided SnapshotReader and parses the .AHF_halos/AHF_particles files to match snapshot particle IDs with their AHF equivalents and produce the final assignments made by AHF. Returns:
+
+        - HaloAssignments dataclass.
         """
-        _, depths, _, field_lookup, sub_lookup, field_of = self._halos_catalogue
+        catalogue = self._halos_catalogue
         unique_pids, deepest_halo_indices = self._particles
 
         halo_assignments: dict[str, np.ndarray] = {}
@@ -91,15 +126,15 @@ class AHFHaloSource(HaloSource):
             positional_hids, positional_subhids = match_ahf_particle_ids(
                 snapshot_pids=snapshot_pids,
                 unique_ahf_pids=unique_pids,
-                field_of=field_of,
+                field_of=catalogue.field_of,
                 deepest_halo_indices=deepest_halo_indices,
-                depths=depths,
+                depths=catalogue.depths,
             )
 
-            halo_assignments[ptype] = apply_lookup(ids=positional_hids, lookup=field_lookup)
-            subhalo_assignments[ptype] = apply_lookup(ids=positional_subhids, lookup=sub_lookup)
+            halo_assignments[ptype] = apply_lookup(ids=positional_hids, lookup=catalogue.field_lookup)
+            subhalo_assignments[ptype] = apply_lookup(ids=positional_subhids, lookup=catalogue.sub_lookup)
 
-        n_total_halos = int((depths == 0).sum())
+        n_total_halos = int((catalogue.depths == 0).sum())
 
         sub_info = self.read_subhalo_info()
         for ptype, sub_ids in subhalo_assignments.items():
@@ -112,25 +147,27 @@ class AHFHaloSource(HaloSource):
 
     def read_subhalo_info(self) -> SubhaloInformation:
         """
-        Returns the AHF subhalo information, sliced to subhalo-only rows in contiguous SubhaloID order.
-        """
-        parent_indices, depths, n_particles, field_lookup, sub_lookup, field_of = self._halos_catalogue
+        Uses the supplied AHF catalogues to map out hierarchy and parent pointers for subhaloes. Returns:
 
-        sub_mask = depths > 0
+        - SubhaloInformation dataclass
+        """
+        catalogue = self._halos_catalogue
+
+        sub_mask = catalogue.depths > 0
 
         # parents may be field halos (depth-1 subs) or other subhalos (deeper): remap each namespace
-        sub_parents = parent_indices[sub_mask]
-        parent_is_field = depths[sub_parents] == 0
+        sub_parents = catalogue.parent_indices[sub_mask]
+        parent_is_field = catalogue.depths[sub_parents] == 0
 
-        parent_index = np.where(parent_is_field, -1, sub_lookup[sub_parents])
-        host_halo_ids = field_lookup[field_of[sub_mask]]
+        parent_index = np.where(parent_is_field, -1, catalogue.sub_lookup[sub_parents])
+        host_halo_ids = catalogue.field_lookup[catalogue.field_of[sub_mask]]
 
         return SubhaloInformation(
             host_halo_ids=host_halo_ids,
             parent_index=parent_index,
             global_index=np.arange(sub_mask.sum(), dtype=np.int64),
-            depth=depths[sub_mask],
-            n_bound=n_particles[sub_mask],
+            depth=catalogue.depths[sub_mask],
+            n_bound=catalogue.n_particles[sub_mask],
         )
 
     def distribute_raw_halo_ids(
@@ -235,7 +272,7 @@ def deduplicate_ahf_particles(
     pids: np.ndarray,
     halo_indices: np.ndarray,
     depths: np.ndarray,
-) -> tuple[np.ndarray, ...]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Resolves the duplicate appearances of particles in AHF halos by assigning them to their deepest membership, which follows the convention of then propagating child subhalo membership into parents; returns a tuple of unique particle ids, field halo indices, and (deepest) subhalo indices.
     """
