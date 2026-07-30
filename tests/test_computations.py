@@ -187,6 +187,7 @@ def test_kinematics() -> None:
     expected_L = np.zeros((N_GROUPS, 3))
     expected_ke = np.zeros(N_GROUPS)
     expected_disp = np.zeros(N_GROUPS)
+    expected_I_tensor = np.zeros((N_GROUPS, 3, 3))
 
     for g in range(N_GROUPS):
         mask = GROUP_IDX == g
@@ -195,15 +196,17 @@ def test_kinematics() -> None:
         delta_vel_ref = vel[mask] - ref_vel[g]
         delta_vel_com = vel[mask] - com_vel[g]
         m = masses[mask]
+        r_sq = np.sum(delta_pos**2, axis=1)
 
         expected_L[g] = np.sum(m[:, None] * np.cross(delta_pos, delta_vel_ref), axis=0)
         expected_ke[g] = 0.5 * np.sum(m * np.sum(delta_vel_ref**2, axis=1))
         expected_disp[g] = np.sum(m * np.sum(delta_vel_com**2, axis=1))
+        expected_I_tensor[g] = np.sum(m * r_sq) * np.eye(3) - np.einsum("i, ij, ik->jk", m, delta_pos, delta_pos)
 
     delta = pos - ref_pos[GROUP_IDX]
     delta -= BOXSIZE * np.round(delta / BOXSIZE)
 
-    result_L, result_ke, result_disp = compute_kinematics(
+    result_L, result_ke, result_disp, result_I = compute_kinematics(
         positions=pos,
         velocities=vel,
         masses=masses,
@@ -219,6 +222,7 @@ def test_kinematics() -> None:
     np.testing.assert_allclose(result_L, expected_L, rtol=1e-12)
     np.testing.assert_allclose(result_ke, expected_ke, rtol=1e-12)
     np.testing.assert_allclose(result_disp, expected_disp, rtol=1e-12)
+    np.testing.assert_allclose(result_I, expected_I_tensor, rtol=1e-12)
 
 
 def test_rotational_quantities() -> None:

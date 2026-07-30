@@ -574,7 +574,7 @@ def _compute_ptype_kinematics(
     - _dispersion_sum
     - _ke_tot
     """
-    L, ke_tot, dispersion_sum = compute_kinematics(
+    L, ke_tot, dispersion_sum, inertia_tensor = compute_kinematics(
         positions=positions,
         velocities=velocities,
         masses=masses,
@@ -592,6 +592,7 @@ def _compute_ptype_kinematics(
     results["L"] = L
     results["_ke_tot"] = ke_tot
     results["_dispersion_sum"] = dispersion_sum
+    results["inertia_tensor"] = inertia_tensor
 
     return results
 
@@ -867,6 +868,7 @@ def _combine_ptype_sums(
     combined_ke = np.zeros(shape=n_groups)
     combined_dispersion_sum = np.zeros(shape=n_groups)
     combined_com_vel = centre_of_mass[f"com_vel_{collective_name}"]
+    combined_inertia_tensor = np.zeros(shape=(n_groups, 3, 3))
 
     for pt in constituent_ptypes:
         ptype_com_vel = group_store[f"_vel_{pt}"]
@@ -878,10 +880,12 @@ def _combine_ptype_sums(
 
         ptype_ke = np.nan_to_num(group_store[f"_ke_tot_{pt}"], nan=0.0) + 0.5 * ptype_mass * delta_vel_sq
         ptype_L = np.nan_to_num(group_store[f"L_{pt}"], nan=0.0)
+        ptype_I = np.nan_to_num(group_store[f"inertia_tensor_{pt}"], nan=0.0)
 
         combined_L += ptype_L
         combined_ke += ptype_ke
         combined_dispersion_sum += ptype_dispersion_sum
+        combined_inertia_tensor += ptype_I
 
     combined_counts = counts_and_mass[f"_n_{collective_name}"]
 
@@ -899,7 +903,7 @@ def _combine_ptype_sums(
     small = (combined_counts > 0) & (combined_counts < 3)
     empty = combined_counts == 0
 
-    for quantity in [combined_L_mag, combined_L, combined_alpha, combined_beta]:
+    for quantity in [combined_L_mag, combined_L, combined_alpha, combined_beta, combined_inertia_tensor]:
         quantity[empty] = np.nan
         quantity[small] = 0.0
 
@@ -910,5 +914,6 @@ def _combine_ptype_sums(
     results[f"_ke_tot_{collective_name}"] = combined_ke
     results[f"_dispersion_sum_{collective_name}"] = combined_dispersion_sum
     results[f"velocity_dispersion_{collective_name}"] = combined_velocity_dispersion
+    results[f"inertia_tensor_{collective_name}"] = combined_inertia_tensor
 
     return results | counts_and_mass | centre_of_mass
