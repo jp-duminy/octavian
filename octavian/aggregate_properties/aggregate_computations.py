@@ -34,17 +34,19 @@ def compute_kinematics(
     idx_sorted: np.ndarray,
     n_groups: int,
     boxsize: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Returns a tuple of three arrays. In order:
+    Returns a tuple of four arrays. In order:
 
     - L: (n_groups, 3) array of the angular momentum vector
     - ke_tot: (n_groups) array of total kinetic energy
     - dispersion_sum: (n_groups) array of the mass-weighted velocity dispersion sum
+    - I_tensor: (n_groups, 3, 3) array of the inertia tensor
     """
     L = np.zeros(shape=(n_groups, 3))
     ke_tot = np.zeros(shape=n_groups)
     dispersion_sum = np.zeros(shape=n_groups)
+    I_tensor = np.zeros(shape=(n_groups, 3, 3))
 
     for g in prange(n_groups):  # group-level parallel loop
         for idx in range(offsets[g], offsets[g + 1]):  # offsets[g]:offsets[g+1] = n_particles in group
@@ -72,14 +74,28 @@ def compute_kinematics(
             dispersion_sum[g] += mass * vel_sq_com
             ke_tot[g] += 0.5 * mass * ke
 
-            # angular momentum cross product
             rx, ry, rz = pos_rel[0], pos_rel[1], pos_rel[2]
+
+            # angular momentum cross product
             px, py, pz = mass * vel_rel[0], mass * vel_rel[1], mass * vel_rel[2]
             L[g, 0] += (ry * pz) - (rz * py)
             L[g, 1] += (rz * px) - (rx * pz)
             L[g, 2] += (rx * py) - (ry * px)
 
-    return L, ke_tot, dispersion_sum
+            # inertia tensor diagonals
+            I_tensor[g, 0, 0] += mass * (ry**2 + rz**2)
+            I_tensor[g, 1, 1] += mass * (rx**2 + rz**2)
+            I_tensor[g, 2, 2] += mass * (rx**2 + ry**2)
+
+            # inertia tensor off-diagonals
+            I_tensor[g, 0, 1] -= mass * rx * ry
+            I_tensor[g, 1, 0] -= mass * rx * ry
+            I_tensor[g, 0, 2] -= mass * rx * rz
+            I_tensor[g, 2, 0] -= mass * rx * rz
+            I_tensor[g, 1, 2] -= mass * ry * rz
+            I_tensor[g, 2, 1] -= mass * ry * rz
+
+    return L, ke_tot, dispersion_sum, I_tensor
 
 
 @njit(cache=True, parallel=True)

@@ -29,12 +29,12 @@ stages:
     outputs:
       - columns: ["n_{ptype}", "mass_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
-      - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "ALPHA_{ptype}", "BETA_{ptype}"]
+      - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "ALPHA_{ptype}", "BETA_{ptype}", "inertia_tensor_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
       - columns: ["BoverT_{ptype}", "kappa_rot_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
         applies_to: [galaxies]
-      - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "ALPHA_{combined}", "BETA_{combined}"]
+      - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "ALPHA_{combined}", "BETA_{combined}", "inertia_tensor_{combined}"]
         over: {combined: [total, baryon]}
       - columns: ["com_pos_{combined}", "com_vel_{combined}"]
         over: {combined: [total, baryon]}
@@ -151,6 +151,12 @@ output_columns:
     dtype:       float64
     unit:        "rad"
     description: "Angle between angular momentum and z-axis ({ptype})"
+
+  inertia_tensor_{ptype}:
+    over:         {ptype: [gas, star, dm, bh, total, baryon]}
+    dtype:        float64
+    unit:         "Msun*kpc**2"
+    description:  "Moment of inertia tensor."
 
   BoverT_{ptype}:
     over:        {ptype: [gas, star, dm, bh, baryon]}
