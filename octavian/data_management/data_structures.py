@@ -97,12 +97,6 @@ class GizmoReader(SnapshotReader):
             if dataset in DTYPES
         }
 
-    def set_indices(self, indices: dict[str, np.ndarray]) -> None:
-        """
-        Stores the indice mask which allows a rank to access its assigned portion of the snapshot.
-        """
-        self.indices = indices  # avoids passing "indices=" into functions
-
     def set_maps(
         self,
         slabs: dict[str, slice],
@@ -325,12 +319,6 @@ class SwiftReader(SnapshotReader):
         self.maps: dict[str, RedistributionMap] | None = None
 
         self.read_header()
-
-    def set_indices(self, indices: dict[str, np.ndarray]) -> None:
-        """
-        Stores the indice mask which allows a rank to access its assigned portion of the snapshot.
-        """
-        self.indices = indices  # avoids passing "indices=" into functions
 
     def set_maps(
         self,
