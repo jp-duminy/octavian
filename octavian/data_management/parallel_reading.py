@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 # others
 import numpy as np
 from dataclasses import dataclass, replace
-from mpi4py.util.dtlib import from_numpy_dtype
 
 # octavian
 from octavian.log import get_logger
@@ -48,6 +47,8 @@ def redistribute_data(
 
     - received_data: ndarray of the rank's owned data across the slabs
     """
+    from mpi4py.util.dtlib import from_numpy_dtype  # cannot import mpi4py at module-level for serial compatibility
+
     ordered_data = local_data[redistribution_map.send_order]
 
     if comm.size == 1:
