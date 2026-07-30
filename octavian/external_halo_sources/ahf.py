@@ -21,7 +21,7 @@ from functools import (
     cached_property,
 )  # for avoiding rereading files across methods but also not holding too much in __init__
 
-from .halo_structures import (
+from .halo_data_structures import (
     HaloAssignments,
     SubhaloInformation,
     HaloSource,

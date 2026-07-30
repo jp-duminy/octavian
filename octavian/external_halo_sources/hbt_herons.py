@@ -9,6 +9,8 @@ HBT-HERONS source code: https://github.com/SWIFTSIM/HBT-HERONS
 HBT-HERONS source paper: https://academic.oup.com/mnras/article/543/2/1339/8250004
 HBT algorithm source paper: https://academic.oup.com/mnras/article/474/1/604/4566529
 
+# NOTE: this file is currently outdated and does not match codebase conventions yet, as I am missing a HERONS catalogue to verify information against. The filenames and general structure are built with reference to HERONS' toolbox folder and SOAP's catalogue_readers/read_hbtplus.py file. Once these become available, it should be fairly easy to get this code working (the infrastructure is there already).
+
 """
 
 from typing import TYPE_CHECKING
@@ -23,11 +25,12 @@ from functools import (
     cached_property,
 )  # for avoiding rereading files across methods but also not holding too much in __init__
 
-from .halo_structures import (
+from .halo_data_structures import (
     HaloAssignments,
     SubhaloInformation,
     HaloSource,
     build_contiguous_id_lookup,
+    apply_lookup,
 )
 
 
@@ -94,10 +97,10 @@ class HeronsHaloSource(HaloSource):
                 host_halo_ids=host_halo_ids,
             )
 
-            halo_assignments[ptype] = _apply_lookup(
+            halo_assignments[ptype] = apply_lookup(
                 ids=halo_ids, lookup=self.hid_lookup
             )  # handles unmatched particles' sentinels
-            subhalo_assignments[ptype] = _apply_lookup(ids=subhalo_ids, lookup=self.subhid_lookup)
+            subhalo_assignments[ptype] = apply_lookup(ids=subhalo_ids, lookup=self.subhid_lookup)
 
         return HaloAssignments(halo_ids=halo_assignments, subhalo_ids=subhalo_assignments)
 
@@ -107,7 +110,7 @@ class HeronsHaloSource(HaloSource):
         """
         track_ids, host_halo_ids, n_bound = self._properties
         return SubhaloInformation(
-            host_halo_ids=_apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
+            host_halo_ids=apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
             track_ids=track_ids,
             n_bound=n_bound,
         )  # this is basically a wrapper; I envision AHF needing more on this method
@@ -190,13 +193,3 @@ def resolve_subsnap_paths(catalogue_dir: Path, snap_nr: int) -> Path:
         raise FileNotFoundError(f"{matches} output catalogues found in {catalogue_dir}, please check the directory.")
 
     return matches[0]
-
-
-def _apply_lookup(ids: np.ndarray, lookup: np.ndarray) -> np.ndarray:
-    """
-    Small helper to use the global id lookup with the ptype id arrays.
-    """
-    result = np.full_like(ids, fill_value=-1)
-    matched = ids != -1  # there will be unmatched particles and [-1] on an ndarray picks last element, so must mask
-    result[matched] = lookup[ids[matched]]
-    return result
