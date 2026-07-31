@@ -47,7 +47,6 @@ class OctavianConfig:
 
     nH_lim: float
     T_lim: float
-    XH: float
     FRAD: float
     MU: float
 
@@ -87,7 +86,6 @@ class OctavianConfig:
             min_dm_per_halo=raw["MINIMUM_DM_PER_HALO"],
             nH_lim=raw["nH_lim"],
             T_lim=raw["T_lim"],
-            XH=raw["XH"],
             FRAD=raw["FRAD"],
             MU=raw["MU"],
             b=raw["b"],

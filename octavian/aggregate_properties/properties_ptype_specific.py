@@ -51,7 +51,12 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             gas_offsets, gas_idx = group_store.get_particle_csr(ptype="gas")
 
             nH, fHI, fH2 = _prepare_hydrogen_fractions(
-                rho=gas["rho"], fHI=gas["fHI"], fH2=gas["fH2"], XH=config.XH, proton_mass=constants.PROTON_MASS_G
+                rho=gas["rho"],
+                fHI=gas["fHI"],
+                fH2=gas["fH2"],
+                gas_Y=gas["helium_fraction"],
+                gas_Z=gas["metallicity"],
+                proton_mass=constants.PROTON_MASS_G,
             )
             mass_HI = gas["mass"] * fHI
             mass_H2 = gas["mass"] * fH2
@@ -119,8 +124,8 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
 
 
 def _prepare_hydrogen_fractions(
-    rho: np.ndarray, fHI: np.ndarray, fH2: np.ndarray, XH: float, proton_mass: float
-) -> tuple[np.ndarray, ...]:
+    rho: np.ndarray, fHI: np.ndarray, fH2: np.ndarray, gas_Z: np.ndarray, gas_Y: np.ndarray, proton_mass: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Enforces hydrogen fraction conservation and computes and hydrogen abundance, returning a tuple of:
 
@@ -135,7 +140,7 @@ def _prepare_hydrogen_fractions(
     fHI = fHI.copy()
     fHI[not_conserving] = 1.0 - fH2[not_conserving]  # fix relative to fH2 (this is an inherited convention)
 
-    nH = rho * XH / proton_mass
+    nH = rho * (1.0 - gas_Z - gas_Y) / proton_mass
 
     return nH, fHI, fH2
 

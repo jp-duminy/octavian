@@ -36,7 +36,6 @@ MINIMUM_DM_PER_HALO:        0
 
 nH_lim:  0.13     # density above which gas is considered dense
 T_lim:   1.0e+5   # temperature below which gas is considered cold
-XH:     0.76      # hydrogen fraction
 FRAD:   0.1       # radiative efficiency of accretion (epsilon)
 MU:     0.6       # mean mass per-particle (gas); computed directly, if not available in snapshot, uses this
 

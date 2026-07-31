@@ -181,7 +181,7 @@ def _profiled_pipeline(
         subhalo_info = assign_local_subhalos(particles=particles, subhalo_info=global_subhalo_info)
 
     with time_and_memory("FOF6D"):
-        for prop in ["rho", "sfr"]:
+        for prop in ["rho", "sfr", "metallicity", "helium_fraction"]:
             particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
         fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
@@ -208,7 +208,10 @@ def _profiled_pipeline(
         for ptype in particles:
             particles[ptype]["potential"] = reader.read_dataset(ptype=ptype, dataset="potential")
 
-        for prop in ["fHI", "fH2", "metallicity"]:
+        for prop in [
+            "fHI",
+            "fH2",
+        ]:
             particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
         for prop in ["metallicity", "age"]:
