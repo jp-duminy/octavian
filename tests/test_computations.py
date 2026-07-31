@@ -338,9 +338,16 @@ def test_vmax_rmax() -> None:
     delta = pos - ref_pos[GROUP_IDX]
     delta -= BOXSIZE * np.round(delta / BOXSIZE)
     radii = np.linalg.norm(delta, axis=1)
+    scale_factor = 0.5
 
     result_vmax, result_rmax = compute_vmax_and_rmax(
-        radii=radii, masses=masses, offsets=OFFSETS, idx_sorted=IDX_SORTED, G=oc.G_VCIRC, n_groups=N_GROUPS
+        radii=radii,
+        masses=masses,
+        offsets=OFFSETS,
+        idx_sorted=IDX_SORTED,
+        G=oc.G_VCIRC,
+        scale_factor=scale_factor,
+        n_groups=N_GROUPS,
     )
 
     for g in range(N_GROUPS):

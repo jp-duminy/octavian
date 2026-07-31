@@ -283,6 +283,7 @@ def run_halo_stages(
         n_groups=n_groups,
         factors=factors,
         rhocrit_comoving=sim.rhocrit_comoving,
+        scale_factor=sim.a,
         constants=constants,
     )
     halos.write_batch(results=mass_profile)
@@ -642,6 +643,7 @@ def _compute_mass_profile_quantities(
     n_groups: int,
     factors: np.ndarray,
     rhocrit_comoving: float,
+    scale_factor: float,
     constants: OctavianConstants,
 ) -> dict[str, np.ndarray]:
     """
@@ -669,7 +671,13 @@ def _compute_mass_profile_quantities(
         results[f"mass_{factor}c"] = virial_mass[:, f]
 
     vmax, rmax = compute_vmax_and_rmax(
-        radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted, G=constants.G_VCIRC, n_groups=n_groups
+        radii=radii,
+        masses=masses,
+        offsets=offsets,
+        idx_sorted=idx_sorted,
+        G=constants.G_VCIRC,
+        scale_factor=scale_factor,
+        n_groups=n_groups,
     )
 
     results["vmax"], results["rmax"] = vmax, rmax

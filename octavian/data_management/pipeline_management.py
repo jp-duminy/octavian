@@ -40,7 +40,7 @@ class Internals:
     baryonic_ptypes: frozenset[str]
     group_types: dict[str, dict]
     output_columns: dict[str, OutputColumnMetadata]
-    membership_columns: dict[str, OutputColumnMetadata]
+    membership_columns: dict[str, dict[str, OutputColumnMetadata]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +51,7 @@ class OutputColumnMetadata:
 
     dtype: str
     unit: str
+    a_exp: int
     description: str
     label: str
 
@@ -132,6 +133,7 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
                 expanded_output_columns[col_name] = OutputColumnMetadata(
                     dtype=meta["dtype"],
                     unit=meta["unit"],
+                    a_exp=meta["a_exp"],
                     description=meta.get("description", ""),
                     label=stage_label,
                 )
@@ -148,6 +150,7 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
             column_name: OutputColumnMetadata(
                 dtype=meta["dtype"],
                 unit=meta.get("unit", ""),
+                a_exp=meta.get("a_exp", ""),
                 description=meta.get("description", ""),
                 label="membership",
             )

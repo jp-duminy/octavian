@@ -146,11 +146,24 @@ def write_catalogue(
 
                 with h5py.File(catalogue_path, "a") as f:  # use "a" not "w"  (group data written above ^)
                     membership_grp = f[hdf5_name]["membership"]
-                    membership_grp.create_dataset(f"{ptype}_offsets", data=sorted_offsets, compression=1)
-                    membership_grp.create_dataset(f"{ptype}_lengths", data=sorted_lengths, compression=1)
-                    membership_grp.create_dataset(
+
+                    # write particle membership lists with data here
+                    ds = membership_grp.create_dataset(f"{ptype}_offsets", data=sorted_offsets, compression=1)
+                    ds.attrs["description"] = (
+                        f"Per-group offsets into {ptype}_indices, where indices[offsets[g]:offsets[g+1]] recovers particles in group g."
+                    )
+
+                    ds = membership_grp.create_dataset(f"{ptype}_lengths", data=sorted_lengths, compression=1)
+                    ds.attrs["description"] = (
+                        f"Per-group lengths in {ptype}_indices; lengths[g] is the number of particles in the group."
+                    )
+
+                    ds = membership_grp.create_dataset(
                         f"{ptype}_indices", shape=(sorted_offsets[-1],), dtype=DTYPES["csr_indices"]
                     )  # indices initialised to empty
+                    ds.attrs["description"] = (
+                        f"Particle-level snapshot indices for {ptype}; for particle p, raw_snapshot_dataset[p], recovers the value of p in the raw snapshot dataset columns."
+                    )
 
     rank_write_positions: dict[tuple[str, str], np.ndarray] = {}
     rank_membership_data: dict[tuple[str, str], MembershipArrays] = {}
@@ -407,6 +420,7 @@ def write_group_data_to_catalogue(
                 ds = label_group.create_dataset(column_name, data=merged, compression=1)
                 # write metadata
                 ds.attrs["unit"] = column_meta.unit
+                ds.attrs["a_exp"] = column_meta.a_exp
                 ds.attrs["description"] = column_meta.description
 
             # ^ see above, final IDs need to be sequential and therefore it is done with np.arange
@@ -421,7 +435,6 @@ def write_group_data_to_catalogue(
                 dataset = membership_grp.create_dataset(
                     column_name, data=resolved[(group_type, column_name)], compression=1
                 )
-                dataset.attrs["unit"] = column_meta.unit
                 dataset.attrs["description"] = column_meta.description
 
         # now write the galaxy membership arrays (requires halo info available), not in internals.yaml like particle membership
@@ -432,13 +445,23 @@ def write_group_data_to_catalogue(
             )
 
             halo_membership_grp = f_out[internals.group_types["halos"]["hdf5_group"]]["membership"]
-            halo_membership_grp.create_dataset("galaxy_indices", data=galaxy_indices, compression=1)
-            halo_membership_grp.create_dataset("galaxy_offsets", data=galaxy_offsets, compression=1)
-            halo_membership_grp.create_dataset("galaxy_lengths", data=galaxy_lengths, compression=1)
+
+            # write halo-galaxy membership
+            ds = halo_membership_grp.create_dataset("galaxy_indices", data=galaxy_indices, compression=1)
+            ds.attrs["description"] = "Galaxy-level indices into galaxy_data."
+
+            ds = halo_membership_grp.create_dataset("galaxy_offsets", data=galaxy_offsets, compression=1)
+            ds.attrs["description"] = (
+                "Per-halo offsets into galaxy_indices, where galaxy_indices[offsets[h]:offsets[h+1]] recovers indexes into galaxy_data of galaxies belonging to halo h."
+            )
+
+            ds = halo_membership_grp.create_dataset("galaxy_lengths", data=galaxy_lengths, compression=1)
+            ds.attrs["description"] = (
+                "Per-halo galaxy_data lengths; galaxy_lengths[h] is the number of galaxies in halo h."
+            )
 
             central_meta = internals.membership_columns["halos"]["central_galaxy_index"]
             central_dataset = halo_membership_grp.create_dataset(
                 "central_galaxy_index", data=central_galaxy_index, compression=1
             )
-            central_dataset.attrs["unit"] = central_meta.unit
             central_dataset.attrs["description"] = central_meta.description
