@@ -14,6 +14,10 @@ stages:
   properties_ptype_specific:      true
   properties_local_environment:   true
 
+# CHUNKED I/O READS
+
+n_chunks:   10
+
 # PTYPES TO PROCESS
 
 # WARNING: this removes the ptype entirely, for example, star: false will stop FOF6D from running

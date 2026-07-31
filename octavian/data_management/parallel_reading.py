@@ -206,6 +206,18 @@ def generate_slabs(
     return slabs
 
 
+def split_slab(slab: slice, n_chunks: int) -> list[slice]:
+    """
+    Splits a dataset slab into smaller chunks. Returns:
+
+    - split_slabs: list of equally-divided slices according to n_chunks
+    """
+    starts = np.linspace(start=slab.start, stop=slab.stop, num=(n_chunks + 1), dtype=np.int64)
+    split_slabs = [slice(int(starts[i]), int(starts[i + 1])) for i in range(n_chunks)]
+
+    return split_slabs
+
+
 def assign_local_subhalos(
     particles: dict[str, ParticleStore],
     subhalo_info: SubhaloInformation | None,
