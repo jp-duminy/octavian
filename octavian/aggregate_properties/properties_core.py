@@ -687,13 +687,14 @@ def _derive_kinematics(
     Compute derived kinematic quantities (simple arithmetic on the outputs of _compute_kinematics), returning a dict of:
 
     - velocity_dispersion
-    - alpha, beta: rotation angles to rotate the galaxy to align with angular momentum
+    - L_azimuth: azimuthal angular momentum angle (phi)
+    - L_elevation: elevation angular momentum angle (theta in polar coords)
     """
     results: dict[str, np.ndarray] = {}
 
     L_mag = np.linalg.norm(L, axis=1)
-    alpha = np.arctan2(L[:, 1], L[:, 2])
-    beta = guarded_arcsin(guarded_divide(L[:, 0], L_mag, fill_value=0.0))
+    L_azimuth = np.arctan2(L[:, 1], L[:, 0])
+    L_elevation = guarded_arcsin(guarded_divide(L[:, 2], L_mag, fill_value=0.0))
     velocity_dispersions = np.where(counts > 0, np.sqrt(guarded_divide(dispersion_sum, group_mass)), np.nan)
 
     small = (counts > 0) & (
@@ -704,12 +705,12 @@ def _derive_kinematics(
     if small.sum() >= 0.5 * len(velocity_dispersions):
         logger.debug(f"{small.sum()}/{len(velocity_dispersions)} groups hit the small flag in _derive_kinematics.")
 
-    for quantity in [velocity_dispersions, L, L_mag, alpha, beta]:
+    for quantity in [velocity_dispersions, L, L_mag, L_azimuth, L_elevation]:
         quantity[empty] = np.nan
         quantity[small] = 0.0
 
     results["_L_mag"] = L_mag
-    results["ALPHA"], results["BETA"] = alpha, beta
+    results["L_azimuth"], results["L_elevation"] = L_azimuth, L_elevation
     results["velocity_dispersion"] = velocity_dispersions
 
     return results
@@ -905,19 +906,19 @@ def _combine_ptype_sums(
         ),
         np.nan,
     )
-    combined_alpha = np.arctan2(combined_L[:, 1], combined_L[:, 2])
-    combined_beta = guarded_arcsin(guarded_divide(numerator=combined_L[:, 0], denominator=combined_L_mag))
+    combined_L_azimuth = np.arctan2(combined_L[:, 1], combined_L[:, 0])
+    combined_L_elevation = guarded_arcsin(guarded_divide(numerator=combined_L[:, 2], denominator=combined_L_mag))
 
     small = (combined_counts > 0) & (combined_counts < 3)
     empty = combined_counts == 0
 
-    for quantity in [combined_L_mag, combined_L, combined_alpha, combined_beta, combined_inertia_tensor]:
+    for quantity in [combined_L_mag, combined_L, combined_L_azimuth, combined_L_elevation, combined_inertia_tensor]:
         quantity[empty] = np.nan
         quantity[small] = 0.0
 
     results[f"L_{collective_name}"] = combined_L
-    results[f"ALPHA_{collective_name}"] = combined_alpha
-    results[f"BETA_{collective_name}"] = combined_beta
+    results[f"L_azimuth_{collective_name}"] = combined_L_azimuth
+    results[f"L_elevation_{collective_name}"] = combined_L_elevation
     results[f"_L_mag_{collective_name}"] = combined_L_mag
     results[f"_ke_tot_{collective_name}"] = combined_ke
     results[f"_dispersion_sum_{collective_name}"] = combined_dispersion_sum
