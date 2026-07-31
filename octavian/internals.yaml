@@ -88,57 +88,57 @@ output_columns:
     over:        {ptype: [gas, star, dm, bh]}
     dtype:       int64
     unit:        ""
-    description: "Number of {ptype} particles"
+    description: "Number of (ptype) particles."
 
   mass_{ptype}:
     over:        {ptype: [gas, star, dm, bh, total, baryon]}
     dtype:       float64
     unit:        "Msun"
-    description: "Total {ptype} mass"
+    description: "Total (ptype) mass."
 
   mass_HI:
     dtype:       float64
     unit:        "Msun"
-    description: "Neutral atomic hydrogen mass"
+    description: "Neutral atomic hydrogen mass."
 
   mass_H2:
     dtype:       float64
     unit:        "Msun"
-    description: "Molecular hydrogen mass"
+    description: "Molecular hydrogen mass."
 
   minpot_pos:
     dtype:       float64
     unit:        "kpc"
-    description: "Position vector of particle at (halo) minimum potential"
+    description: "Position vector of the particle at the (halo) minimum potential."
 
   minpot_vel:
     dtype:       float64
     unit:        "km/s"
-    description: "Velocity vector of particle at (halo) minimum potential"
+    description: "Velocity vector of the particle at the (halo) minimum potential."
 
   "com_pos_{ptype}":
     over:        {ptype: [total, baryon]}
     dtype:       float64
     unit:        "kpc"
-    description: "Position vector of mass-weighted COM ({ptype})"
+    description: "Position vector of the centre-of-mass."
 
   "com_vel_{ptype}":
     over:        {ptype: [total, baryon]}
     dtype:       float64
     unit:        "km/s"
-    description: "Velocity vector of mass-weighted COM ({ptype})"
+    description: "Velocity vector of the centre-of-mass."
 
   "L_{ptype}":
     over:        {ptype: [gas, star, dm, bh, total, baryon]}
     dtype:       float64
     unit:        "Msun*kpc*km/s"
-    description: "Angular momentum vector ({ptype})"
+    description: "Angular momentum vector."
 
   velocity_dispersion_{ptype}:
     over:        {ptype: [gas, star, dm, bh, total, baryon]}
     dtype:       float64
     unit:        "km/s"
-    description: "Mass-weighted 3D velocity dispersion ({ptype})"
+    description: "Mass-weighted (ptype) 3D velocity dispersion."
 
   L_azimuth_{ptype}:
     over:        {ptype: [gas, star, dm, bh, total, baryon]}
@@ -162,19 +162,19 @@ output_columns:
     over:        {ptype: [gas, star, dm, bh, baryon]}
     dtype:       float64
     unit:        ""
-    description: "Bulge-to-total kinematic ratio ({ptype})"
+    description: "Bulge-to-total (ptype) mass ratio; the bulge mass is kinematically defined as twice the mass which is rotating contrary to the bulk motion."
 
   kappa_rot_{ptype}:
     over:        {ptype: [gas, star, dm, bh, baryon]}
     dtype:       float64
     unit:        ""
-    description: "Rotational support parameter ({ptype})"
+    description: "Ratio of (ptype) rotational KE to total KE (rotational support parameter, Sales et al. (2012))."
 
   "radius_{quantile}_{ptype}":
     over:        {ptype: [gas, star, dm, bh, total, baryon], quantile: from_config:radial_quantiles}
     dtype:       float64
     unit:        "kpc"
-    description: "Radius enclosing {quantile} of {ptype} mass"
+    description: "Radius which encloses the fraction (in the quantile) of the (ptype) mass."
 
   # only halos
   vmax:
@@ -190,76 +190,76 @@ output_columns:
   r200:
     dtype:       float64
     unit:        "kpc"
-    description: "Virial radius (200x mean matter density)"
+    description: "Virial radius (200x mean matter density)."
 
   "r{factor}c":
-    over: {factor: from_config:virial_factors}
-    dtype: float64
-    unit: "kpc"
-    description: "Radius enclosing {factor}x critical density"
+    over:        {factor: from_config:virial_factors}
+    dtype:       float64
+    unit:        "kpc"
+    description: "Radius enclosing {factor}x critical density."
 
   "m{factor}c":
     over: {factor: from_config:virial_factors}
     dtype: float64
     unit: "Msun"
-    description: "Mass enclosed within r{factor}c"
+    description: "Mass enclosed within r{factor}c."
 
   circular_velocity:
     dtype:       float64
     unit:        "km/s"
-    description: "Circular velocity at r200"
+    description: "Circular velocity at r200."
 
   spin_param:
     dtype:       float64
     unit:        ""
-    description: "Spin parameter (Bullock) (uses r200)"
+    description: "Spin parameter (Bullock) (uses r200)."
 
   virial_temperature:
     dtype:       float64
     unit:        "K"
-    description: "Virial temperature (uses r200)"
+    description: "Virial temperature (uses r200)."
   # end only halos
 
   # only gas
   sfr:
     dtype:       float64
     unit:        "Msun/yr"
-    description: "Total star formation rate"
+    description: "Total star formation rate."
 
   metallicity_mass_weighted:
     dtype:       float64
     unit:        ""
-    description: "Mass-weighted gas metallicity"
+    description: "Mass-weighted gas metallicity."
 
   metallicity_sfr_weighted:
     dtype:       float64
     unit:        ""
-    description: "SFR-weighted gas metallicity"
+    description: "SFR-weighted gas metallicity."
 
   metallicity_mass_weighted_cgm: # only halos
     dtype:       float64
     unit:        ""
-    description: "Mass-weighted CGM gas metallicity"
+    description: "Mass-weighted CGM gas metallicity."
 
   metallicity_temp_weighted_cgm: # only halos
     dtype:       float64
     unit:        ""
-    description: "Temperature-weighted CGM gas metallicity"
+    description: "Temperature-weighted CGM gas metallicity."
 
   temp_mass_weighted:
     dtype:       float64
     unit:        "K"
-    description: "Mass-weighted gas temperature"
+    description: "Mass-weighted gas temperature."
 
   temp_mass_weighted_cgm: # only halos
     dtype:       float64
     unit:        "K"
-    description: "Mass-weighted CGM gas temperature"
+    description: "Mass-weighted CGM gas temperature."
 
   temp_metal_weighted_cgm: # only halos
     dtype:       float64
     unit:        "K"
-    description: "Metallicity-weighted CGM gas temperature"
+    description: "Metallicity-weighted CGM gas temperature."
 
   mass_cgm:  # only haloes
     dtype:       float64
@@ -269,29 +269,29 @@ output_columns:
   mass_cold:
     dtype:       float64
     unit:        "Msun"
-    description: "Cold gas mass (as defined in user config Tlim)"
+    description: "Cold gas mass (as defined in user config Tlim)."
 
   mass_hot:
     dtype:       float64
     unit:        "Msun"
-    description: "Hot gas mass (as defined in user config Tlim)"
+    description: "Hot gas mass (as defined in user config Tlim)."
   # end only gas
 
   # only stars
   metallicity_stellar:
     dtype:       float64
     unit:        ""
-    description: "Mass-weighted stellar metallicity"
+    description: "Mass-weighted stellar metallicity."
 
   age_mass_weighted:
     dtype:       float64
     unit:        "Gyr"
-    description: "Mass-weighted stellar age"
+    description: "Mass-weighted stellar age."
 
   age_metal_weighted:
     dtype:       float64
     unit:        "Gyr"
-    description: "Metallicity-weighted stellar age"
+    description: "Metallicity-weighted stellar age."
   # end only stars
 
   # only black holes
@@ -308,7 +308,7 @@ output_columns:
   smbh_mass:
     dtype:       float64
     unit:        "Msun"
-    description: "Mass of most massive black hole."
+    description: "Mass of the most massive black hole."
 
   # end only black holes
 
@@ -316,37 +316,37 @@ output_columns:
     over:        {ptype: [gas, star, dm, bh], aperture: from_config:aperture_size}
     dtype:       float64
     unit:        "Msun"
-    description: "{ptype} mass within {aperture} kpc aperture"
+    description: "Mass within the specified kpc aperture."
 
   mass_HI_{aperture}kpc:
     over: {aperture: from_config:aperture_size}
     dtype:       float64
     unit:        "Msun"
-    description: "HI mass within {aperture} kpc aperture"
+    description: "HI mass within the specified kpc aperture."
 
   mass_H2_{aperture}kpc:
     over: {aperture: from_config:aperture_size}
     dtype:       float64
     unit:        "Msun"
-    description: "H2 mass within {aperture} kpc aperture"
+    description: "H2 mass within the specified kpc aperture."
 
   mass_total_{aperture}kpc:
     over: {aperture: from_config:aperture_size}
     dtype:       float64
     unit:        "Msun"
-    description: "Total mass within {aperture} kpc aperture"
+    description: "Total mass within the specified kpc aperture."
 
   "local_mass_density_{radius}kpc":
     over:        {radius: from_config:density_radii}
     dtype:       float64
     unit:        "Msun/kpc**3"
-    description: "Local mass density ({radius} kpc smoothing)"
+    description: "Local mass density (smoothing over specified kpc radius)."
 
   "local_number_density_{radius}kpc":
     over:        {radius: from_config:density_radii}
     dtype:       float64
     unit:        "1/kpc**3"
-    description: "Local number density ({radius} kpc smoothing)"
+    description: "Local number density (smoothing over specified kpc radius)."
 
 membership_columns:
 
@@ -367,11 +367,11 @@ membership_columns:
   galaxies:
     field_halo_index: 
       dtype: int64
-      description: "Index of galaxy's field halo."
+      description: "Catalogue index of galaxy's field halo."
       unit: ""
     parent_halo_index: 
       dtype: int64
-      description: "Index of immediate parent (sub)halo (equal to field_halo_index if no subhalo info); parent decided by plurality."
+      description: "Catalogue index of immediate parent (sub)halo (equal to field_halo_index if no subhalo info); parent decided by plurality."
       unit: ""
     parent_membership_fraction:
       dtype: float32
