@@ -215,6 +215,7 @@ def _profiled_pipeline(
             particles["star"][prop] = reader.read_dataset(ptype="star", dataset=prop)
 
         particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
+        particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
     assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)

@@ -116,8 +116,9 @@ CONDITIONAL_NAN = {
                 "properties/core/inertia_tensor_bh",
                 "properties/core/ALPHA_bh",
                 "properties/core/BETA_bh",
-                "properties/particle_specific/bhmdot",
-                "properties/particle_specific/bh_fedd",
+                "properties/particle_specific/smbh_mdot",
+                "properties/particle_specific/smbh_fedd",
+                "properties/particle_specific/smbh_mass",
             ],
         ),
     ],
@@ -182,8 +183,9 @@ CONDITIONAL_NAN = {
                 "properties/core/BETA_bh",
                 "properties/core/BoverT_bh",
                 "properties/core/kappa_rot_bh",
-                "properties/particle_specific/bhmdot",
-                "properties/particle_specific/bh_fedd",
+                "properties/particle_specific/smbh_mdot",
+                "properties/particle_specific/smbh_fedd",
+                "properties/particle_specific/smbh_mass",
             ],
         ),
     ],
@@ -205,7 +207,12 @@ ZERO_WHEN_EMPTY = {
         ),
         ("membership/star_lengths", ["properties/core/mass_star"]),
         ("membership/dm_lengths", ["properties/core/mass_dm"]),
-        ("membership/bh_lengths", ["properties/core/mass_bh", "properties/particle_specific/bh_mass_max"]),
+        (
+            "membership/bh_lengths",
+            [
+                "properties/core/mass_bh",
+            ],
+        ),
     ],
     "galaxy_data": [
         (
@@ -219,7 +226,12 @@ ZERO_WHEN_EMPTY = {
             ],
         ),
         ("membership/star_lengths", ["properties/core/mass_star"]),
-        ("membership/bh_lengths", ["properties/core/mass_bh", "properties/particle_specific/bh_mass_max"]),
+        (
+            "membership/bh_lengths",
+            [
+                "properties/core/mass_bh",
+            ],
+        ),
     ],
 }
 
