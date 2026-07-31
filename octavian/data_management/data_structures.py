@@ -36,7 +36,7 @@ from octavian.data_management.conventions import (
     gizmo_unit_conversion_factor,
 )
 
-from .parallel_reading import redistribute_data
+from .parallel_reading import redistribute_data, split_slab
 
 from .csr import (
     build_group_csr,
@@ -83,10 +83,11 @@ class GizmoReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_path: Path, constants: OctavianConstants):
+    def __init__(self, snapshot_path: Path, constants: OctavianConstants, n_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
+        self.n_chunks = n_chunks
         self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, np.ndarray] | None = None
 
@@ -173,18 +174,43 @@ class GizmoReader(SnapshotReader):
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map[dataset]
+        slab = self.slabs[ptype]
+        slab_length = slab.stop - slab.start
 
         # read the rank's slab
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_array = f[hdf5_group][hdf5_name][self.slabs[ptype]]
+            hdf5_dataset = f[hdf5_group][hdf5_name]
+
+            if dataset == "metallicity":  # need first column for the total metal fraction
+                raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 0]
+
+            elif dataset == "helium_fraction":  # second column for the helium fraction
+                raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 1]
+
+            else:  # read flat for all others
+                full_shape = (slab_length,) + hdf5_dataset.shape[
+                    1:
+                ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
+                raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
             filtered_array = raw_array[self.masks[ptype]]
 
-        if dataset == "metallicity":  # for the metallicity (n, 11) columns: need a slice
-            filtered_array = filtered_array[:, 0]
-
-        if dataset == "helium_fraction":
-            filtered_array = filtered_array[:, 1]
-
+        # close file, do unit/dtype conversions and MPI redistribution
         if (
             dataset == "age"
         ):  # age has an early return because its unit conversion is handled by the function internally (this dataset is different)
@@ -201,7 +227,7 @@ class GizmoReader(SnapshotReader):
             else:
                 result = filtered_array
 
-            return result.astype(DTYPES.get(dataset, np.float64))
+            return result.astype(DTYPES.get(dataset, np.float64), copy=False)
 
         # apply unit conversion factor (after data is filtered and masked, so the operation is cheaper)
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
@@ -214,7 +240,7 @@ class GizmoReader(SnapshotReader):
         else:
             result = filtered_array
 
-        return result.astype(DTYPES.get(dataset, np.float64))  # change dtype at the end
+        return result.astype(DTYPES.get(dataset, np.float64), copy=False)  # change dtype at the end
 
     def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
@@ -222,9 +248,22 @@ class GizmoReader(SnapshotReader):
         """
         hdf5_group = self.inverse_ptype_map[ptype]
 
+        if slab.start is None:  # SnapshotHaloSource calls this without slab arg
+            slab = slice(0, self.particle_counts[ptype])
+
+        slab_length = slab.stop - slab.start
+
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_halo_ids = f[hdf5_group]["HaloID"][slab].astype(
-                DTYPES.get("HaloID", np.int64)
+            halo_hdf5_dataset = f[hdf5_group]["HaloID"]
+            raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
+
+            for chunk in split_slab(slab, self.n_chunks):
+                offset = chunk.start - slab.start
+                chunk_length = chunk.stop - chunk.start
+                raw_halo_ids[offset : offset + chunk_length] = halo_hdf5_dataset[chunk]
+
+            raw_halo_ids = raw_halo_ids.astype(
+                DTYPES.get("HaloID", np.int64), copy=False
             )  # change dtype here otherwise you get int overflow
 
         raw_halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
@@ -238,18 +277,33 @@ class GizmoReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            if self.maps is None:
-                filtered_particle_ids = f[hdf5_group]["ParticleIDs"][:]
-            else:
-                particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
-                filtered_particle_ids = particle_ids[self.masks[ptype]]
+            hdf5_dataset = f[hdf5_group]["ParticleIDs"]
 
-        if self.maps is not None:
-            result = redistribute_data(
-                local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
-            )
-        else:
-            result = filtered_particle_ids
+            if self.maps is None:
+                total_length = hdf5_dataset.shape[0]
+                particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slice(0, total_length), self.n_chunks):
+                    offset = chunk.start
+                    chunk_length = chunk.stop - chunk.start
+                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+                result = particle_ids
+
+            else:
+                slab = self.slabs[ptype]
+                slab_length = slab.stop - slab.start
+                particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+                filtered_particle_ids = particle_ids[self.masks[ptype]]
+                result = redistribute_data(
+                    local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
+                )
 
         return result.astype(DTYPES.get("pid", np.int64))
 
@@ -311,10 +365,11 @@ class SwiftReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_path: Path, constants: OctavianConstants):
+    def __init__(self, snapshot_path: Path, constants: OctavianConstants, n_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
+        self.n_chunks = n_chunks
         self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, RedistributionMap] | None = None
 
@@ -409,15 +464,25 @@ class SwiftReader(SnapshotReader):
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map[dataset])
+        slab = self.slabs[ptype]
+        slab_length = slab.stop - slab.start
 
         with h5py.File(self.snapshot_path, "r") as f:
-            hdf5_dataset = f[hdf5_group][hdf5_name]
+            if dataset == "fHI":  # separate return path here because fHI doesn't directly exist in kiara
+                hdf5_mass = f[hdf5_group]["Masses"]
+                hdf5_HI_mass = f[hdf5_group]["AtomicHydrogenMasses"]
 
-            if dataset == "fHI":
-                masses = f[hdf5_group]["Masses"][self.slabs[ptype]]
-                filtered_masses = masses[self.masks[ptype]]
-                HI_masses = f[hdf5_group]["AtomicHydrogenMasses"][self.slabs[ptype]]
-                filtered_HI_masses = HI_masses[self.masks[ptype]]
+                raw_masses = np.empty(shape=slab_length, dtype=hdf5_mass.dtype)
+                raw_HI_masses = np.empty(shape=slab_length, dtype=hdf5_HI_mass.dtype)
+
+                for chunk in split_slab(slab, self.n_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    raw_masses[offset : offset + chunk_length] = hdf5_mass[chunk]
+                    raw_HI_masses[offset : offset + chunk_length] = hdf5_HI_mass[chunk]
+
+                filtered_masses = raw_masses[self.masks[ptype]]
+                filtered_HI_masses = raw_HI_masses[self.masks[ptype]]
 
                 if self.maps is not None:
                     result_HI_mass = redistribute_data(
@@ -430,16 +495,33 @@ class SwiftReader(SnapshotReader):
                     result_HI_mass = filtered_HI_masses
                     result_mass = filtered_masses
 
-                return (result_HI_mass / result_mass).astype(DTYPES.get(dataset, np.float64))
+                return (result_HI_mass / result_mass).astype(DTYPES.get(dataset, np.float64), copy=False)
 
             else:
-                raw_array = hdf5_dataset[self.slabs[ptype]]
+                hdf5_dataset = f[hdf5_group][hdf5_name]
+
+                if dataset == "helium_fraction":
+                    raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                    for chunk in split_slab(slab, self.n_chunks):
+                        offset = chunk.start - slab.start
+                        chunk_length = chunk.stop - chunk.start
+                        raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 1]
+
+                else:
+                    full_shape = (slab_length,) + hdf5_dataset.shape[
+                        1:
+                    ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
+                    raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
+
+                    for chunk in split_slab(slab, self.n_chunks):
+                        offset = chunk.start - slab.start
+                        chunk_length = chunk.stop - chunk.start
+                        raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
                 filtered_array = raw_array[self.masks[ptype]]
                 a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
                 cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
-
-        if dataset == "helium_fraction":
-            filtered_array = filtered_array[:, 1]
 
         if dataset == "age":
             filtered_array = derive_stellar_age(
@@ -481,8 +563,21 @@ class SwiftReader(SnapshotReader):
         """
         hdf5_group = self.inverse_ptype_map[ptype]
 
+        if slab.start is None:  # SnapshotHaloSource calls this without slab arg
+            slab = slice(0, self.particle_counts[ptype])
+
+        slab_length = slab.stop - slab.start
+
         with h5py.File(self.snapshot_path, "r") as f:
-            raw_halo_ids = f[hdf5_group]["FOFGroupIDs"][slab].astype(DTYPES.get("HaloID", np.int64))
+            halo_hdf5_dataset = f[hdf5_group]["FOFGroupIDs"]
+            raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
+
+            for chunk in split_slab(slab, self.n_chunks):
+                offset = chunk.start - slab.start
+                chunk_length = chunk.stop - chunk.start
+                raw_halo_ids[offset : offset + chunk_length] = halo_hdf5_dataset[chunk]
+
+            raw_halo_ids = raw_halo_ids.astype(DTYPES.get("HaloID", np.int64), copy=False)
 
         sentinel_mask = raw_halo_ids == 2147483647  # uint32 max value (as for why they do this? I have no idea)
         raw_halo_ids -= 1  # SWIFT is also 1-indexed
@@ -497,18 +592,33 @@ class SwiftReader(SnapshotReader):
         hdf5_group = self.inverse_ptype_map[ptype]
 
         with h5py.File(self.snapshot_path, "r") as f:
-            if self.maps is None:
-                filtered_particle_ids = f[hdf5_group]["ParticleIDs"][:]
-            else:
-                raw_particle_ids = f[hdf5_group]["ParticleIDs"][self.slabs[ptype]]
-                filtered_particle_ids = raw_particle_ids[self.masks[ptype]]
+            hdf5_dataset = f[hdf5_group]["ParticleIDs"]
 
-        if self.maps is not None:
-            result = redistribute_data(
-                local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
-            )
-        else:
-            result = filtered_particle_ids
+            if self.maps is None:
+                total_length = hdf5_dataset.shape[0]
+                particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slice(0, total_length), self.n_chunks):
+                    offset = chunk.start
+                    chunk_length = chunk.stop - chunk.start
+                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+                result = particle_ids
+
+            else:
+                slab = self.slabs[ptype]
+                slab_length = slab.stop - slab.start
+                particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+                filtered_particle_ids = particle_ids[self.masks[ptype]]
+                result = redistribute_data(
+                    local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
+                )
 
         return result.astype(DTYPES.get("pid", np.int64))
 
@@ -537,10 +647,10 @@ def build_reader(snapshot_path: Path, constants: OctavianConstants, config: Octa
     """
     if config.simulation_type == "GIZMO":
         logger.info("Using GIZMO reader.")
-        return GizmoReader(snapshot_path=snapshot_path, constants=constants)
+        return GizmoReader(snapshot_path=snapshot_path, constants=constants, n_chunks=config.n_chunks)
     elif config.simulation_type == "SWIFT":
         logger.info("Using SWIFT reader.")
-        return SwiftReader(snapshot_path=snapshot_path, constants=constants)
+        return SwiftReader(snapshot_path=snapshot_path, constants=constants, n_chunks=config.n_chunks)
     else:
         raise ValueError(f"Unknown simulation ({config.simulation_type}), please put GIZMO/SWIFT!")
 
