@@ -246,6 +246,7 @@ def compute_vmax_and_rmax(
     offsets: np.ndarray,
     idx_sorted: np.ndarray,
     G: float,
+    scale_factor: float,
     n_groups: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -267,7 +268,9 @@ def compute_vmax_and_rmax(
 
         for i in range(len(radius)):
             if radius[i] > 0:  # guard
-                v_circ = np.sqrt(G * cumulative_mass[i] / radius[i])
+                v_circ = np.sqrt(
+                    G * cumulative_mass[i] / (radius[i] * scale_factor)
+                )  # for unit consistency so all velocities are physical
 
                 if v_circ > vmax:
                     vmax = v_circ
