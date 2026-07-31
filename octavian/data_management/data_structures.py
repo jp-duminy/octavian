@@ -629,7 +629,7 @@ class SwiftReader(SnapshotReader):
         internal_energy = self.read_dataset(ptype=ptype, dataset="internal_energy")
         helium_frac = self.read_dataset(ptype=ptype, dataset="helium_fraction")
         y_helium = helium_frac / (4 * (1 - helium_frac))
-        electron_abundance = (1 + 2 * y_helium) / (1 + 4 * y_helium)
+        electron_abundance = 1 + 2 * y_helium
 
         temperature = calculate_temperature(
             internal_energy=internal_energy,
