@@ -145,7 +145,9 @@ def prepare_fof6d_data(
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
     temperature = gas["temperature"]
-    nH = rho * config.XH / constants.PROTON_MASS_G  # recomputed but trying to engineer this away is painful
+    nH = (
+        rho * (1 - gas["metallicity"] - gas["helium_fraction"]) / constants.PROTON_MASS_G
+    )  # metallicity is Z, helium_frac is Y -> gives XH
 
     dense_mask = (nH > config.nH_lim) & (
         (temperature < config.T_lim) | (sfr > 0)
