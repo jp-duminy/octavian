@@ -20,7 +20,6 @@ import numpy as np
 
 from octavian.aggregate_properties.aggregate_helpers import (
     sum_per_group,
-    max_value_per_group,
     max_idx_per_group,
     guarded_divide,
 )
@@ -107,7 +106,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             bh = particles["bh"]
             bh_offsets, bh_idx = group_store.get_particle_csr(ptype="bh")
             bh_results = compute_bh_properties(
-                masses=bh["mass"],
+                masses=bh["bhmass"],
                 bhmdots=bh["bhmdot"],
                 offsets=bh_offsets,
                 idx_sorted=bh_idx,
@@ -273,7 +272,7 @@ def compute_star_properties(
     return results
 
 
-def compute_bh_properties(  # TODO: bh_props_max and sort out which dataset is read for these
+def compute_bh_properties(
     masses: np.ndarray,
     bhmdots: np.ndarray,
     offsets: np.ndarray,
@@ -282,30 +281,28 @@ def compute_bh_properties(  # TODO: bh_props_max and sort out which dataset is r
     edd_factor: float,
 ) -> dict[str, np.ndarray]:
     """
-    Computes black-hole specific properties, returning a dict of:
+    Computes (supermassive) black-hole specific properties, returning a dict of:
 
-    - bhmdot: mass accretion rate
-    - bh_fedd: Eddington fraction
-    - bh_mass_max: largest black hole mass in each group
+    - smbh_mdot: mass accretion rate of SMBH
+    - smbh_fedd: Eddington fraction of SMBH
+    - smbh_mass: mass of SMBH
     """
     results: dict[str, np.ndarray] = {}
 
-    max_idx = max_idx_per_group(
+    smbh_idx = max_idx_per_group(
         values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )  # also assigns -1 as sentinel
-    with_bh = max_idx >= 0
+    with_bh = smbh_idx >= 0
 
-    mass = np.full(shape=n_groups, fill_value=np.nan)  # split across line for when more properties are added
-    bhmdot = np.full(shape=n_groups, fill_value=np.nan)
+    smbh_mass = np.full(shape=n_groups, fill_value=np.nan)
+    smbh_mdot = np.full(shape=n_groups, fill_value=np.nan)
 
-    max_mass = max_value_per_group(values=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
-    max_mass = np.where(np.isfinite(max_mass), max_mass, 0.0)  # mask out -inf for no-bh groups
+    smbh_mass[with_bh] = masses[smbh_idx[with_bh]]
+    smbh_mdot[with_bh] = bhmdots[smbh_idx[with_bh]]
+    smbh_fedd = guarded_divide(numerator=smbh_mdot, denominator=(edd_factor * smbh_mass))
 
-    mass[with_bh] = masses[max_idx[with_bh]]
-    bhmdot[with_bh] = bhmdots[max_idx[with_bh]]
-
-    results["bhmdot"] = bhmdot
-    results["bh_fedd"] = guarded_divide(numerator=bhmdot, denominator=(edd_factor * mass))
-    results["bh_mass_max"] = max_mass
+    results["smbh_mdot"] = smbh_mdot
+    results["smbh_fedd"] = smbh_fedd
+    results["smbh_mass"] = smbh_mass
 
     return results

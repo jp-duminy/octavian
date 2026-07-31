@@ -63,7 +63,7 @@ stages:
       - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
         applies_to: [halos]
       - columns: ["metallicity_stellar", "age_mass_weighted", "age_metal_weighted"]
-      - columns: ["bh_mass_max", "bhmdot", "bh_fedd"]
+      - columns: ["smbh_mass", "smbh_mdot", "smbh_fedd"]
 
   properties_local_environment:
     label: environment
@@ -295,17 +295,17 @@ output_columns:
   # end only stars
 
   # only black holes
-  bhmdot:
+  smbh_mdot:
     dtype:       float64
     unit:        "Msun/yr"
-    description: "Accretion rate of the most massive BH"
+    description: "Accretion rate of the most massive BH."
 
-  bh_fedd:
+  smbh_fedd:
     dtype:       float64
     unit:        ""
-    description: "Eddington fraction of the most massive BH"
+    description: "Eddington fraction of the most massive BH."
 
-  bh_mass_max:
+  smbh_mass:
     dtype:       float64
     unit:        "Msun"
     description: "Mass of most massive black hole."
