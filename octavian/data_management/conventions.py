@@ -39,6 +39,7 @@ class OctavianConfig:
     halo_id_source: str  # filepath is at the bottom
 
     stages: dict[str, bool]
+    n_chunks: int
     process_ptypes: dict[str, bool]
 
     min_stars_per_galaxy: int
@@ -81,6 +82,7 @@ class OctavianConfig:
             halo_id_filepath=Path(raw["halo_id_filepath"]).expanduser() if "halo_id_filepath" in raw else None,
             stages=raw["stages"],
             process_ptypes=raw["process_ptypes"],
+            n_chunks=raw["n_chunks"],
             min_stars_per_galaxy=raw["MINIMUM_STARS_PER_GALAXY"],
             min_dm_per_halo=raw["MINIMUM_DM_PER_HALO"],
             nH_lim=raw["nH_lim"],
