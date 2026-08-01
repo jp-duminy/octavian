@@ -157,6 +157,8 @@ class SimulationAttributes:
     boxsize: float
     h: float
     a: float
+    w_0: float
+    w_a: float
     redshift: float
     omega_matter: float  # I renamed this because O0 isn't very readable
     omega_lambda: float
