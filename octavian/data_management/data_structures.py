@@ -93,7 +93,9 @@ class GizmoReader(SnapshotReader):
 
         self.read_header()
         self.unit_conversions = {
-            dataset: gizmo_unit_conversion_factor(dataset, self.simulation_attributes.h, self.simulation_attributes.a)
+            dataset: gizmo_unit_conversion_factor(
+                dataset, self.simulation_attributes.h, self.simulation_attributes.scale_factor
+            )
             for dataset in self.dataset_map
             if dataset in DTYPES
         }
@@ -545,7 +547,7 @@ class SwiftReader(SnapshotReader):
 
         target_units = CODE_UNITS[dataset]
         target_cgs_units = (1.0 * target_units.unit).cgs.value
-        a_correction = self.simulation_attributes.a ** (a_exp - target_units.a_exponent)
+        a_correction = self.simulation_attributes.scale_factor ** (a_exp - target_units.a_exponent)
         h_correction = self.simulation_attributes.h**h_exp  # code units do not carry h
 
         unit_factor = (a_correction * h_correction) * (cgs_factor / target_cgs_units)

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from octavian.data_management import (
     construct_membership_arrays,
     write_catalogue,
-    write_catalogue_metadata,
+    write_catalogue_headers,
     GroupStore,
     SimulationData,
     Internals,
@@ -272,7 +272,7 @@ def run_octavian(
         comm=comm,
     )
     if rank == 0:
-        write_catalogue_metadata(
+        write_catalogue_headers(
             catalogue_path=catalogue_path,
             snapshot_path=snapshot_path,
             config=config,

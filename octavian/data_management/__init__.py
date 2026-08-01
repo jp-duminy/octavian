@@ -1,6 +1,6 @@
 from .pack_catalogue_data import (
     construct_membership_arrays as construct_membership_arrays,
-    write_catalogue_metadata as write_catalogue_metadata,
+    write_catalogue_headers as write_catalogue_headers,
     pack_rank_data as pack_rank_data,
     RankPackedData as RankPackedData,
 )

@@ -58,7 +58,7 @@ from octavian.data_management import (
     redistribute_data,
     generate_slabs,
     pack_rank_data,
-    write_catalogue_metadata,
+    write_catalogue_headers,
     build_redistribution_map,
 )
 from octavian.external_halo_sources import (
@@ -603,7 +603,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         if rank == 0:
             conduct_output_catalogue_validation(catalogue=catalogue_path)
-            write_catalogue_metadata(
+            write_catalogue_headers(
                 catalogue_path=catalogue_path,
                 snapshot_path=args.snapshot,
                 config=config,

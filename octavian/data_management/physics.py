@@ -100,7 +100,7 @@ def derive_simulation_attributes(
     return SimulationAttributes(
         h=h,
         boxsize=boxsize,
-        a=a,
+        scale_factor=a,
         redshift=redshift,
         w_0=w_0,
         w_a=w_a,
