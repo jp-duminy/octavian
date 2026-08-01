@@ -244,9 +244,14 @@ def run_octavian(
         subhalo_ids=local_subhalo_ids,
     )
 
-    reader.set_maps(
+    reader.set_maps(  # store this info on the reader for reading datasets
         slabs=slabs, masks=masks, maps=maps, comm=comm
-    )  # store this info on the reader for reading datasets
+    )
+
+    # readers now know where all the data goes, so clear rank 0's HaloID allocation
+    all_halo_assignments = None
+    raw_halo_ids = None
+    raw_subhalo_ids = None
 
     # analysis pipeline (FOF6D, properties)
     packed_data = execute_pipeline(
