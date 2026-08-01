@@ -430,3 +430,59 @@ membership_columns:
       description: "Fraction of galaxy's subhalo-assigned particles belonging to the halo at parent_halo_index."
       unit: ""
       a_exp:       0
+
+header_fields:
+
+  boxsize:
+    unit: "kpc"
+    a_exp: 1
+    description: "Length of the box; this is always cubic, so V = boxsize**3"
+  h:
+    unit: ""
+    a_exp: 0
+    description: "Reduced Hubble constant."
+  a:
+    unit: ""
+    a_exp: 0
+    description: "Scale factor at this redshift."
+  z:
+    unit: ""
+    a_exp: 0
+    description: "Redshift of the snapshot."
+  omega_matter:
+    unit: ""
+    a_exp: 0
+    description: "Dimensionless mean matter density at z = 0."
+  omega_lambda:
+    unit: ""
+    a_exp: 0
+    description: "Dimensionless mean dark energy density at z = 0."
+  w0:
+    unit: ""
+    a_exp: 0
+    description: "Value of the dark energy EoS parameter at z = 0."
+  wa:
+    unit: ""
+    a_exp: 0 
+    description: "Temporal evolution of the dark energy EoS."
+  mis:
+    unit: "kpc"
+    a_exp: 1
+    description: "Mean baryonic interparticle separation."
+  time_gyr:
+    unit: "Gyr"
+    a_exp: 0
+    description: "Age of the universe at this redshift."
+  Hz:
+    unit: "km/s/Mpc"
+    a_exp: 0
+    description: "Hubble constant at this redshift."
+  rhocrit:
+    unit: "Msun/kpc**3"
+    a_exp: 0
+    description: "Critical density of the Universe at this redshift."
+  r200_factor:
+    unit: "kpc/Msun**1/3"
+    a_exp: 0
+    description: "r200 prefactor."
+  

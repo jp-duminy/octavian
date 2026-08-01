@@ -5,7 +5,7 @@ The circulatory system of Octavian, managing how user-configured stages are run 
 """
 
 # semantic
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from octavian.data_management.conventions import OctavianConfig
@@ -41,6 +41,7 @@ class Internals:
     group_types: dict[str, dict]
     output_columns: dict[str, OutputColumnMetadata]
     membership_columns: dict[str, dict[str, OutputColumnMetadata]]
+    header_fields: dict[str, OutputColumnMetadata]
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +62,7 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
     Loads stage definitions from internals.yaml, validates output columns, and returns the Internals dataclass which contains resolved metadata/ordering from internals.yaml
     """
     with open(internals_filepath, "r") as f:
-        internals = safe_load(f)
+        internals: dict[str, Any] = safe_load(f)
 
     raw_output_columns = internals["output_columns"]
     output_columns = {}
@@ -142,10 +143,8 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
     unclaimed = set(output_columns.keys()) - all_stage_outputs
     assert not unclaimed, f"output_columns not claimed by any stage: {unclaimed}"
 
-    raw_membership = internals.get("membership_columns", {})
     membership_columns: dict[str, dict[str, OutputColumnMetadata]] = {}
-
-    for group_name, columns in raw_membership.items():
+    for group_name, columns in internals.get("membership_columns", {}).items():
         membership_columns[group_name] = {
             column_name: OutputColumnMetadata(
                 dtype=meta["dtype"],
@@ -157,12 +156,23 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
             for column_name, meta in columns.items()
         }
 
+    header_fields: dict[str, OutputColumnMetadata] = {}
+    for field_name, meta in internals.get("header_fields", {}).items():
+        header_fields[field_name] = OutputColumnMetadata(
+            dtype="float64",
+            unit=meta["unit"],
+            description=meta["description"],
+            a_exp=meta["a_exp"],
+            label="header",
+        )
+
     return Internals(
         stages=stages,
         baryonic_ptypes=frozenset(internals["baryonic_ptypes"]),
         group_types=internals["group_types"],
         output_columns=expanded_output_columns,
         membership_columns=membership_columns,
+        header_fields=header_fields,
     )
 
 
