@@ -189,7 +189,7 @@ def pack_rank_data(
     return RankPackedData(groups=groups_packed)
 
 
-def write_catalogue_metadata(
+def write_catalogue_headers(
     catalogue_path: Path,
     snapshot_path: Path,
     config: OctavianConfig,

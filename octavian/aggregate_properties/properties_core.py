@@ -283,7 +283,7 @@ def run_halo_stages(
         n_groups=n_groups,
         factors=factors,
         rhocrit_comoving=sim.rhocrit_comoving,
-        scale_factor=sim.a,
+        scale_factor=sim.scale_factor,
         constants=constants,
     )
     halos.write_batch(results=mass_profile)
@@ -293,7 +293,7 @@ def run_halo_stages(
         L_mag=halos["_L_mag_total"],
         counts=halos["_n_total"],
         r200_factor=sim.r200_factor,
-        scale_factor=sim.a,
+        scale_factor=sim.scale_factor,
         constants=constants,
     )
     halos.write_batch(results=derived)

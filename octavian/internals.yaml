@@ -441,7 +441,7 @@ header_fields:
     unit: ""
     a_exp: 0
     description: "Reduced Hubble constant."
-  a:
+  scale_factor:
     unit: ""
     a_exp: 0
     description: "Scale factor at this redshift."

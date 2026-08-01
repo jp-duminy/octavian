@@ -156,7 +156,7 @@ class SimulationAttributes:
     # header attributes
     boxsize: float
     h: float
-    a: float
+    scale_factor: float
     w_0: float
     w_a: float
     redshift: float
