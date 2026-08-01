@@ -604,7 +604,12 @@ def test_run(args: argparse.Namespace) -> None:
         if rank == 0:
             conduct_output_catalogue_validation(catalogue=catalogue_path)
             write_catalogue_metadata(
-                catalogue_path=catalogue_path, snapshot_path=args.snapshot, config=config, n_ranks=size
+                catalogue_path=catalogue_path,
+                snapshot_path=args.snapshot,
+                config=config,
+                internals=internals,
+                sim_attrs=reader.simulation_attributes,
+                n_ranks=size,
             )
             clean_logs(log_dir=args.work_dir, n_ranks=size, keep_logs=config.keep_logs)
 

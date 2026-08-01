@@ -9,7 +9,7 @@ Functions which write data from analysis stages into CSR format lists for HDF5 c
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import SimulationData, Internals
+    from octavian.data_management import SimulationData, Internals, SimulationAttributes
 
 # octavian modules
 from octavian.data_management.conventions import (
@@ -193,18 +193,24 @@ def write_catalogue_metadata(
     catalogue_path: Path,
     snapshot_path: Path,
     config: OctavianConfig,
+    internals: Internals,
+    sim_attrs: SimulationAttributes,
     n_ranks: int,
 ) -> None:
     commit_hash = _get_git_commit()
 
     with h5py.File(catalogue_path, "a") as f:
+        # basic snapshot metadata
         metadata = f.create_group("metadata")
         metadata.attrs["octavian_version"] = __version__
         metadata.attrs["timestamp"] = datetime.now(timezone.utc).isoformat()
         metadata.attrs["original_snapshot_path"] = str(snapshot_path.resolve())
         metadata.attrs["simulation_type"] = config.simulation_type
         metadata.attrs["number_of_mpi_ranks"] = n_ranks
+        if commit_hash is not None:
+            metadata.attrs["git_commit"] = commit_hash
 
+        # config parameters
         config_group = metadata.create_group("config_parameters")
 
         for key, value in asdict(config).items():
@@ -217,8 +223,15 @@ def write_catalogue_metadata(
             else:
                 config_group.attrs[key] = value
 
-        if commit_hash is not None:
-            metadata.attrs["git_commit"] = commit_hash
+        # cosmology (+ mis)
+        header = f.create_group("header")
+
+        for field_name, meta in internals.header_fields.items():
+            value = getattr(sim_attrs, field_name)
+            dataset = header.create_dataset(field_name, data=value)
+            dataset.attrs["unit"] = meta.unit
+            dataset.attrs["description"] = meta.description
+            dataset.attrs["a_exp"] = meta.a_exp
 
 
 def _get_git_commit() -> str | None:

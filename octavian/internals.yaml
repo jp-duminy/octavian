@@ -445,7 +445,7 @@ header_fields:
     unit: ""
     a_exp: 0
     description: "Scale factor at this redshift."
-  z:
+  redshift:
     unit: ""
     a_exp: 0
     description: "Redshift of the snapshot."
@@ -457,11 +457,11 @@ header_fields:
     unit: ""
     a_exp: 0
     description: "Dimensionless mean dark energy density at z = 0."
-  w0:
+  w_0:
     unit: ""
     a_exp: 0
     description: "Value of the dark energy EoS parameter at z = 0."
-  wa:
+  w_a:
     unit: ""
     a_exp: 0 
     description: "Temporal evolution of the dark energy EoS."

@@ -150,6 +150,8 @@ class GizmoReader(SnapshotReader):
             cosmology=flat_lambda_cdm,
             h=h,
             a=a,
+            w_0=-1,  # always flatlambdacdm
+            w_a=0,
             redshift=redshift,
             omega_matter=omega_matter,
             omega_lambda=omega_lambda,
@@ -447,6 +449,8 @@ class SwiftReader(SnapshotReader):
             cosmology=flat_w0wa_cdm,
             h=h,
             a=a,
+            w_0=w_0,
+            w_a=w_a,
             redshift=redshift,
             omega_matter=omega_matter,
             omega_lambda=omega_lambda,

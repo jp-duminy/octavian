@@ -276,6 +276,8 @@ def run_octavian(
             catalogue_path=catalogue_path,
             snapshot_path=snapshot_path,
             config=config,
+            internals=internals,
+            sim_attrs=reader.simulation_attributes,
             n_ranks=size,
         )
         clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
