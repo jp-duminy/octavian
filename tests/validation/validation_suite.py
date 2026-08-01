@@ -576,6 +576,10 @@ def test_run(args: argparse.Namespace) -> None:
 
         reader.set_maps(slabs=slabs, masks=masks, maps=maps, comm=comm)
 
+        all_halo_assignments = None
+        raw_halo_ids = None
+        raw_subhalo_ids = None
+
         packed_data = _profiled_pipeline(
             config=config,
             internals=internals,
