@@ -4,12 +4,13 @@ Verifies whether the output catalogue is self-consistentn and does not contain d
 
 """
 
-import h5py
-import numpy as np
-
-# data
+# internal imports
 from tests.validation.validation_columns import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 from octavian.log import get_logger
+
+# other packages
+import h5py
+import numpy as np
 
 PTYPES = ["gas", "star", "bh", "dm"]
 BARYON_PTYPES = ["gas", "star", "bh"]

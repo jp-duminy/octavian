@@ -6,6 +6,7 @@ The idea being to improve readability and reduce clutter when working with group
 
 """
 
+# workhorses
 import numpy as np
 from numba import (
     njit,

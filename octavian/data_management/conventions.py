@@ -5,6 +5,7 @@ Also contains backend dataclasses.
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 from yaml import safe_load
 from pathlib import Path
 
-# units/arrays
+# other packages
 from astropy.constants import codata2014 as codata  # unyt uses codata2014, need to migrate to codata2022
 from astropy.constants import iau2015 as iau
 import astropy.units as u

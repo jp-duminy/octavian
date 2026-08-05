@@ -4,6 +4,7 @@ I/O functions for reading in parallel from the same .hdf5 snapshot file.
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,11 +13,13 @@ if TYPE_CHECKING:
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
     from mpi4py.MPI import Comm
 
-# others
-import numpy as np
+# default libraries
 from dataclasses import dataclass, replace
 
-# octavian
+# other packages
+import numpy as np
+
+# internal imports
 from octavian.log import get_logger
 
 logger = get_logger()

@@ -4,7 +4,7 @@ Core aggregate properties. These include simple computations (per-ptype number c
 
 """
 
-# semantic
+# type checking (semantic)
 
 from typing import TYPE_CHECKING
 
@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 
 # others
 import numpy as np
-from octavian.log import get_logger
 
+# internal imports
 from octavian.aggregate_properties.aggregate_computations import (
     compute_kinematics,
     compute_rotational_quantities,
@@ -44,6 +44,8 @@ from octavian.aggregate_properties.aggregate_helpers import (
 from octavian.data_management import (
     build_group_csr,
 )
+
+from octavian.log import get_logger
 
 logger = get_logger()
 

@@ -4,13 +4,13 @@ The circulatory system of Octavian, managing how user-configured stages are run 
 
 """
 
-# semantic
+# type checking (semantic)
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from octavian.data_management.conventions import OctavianConfig
 
-# all default libraries
+# default libraries
 from dataclasses import dataclass
 from yaml import safe_load
 from pathlib import Path

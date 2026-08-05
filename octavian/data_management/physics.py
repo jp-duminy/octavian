@@ -4,14 +4,18 @@ Simple physics calculations which need to be done on read-in.
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from astropy.cosmology import FLRW
     from octavian.data_management.conventions import OctavianConstants
 
+# other packages
 import numpy as np
 import astropy.units as u
+
+# internal imports
 from octavian.data_management.data_structures import SimulationAttributes
 from octavian.log import get_logger
 

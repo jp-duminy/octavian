@@ -7,6 +7,7 @@ test_snapshot_large: 4GB
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ from datetime import datetime
 from collections.abc import Generator
 import argparse
 
-# others
+# IO
 import h5py
 
 # memory profiling
@@ -122,7 +123,6 @@ PTYPES = ["gas", "star", "bh", "dm"]
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config.yaml"
 INTERNALS_PATH = Path(__file__).parent.parent.parent / "octavian" / "internals.yaml"
-REFERENCE_PATH = Path.home() / "Octavian" / "small_ref_catalogue.hdf5"
 
 timings = {}
 memories = {}
