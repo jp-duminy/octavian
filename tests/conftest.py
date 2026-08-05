@@ -6,18 +6,25 @@ This is for automated CI/CD (did your commit break anything in the analysis?). P
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management.parallel_reading import RedistributionMap
 
+# default libraries
 from pathlib import Path
-import h5py
-import pytest
 from collections.abc import Generator
-import numpy as np
-from dataclasses import replace
+from dataclasses import replace  # for modifying frozen dataclasses
 
+# testing
+import pytest
+
+# other packages
+import h5py
+import numpy as np
+
+# internal imports
 from octavian.run_octavian import execute_pipeline, get_mpi_communicator
 from octavian.log import configure_logger
 from octavian.data_management import (

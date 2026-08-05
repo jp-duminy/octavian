@@ -4,6 +4,7 @@ Functionality to assign galaxies their parent halos. This has two paths: if ther
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,8 +13,11 @@ if TYPE_CHECKING:
 from octavian.data_management import DTYPES, build_group_csr
 from .aggregate_helpers import first_idx_per_group
 
+# other packages
 import numpy as np
 from numba import njit
+
+# internal imports
 from octavian.log import get_logger
 
 logger = get_logger()

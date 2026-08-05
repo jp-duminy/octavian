@@ -5,7 +5,7 @@ This is a modularised version of the old DataManager, its functionality divided 
 
 """
 
-# semantic
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
     from .parallel_reading import RedistributionMap
     from mpi4py.MPI import Comm
-
-from octavian.log import get_logger
 
 # defaults
 from pathlib import Path
@@ -27,7 +25,7 @@ import h5py
 from astropy.cosmology import FlatLambdaCDM, Flatw0waCDM
 import astropy.units as u
 
-# from the backend
+# internal imports
 from octavian.data_management.conventions import (
     DTYPES,
     CODE_UNITS,
@@ -35,6 +33,7 @@ from octavian.data_management.conventions import (
     SnapshotReader,
     gizmo_unit_conversion_factor,
 )
+from octavian.log import get_logger
 
 from .parallel_reading import redistribute_data, split_slab
 

@@ -4,6 +4,7 @@ Utility functions for working with compressed sparse-row format (CSR) representa
 
 """
 
+# workhorses
 import numpy as np
 from numba import njit
 

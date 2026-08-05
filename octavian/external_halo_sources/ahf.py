@@ -8,19 +8,24 @@ NOTE: the AHF parser uses np.loadtxt with a numba parser on the resulting array.
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from octavian.data_management import SnapshotReader
     from mpi4py.MPI import Comm
 
-import numpy as np
+# default libraries
 from pathlib import Path
-from numba import njit
 from functools import (
     cached_property,
 )  # for avoiding rereading files across methods but also not holding too much in __init__
 
+# other packages
+import numpy as np
+from numba import njit
+
+# internal imports
 from .halo_data_structures import (
     HaloAssignments,
     SubhaloInformation,
@@ -28,7 +33,6 @@ from .halo_data_structures import (
     compute_depths,
     apply_lookup,
 )
-
 from octavian.data_management.parallel_reading import generate_slabs
 
 

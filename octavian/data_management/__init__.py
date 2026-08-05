@@ -34,6 +34,7 @@ from .conventions import (
     output_catalogue_path as output_catalogue_path,
 )
 from .parallel_reading import (
+    RedistributionMap as RedistributionMap,
     generate_rank_halo_assignments as generate_rank_halo_assignments,
     assign_local_subhalos as assign_local_subhalos,
     generate_slabs as generate_slabs,

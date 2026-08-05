@@ -4,6 +4,7 @@ Functions to collate per-rank analysis data via MPI and create a final, globally
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,7 +20,7 @@ from dataclasses import dataclass
 import h5py
 import numpy as np
 
-# octavian
+# internal imports
 from octavian.data_management.conventions import DTYPES
 from octavian.log import get_logger
 

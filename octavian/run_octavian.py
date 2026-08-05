@@ -10,14 +10,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mpi4py import MPI
-    from octavian.data_management import SnapshotReader, RankPackedData
+    from octavian.data_management import SnapshotReader, RankPackedData, RedistributionMap
     from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
-    from octavian.data_management.parallel_reading import RedistributionMap
 
+# internal package imports
 from octavian.data_management import (
-    construct_membership_arrays,
-    write_catalogue,
-    write_catalogue_headers,
     GroupStore,
     SimulationData,
     Internals,
@@ -27,16 +24,19 @@ from octavian.data_management import (
     build_galaxy_store,
     build_halo_store,
     build_particle_stores,
+    build_redistribution_map,
     load_internals,
     resolve_dependencies,
     get_releasable_columns,
-    output_catalogue_path,
-    redistribute_data,
-    assign_local_subhalos,
-    pack_rank_data,
     generate_rank_halo_assignments,
     generate_slabs,
-    build_redistribution_map,
+    redistribute_data,
+    assign_local_subhalos,
+    construct_membership_arrays,
+    pack_rank_data,
+    output_catalogue_path,
+    write_catalogue,
+    write_catalogue_headers,
 )
 from octavian.external_halo_sources import (
     build_halo_source,
@@ -50,15 +50,16 @@ from octavian.aggregate_properties import (
 )
 from octavian.log import configure_logger, get_logger, clean_logs
 
-# data handling
+# default libraries
 from pathlib import Path
 import argparse
+
+# others
 import numpy as np
 
+# internal filepaths
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"  # development config
 INTERNALS_PATH = Path(__file__).parent / "internals.yaml"
-OUTPUT_DIR = Path()
-SNAPSHOT_PATH = Path()
 
 
 def get_mpi_communicator() -> MPI.Comm | None:

@@ -8,16 +8,16 @@ Particle type-specific aggregate properties. For example:
 
 """
 
-# semantic
-
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management import SimulationData, OctavianConfig
 
-# others
+# other packages
 import numpy as np
 
+# internal imports
 from octavian.aggregate_properties.aggregate_helpers import (
     sum_per_group,
     max_idx_per_group,

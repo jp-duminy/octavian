@@ -14,6 +14,7 @@ Particles belonging to a group are found in offsets[g]:offsets[g+1]
 
 """
 
+# workhorses
 import numpy as np
 from numba import (
     njit,

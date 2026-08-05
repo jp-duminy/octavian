@@ -16,21 +16,17 @@ if TYPE_CHECKING:
 # defaults
 from dataclasses import dataclass
 
-# octavians
-from octavian.data_management import DTYPES, OctavianConfig
-from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
-from octavian.log import get_logger
-
 # other libraries
 import numpy as np
 import numba
 
+# internal imports
+from octavian.data_management import DTYPES, OctavianConfig
+from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
+from octavian.log import get_logger
+
 logger = get_logger()
 PTYPE_CODES = {"gas": np.int8(0), "star": np.int8(4), "bh": np.int8(5), "dm": np.int8(1)}  # GIZMO number conventions
-
-# slots=True turns off unneeded dict behaviour which avoids accidental mutation & improves memory usage
-# frozen=True adds tiny overhead but is safe
-# see https://github.com/orgs/community/discussions/168147#discussioncomment-15464120 if curious
 
 
 @dataclass(slots=True, frozen=True)

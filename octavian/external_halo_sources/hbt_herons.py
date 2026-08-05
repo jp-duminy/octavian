@@ -13,18 +13,23 @@ HBT algorithm source paper: https://academic.oup.com/mnras/article/474/1/604/456
 
 """
 
+# type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from octavian.data_management import SnapshotReader
 
-import h5py
-import numpy as np
+# default libraries
 from pathlib import Path
 from functools import (
     cached_property,
 )  # for avoiding rereading files across methods but also not holding too much in __init__
 
+# other packages
+import h5py
+import numpy as np
+
+# internal imports
 from .halo_data_structures import (
     HaloAssignments,
     SubhaloInformation,
