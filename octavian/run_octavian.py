@@ -62,7 +62,7 @@ def get_mpi_communicator() -> MPI.Comm | None:
     try:
         from mpi4py import MPI
 
-        return MPI.COMM_WORLD  # mpiexec -n 1 will return an output with _rank_0
+        return MPI.COMM_WORLD
     except ImportError:
         pass
     return None
@@ -174,15 +174,16 @@ def run_octavian(
     intermediate_dir = output_dir / "Intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)
 
+    config = OctavianConfig.from_yaml(config_path=config_path)
+
     # initialise logger for console output
     configure_logger(
-        rank=rank, output_level="INFO", log_dir=intermediate_dir
+        rank=rank, output_level=config.terminal_output_level, log_dir=intermediate_dir
     )  # TODO: make this take the config-assigned level
     logger = get_logger()
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
 
     # initialise snapshot/halo readers, constants, config, internal metadata
-    config = OctavianConfig.from_yaml(config_path=config_path)
     internals = load_internals(internals_filepath=internals_path, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
