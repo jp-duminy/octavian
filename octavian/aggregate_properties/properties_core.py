@@ -62,8 +62,8 @@ def run_core_properties(simulation_data: SimulationData, config: OctavianConfig)
         particles = simulation_data.particles
         sim = simulation_data.simulation
 
-        available_ptypes = list(particles.keys())
-        available_baryonic = [pt for pt, s in particles.items() if s.is_baryonic]
+        available_ptypes = simulation_data.available_ptypes
+        available_baryonic = simulation_data.available_baryonic_ptypes
 
         if kind == "halo":
             global_minimum = _prepare_global_minimum_potential(
