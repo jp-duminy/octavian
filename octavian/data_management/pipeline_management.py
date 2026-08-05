@@ -8,7 +8,7 @@ The circulatory system of Octavian, managing how user-configured stages are run 
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from octavian.data_management.conventions import OctavianConfig
+    from .conventions import OctavianConfig
 
 # default libraries
 from dataclasses import dataclass

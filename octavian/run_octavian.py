@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mpi4py import MPI
-    from octavian.data_management import SnapshotReader, RankPackedData, RedistributionMap
-    from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
+    from .data_management import SnapshotReader, RankPackedData, RedistributionMap
+    from .external_halo_sources import HaloAssignments, SubhaloInformation
 
 # internal package imports
-from octavian.data_management import (
+from .data_management import (
     GroupStore,
     SimulationData,
     Internals,
@@ -38,17 +38,17 @@ from octavian.data_management import (
     write_catalogue,
     write_catalogue_headers,
 )
-from octavian.external_halo_sources import (
+from .external_halo_sources import (
     build_halo_source,
 )
-from octavian.galaxy_finding import find_galaxies
-from octavian.aggregate_properties import (
+from .galaxy_finding import find_galaxies
+from .aggregate_properties import (
     run_ptype_specific_properties,
     run_core_properties,
     run_local_environment,
     assign_membership,
 )
-from octavian.log import configure_logger, get_logger, clean_logs
+from .log import configure_logger, get_logger, clean_logs
 
 # default libraries
 from pathlib import Path

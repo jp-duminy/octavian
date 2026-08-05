@@ -17,7 +17,7 @@ HBT algorithm source paper: https://academic.oup.com/mnras/article/474/1/604/456
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import SnapshotReader
+    from ..data_management import SnapshotReader
 
 # default libraries
 from pathlib import Path

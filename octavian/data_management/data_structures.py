@@ -9,9 +9,9 @@ This is a modularised version of the old DataManager, its functionality divided 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management.pipeline_management import Internals
-    from octavian.data_management.conventions import OctavianConstants, OctavianConfig
-    from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
+    from .pipeline_management import Internals
+    from .conventions import OctavianConstants, OctavianConfig
+    from ..external_halo_sources import HaloAssignments, SubhaloInformation
     from .parallel_reading import RedistributionMap
     from mpi4py.MPI import Comm
 
@@ -26,14 +26,13 @@ from astropy.cosmology import FlatLambdaCDM, Flatw0waCDM
 import astropy.units as u
 
 # internal imports
-from octavian.data_management.conventions import (
+from .conventions import (
     DTYPES,
     CODE_UNITS,
     SimulationAttributes,
     SnapshotReader,
     gizmo_unit_conversion_factor,
 )
-from octavian.log import get_logger
 
 from .parallel_reading import redistribute_data, split_slab
 
@@ -42,11 +41,13 @@ from .csr import (
     propagate_membership_csr,
 )
 
-from octavian.data_management.physics import (
+from .physics import (
     derive_stellar_age,
     calculate_temperature,
     derive_simulation_attributes,
 )
+
+from ..log import get_logger
 
 logger = get_logger()
 
