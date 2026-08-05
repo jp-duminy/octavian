@@ -52,7 +52,13 @@ from octavian.log import configure_logger, get_logger, clean_logs
 
 # data handling
 from pathlib import Path
+import argparse
 import numpy as np
+
+CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"  # development config
+INTERNALS_PATH = Path(__file__).parent / "internals.yaml"
+OUTPUT_DIR = Path()
+SNAPSHOT_PATH = Path()
 
 
 def get_mpi_communicator() -> MPI.Comm | None:
@@ -66,6 +72,32 @@ def get_mpi_communicator() -> MPI.Comm | None:
     except ImportError:
         pass
     return None
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    Parses the command-line arguments; returns the corresponding Namespace object.
+    """
+    parser = argparse.ArgumentParser(
+        prog="OCTAVIAN",
+        description="Run the Octavian simulation analysis pipeline.",
+        epilog="Thank you for using Octavian!",
+    )
+    parser.add_argument(
+        "-s", "--snapshot", type=Path, required=True, help="The filepath to the snapshot you would like to analyse."
+    )
+    parser.add_argument(
+        "-o", "--output", type=Path, required=True, help="Directory to which you would like the outputs to be routed."
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        required=False,
+        help="The filepath to your config; if not provided, the default is used.",
+    )
+
+    return parser.parse_args()
 
 
 def execute_pipeline(
@@ -161,8 +193,7 @@ def execute_pipeline(
 def run_octavian(
     snapshot_path: Path,
     output_dir: Path,
-    config_path: Path,
-    internals_path: Path,
+    config: OctavianConfig,
 ) -> None:
     """
     Conduct a full parallel run of Octavian.
@@ -174,17 +205,13 @@ def run_octavian(
     intermediate_dir = output_dir / "Intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)
 
-    config = OctavianConfig.from_yaml(config_path=config_path)
-
     # initialise logger for console output
-    configure_logger(
-        rank=rank, output_level=config.terminal_output_level, log_dir=intermediate_dir
-    )  # TODO: make this take the config-assigned level
+    configure_logger(rank=rank, output_level=config.terminal_output_level, log_dir=intermediate_dir)
     logger = get_logger()
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
 
-    # initialise snapshot/halo readers, constants, config, internal metadata
-    internals = load_internals(internals_filepath=internals_path, config=config)
+    # initialise snapshot/halo readers, constants, internal metadata
+    internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
@@ -282,3 +309,11 @@ def run_octavian(
             n_ranks=size,
         )
         clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    config_path = args.config if args.config else CONFIG_PATH
+    config = OctavianConfig.from_yaml(config_path=config_path)
+
+    run_octavian(snapshot_path=args.snapshot, output_dir=args.output, config=config)
