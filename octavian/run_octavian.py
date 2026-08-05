@@ -83,6 +83,7 @@ def parse_args() -> argparse.Namespace:
         prog="OCTAVIAN",
         description="Run the Octavian simulation analysis pipeline.",
         epilog="Thank you for using Octavian!",
+        suggest_on_error=True,
     )
     parser.add_argument(
         "-s", "--snapshot", type=Path, required=True, help="The filepath to the snapshot you would like to analyse."
