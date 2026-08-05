@@ -12,18 +12,18 @@ Particle type-specific aggregate properties. For example:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import SimulationData, OctavianConfig
+    from ..data_management import SimulationData, OctavianConfig
 
 # other packages
 import numpy as np
 
 # internal imports
-from octavian.aggregate_properties.aggregate_helpers import (
+from ..aggregate_properties.aggregate_helpers import (
     sum_per_group,
     max_idx_per_group,
     guarded_divide,
 )
-from octavian.log import get_logger
+from ..log import get_logger
 
 logger = get_logger()
 

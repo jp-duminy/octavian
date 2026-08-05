@@ -10,7 +10,7 @@ Properties related to a structure's local environment (number densities, apertur
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import ParticleStore, GroupStore, SimulationData, OctavianConfig
+    from ..data_management import ParticleStore, GroupStore, SimulationData, OctavianConfig
 
 # other packages
 import numpy as np
@@ -18,9 +18,9 @@ from scipy.spatial import KDTree  # remember, always pass boxsize
 from scipy.sparse import csr_array
 
 # internal imports
-from octavian.log import get_logger
-from octavian.data_management.conventions import DTYPES
-from octavian.data_management import build_group_csr
+from ..log import get_logger
+from ..data_management.conventions import DTYPES
+from ..data_management import build_group_csr
 
 logger = get_logger()
 

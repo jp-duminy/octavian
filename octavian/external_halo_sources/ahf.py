@@ -12,7 +12,7 @@ NOTE: the AHF parser uses np.loadtxt with a numba parser on the resulting array.
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from octavian.data_management import SnapshotReader
+    from ..data_management import SnapshotReader
     from mpi4py.MPI import Comm
 
 # default libraries
@@ -33,7 +33,7 @@ from .halo_data_structures import (
     compute_depths,
     apply_lookup,
 )
-from octavian.data_management.parallel_reading import generate_slabs
+from ..data_management import generate_slabs
 
 
 class AHFCatalogue(NamedTuple):  # for code readability

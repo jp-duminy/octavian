@@ -8,9 +8,9 @@ I/O functions for reading in parallel from the same .hdf5 snapshot file.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management.data_structures import ParticleStore
-    from octavian.data_management.conventions import OctavianConfig
-    from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
+    from .data_structures import ParticleStore
+    from .conventions import OctavianConfig
+    from ..external_halo_sources import HaloAssignments, SubhaloInformation
     from mpi4py.MPI import Comm
 
 # default libraries
@@ -20,7 +20,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 # internal imports
-from octavian.log import get_logger
+from ..log import get_logger
 
 logger = get_logger()
 

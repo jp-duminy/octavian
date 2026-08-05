@@ -11,7 +11,7 @@ If this is very slow, numba may not be jitting on your cluster. Please check whe
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import ParticleStore, SimulationAttributes, OctavianConstants
+    from ..data_management import ParticleStore, SimulationAttributes, OctavianConstants
 
 # defaults
 from dataclasses import dataclass
@@ -21,9 +21,9 @@ import numpy as np
 import numba
 
 # internal imports
-from octavian.data_management import DTYPES, OctavianConfig
-from octavian.galaxy_finding.fof6d_algorithm import dispatch_fof6d, unwrap_positions
-from octavian.log import get_logger
+from .fof6d_algorithm import dispatch_fof6d, unwrap_positions
+from ..data_management import DTYPES, OctavianConfig
+from ..log import get_logger
 
 logger = get_logger()
 PTYPE_CODES = {"gas": np.int8(0), "star": np.int8(4), "bh": np.int8(5), "dm": np.int8(1)}  # GIZMO number conventions

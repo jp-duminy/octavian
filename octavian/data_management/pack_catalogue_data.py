@@ -8,7 +8,9 @@ Functions which write data from analysis stages into CSR format lists for HDF5 c
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import SimulationData, Internals, SimulationAttributes
+    from .conventions import SimulationAttributes
+    from .data_structures import SimulationData
+    from .pipeline_management import Internals
 
 # default libraries
 from pathlib import Path
@@ -21,12 +23,12 @@ import h5py
 import numpy as np
 
 # internal imports
-from octavian.data_management.conventions import (
+from .conventions import (
     DTYPES,
     OctavianConfig,
-)  # NOTE: import from within-file, not module level (to avoid circular import)
-from octavian.log import get_logger
-from octavian.version import __version__
+)
+from ..log import get_logger
+from ..version import __version__
 
 logger = get_logger()
 

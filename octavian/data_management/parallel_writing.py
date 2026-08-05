@@ -8,7 +8,7 @@ Functions to collate per-rank analysis data via MPI and create a final, globally
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management.pipeline_management import Internals
+    from .pipeline_management import Internals
     from .pack_catalogue_data import RankPackedData, MembershipArrays
     from mpi4py.MPI import Comm
 
@@ -21,8 +21,8 @@ import h5py
 import numpy as np
 
 # internal imports
-from octavian.data_management.conventions import DTYPES
-from octavian.log import get_logger
+from .conventions import DTYPES
+from ..log import get_logger
 
 logger = get_logger()
 

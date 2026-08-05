@@ -9,7 +9,7 @@ Core aggregate properties. These include simple computations (per-ptype number c
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import (
+    from ..data_management import (
         ParticleStore,
         GroupStore,
         SimulationAttributes,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 import numpy as np
 
 # internal imports
-from octavian.aggregate_properties.aggregate_computations import (
+from .aggregate_computations import (
     compute_kinematics,
     compute_rotational_quantities,
     compute_enclosed_mass_radii,
@@ -32,7 +32,7 @@ from octavian.aggregate_properties.aggregate_computations import (
     compute_radii,
 )
 
-from octavian.aggregate_properties.aggregate_helpers import (
+from .aggregate_helpers import (
     sum_per_group,
     count_per_group,
     min_idx_per_group,
@@ -41,11 +41,11 @@ from octavian.aggregate_properties.aggregate_helpers import (
     guarded_divide,
 )
 
-from octavian.data_management import (
+from ..data_management import (
     build_group_csr,
 )
 
-from octavian.log import get_logger
+from ..log import get_logger
 
 logger = get_logger()
 

@@ -5,7 +5,7 @@ Verifies whether the output catalogue is self-consistentn and does not contain d
 """
 
 # internal imports
-from tests.validation.validation_columns import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
+from .validation_columns import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
 from octavian.log import get_logger
 
 # other packages

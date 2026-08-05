@@ -8,7 +8,7 @@ Internal agnostic halo source infrastructure, for passing to the likewise-agnost
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.data_management import SnapshotReader, OctavianConfig
+    from ..data_management import SnapshotReader, OctavianConfig
     from mpi4py.MPI import Comm
 
 # default libraries
@@ -19,7 +19,7 @@ import numpy as np
 from numba import njit
 
 # internal imports
-from octavian.log import get_logger
+from ..log import get_logger
 
 logger = get_logger()
 
