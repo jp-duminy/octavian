@@ -67,7 +67,7 @@ def build_halo_source(config: OctavianConfig, reader: SnapshotReader) -> HaloSou
 
         prefix = config.halo_id_filepath  # renamed for explicitness
         logger.info("Using AHF-assigned HaloIDs.")
-        logger.info(f"Finding AHF catalogues at {prefix} .")
+        logger.info(f"Finding AHF catalogues at {prefix}")
         return AHFHaloSource(
             halos_path=prefix.with_suffix(".AHF_halos"),
             particles_path=prefix.with_suffix(".AHF_particles"),
