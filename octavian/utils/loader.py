@@ -239,7 +239,7 @@ class GroupCollection:
         data: ndarray
             Array with requested conversions applied.
         """
-        dataset = self._data[self._dataset_paths[name]]
+        dataset = self._data[f"properties/{self._dataset_paths[name]}"]
         data = dataset[:]  # read in full dataset (not a problem for catalogue-level quantities)
 
         if mask is not None:
