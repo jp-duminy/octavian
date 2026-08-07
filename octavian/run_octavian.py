@@ -236,26 +236,32 @@ def run_octavian(
         subhalo_info = None
         halo_to_rank_length = 0
 
-    halo_to_rank_length = comm.bcast(halo_to_rank_length, root=0)  # this is just an int so bcast
+    if comm is not None:
+        halo_to_rank_length = comm.bcast(halo_to_rank_length, root=0)  # this is just an int so bcast
 
-    if rank != 0:
-        halo_to_rank = np.empty(halo_to_rank_length, dtype=np.int64)  # malloc
+        if rank != 0:
+            halo_to_rank = np.empty(halo_to_rank_length, dtype=np.int64)  # malloc
 
-    comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
-    subhalo_info = (
-        comm.bcast(subhalo_info, root=0) if comm else subhalo_info
-    )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
+        comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
+        subhalo_info = (
+            comm.bcast(subhalo_info, root=0) if comm else subhalo_info
+        )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
 
-    # ranks determine which slab of each dataset they will read
-    slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
+        # ranks determine which slab of each dataset they will read
+        slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
 
-    # rank 0 tells other ranks what the (Sub)HaloIDs of the particles on their slabs are
-    raw_halo_ids = halo_source.distribute_raw_halo_ids(
-        slabs=slabs, comm=comm, global_ids=all_halo_assignments.halo_ids if rank == 0 else None
-    )
-    raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(
-        slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.subhalo_ids if rank == 0 else None
-    )
+        # rank 0 tells other ranks what the (Sub)HaloIDs of the particles on their slabs are
+        raw_halo_ids = halo_source.distribute_raw_halo_ids(
+            slabs=slabs, comm=comm, global_ids=all_halo_assignments.halo_ids if rank == 0 else None
+        )
+        raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(
+            slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.subhalo_ids if rank == 0 else None
+        )
+
+    else:
+        slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
+        raw_halo_ids = halo_source.distribute_raw_halo_ids(slabs=slabs)
+        raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(slabs=slabs)
 
     # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
     masks: dict[str, np.ndarray] = {}

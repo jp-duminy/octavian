@@ -50,6 +50,9 @@ def redistribute_data(
 
     - received_data: ndarray of the rank's owned data across the slabs
     """
+    if comm is None:  # early return for serial case
+        return local_data[redistribution_map.send_order]
+
     from mpi4py.util.dtlib import from_numpy_dtype  # cannot import mpi4py at module-level for serial compatibility
 
     ordered_data = local_data[redistribution_map.send_order]
@@ -93,7 +96,7 @@ def redistribute_data(
 def build_redistribution_map(
     halo_to_rank: np.ndarray,
     slab_halo_ids: np.ndarray,
-    comm: Comm,
+    comm: Comm | None,
 ) -> tuple[RedistributionMap, np.ndarray]:
     """
     Constructs the global RedistributionMap object for a slab of a dataset. Returns:
@@ -109,6 +112,14 @@ def build_redistribution_map(
         halo_to_rank[slab_halo_ids[in_halo]] != -1
     )  # then halos < min_dm_per_halo also have -1 in the halo_to_rank array
     owner_ranks = halo_to_rank[slab_halo_ids[mask]]
+
+    if comm is None:  # early return for serial case
+        send_order = np.arange(
+            mask.sum(), dtype=np.int64
+        )  # match dataclass signature (redundant work but the alternative is painful)
+        send_counts = np.array([mask.sum()], dtype=np.int64)
+        rec_counts = send_counts.copy()
+        return RedistributionMap(send_order=send_order, send_counts=send_counts, rec_counts=rec_counts), mask
 
     send_order = np.argsort(owner_ranks, stable=True)
     send_counts = np.bincount(
