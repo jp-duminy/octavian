@@ -319,7 +319,7 @@ class GroupCollection:
         verbose: bool = False,
     ) -> np.ndarray:
         """
-        Retrieves a membership dataset from the membership section of the catalogue; can optionally retrieve members for the specified group_index.
+        Retrieves a membership dataset from the membership section of the catalogue; can optionally retrieve members for the specified group_index. Membership datasets are not necessarily (n_groups) length, and therefore a mask argument is not provided; it is recommended to instead load the dataset using this method and then mask appropriately.
 
         Parameters
         ----------
