@@ -33,7 +33,21 @@ logger = get_logger()
 @dataclass(frozen=True, slots=True)
 class OctavianConfig:
     """
-    User-configured parameters as specified in config.yaml.
+    Octavian config object containing user-configured physics/runtime parameters. This can either be directly parsed from a .yaml file with the class method (recommended), or created directly.
+
+    Methods
+    -------
+    from_yaml()
+        Parses a .yaml file into the config (recommended usage).
+
+    Notes
+    -----
+
+    - 'b' controls what fraction of the mean interparticle separation the linking length is. This is usually set to 0.02.
+    - 'velocity_factor' is in units of the local velocity dispersion, and controls how many standard deviations from the local velocity dispersion a particle considers its neighbours to be linked in phase space.
+    - FRAD is the radiative efficiency (in the accretion formula, usually 0.1).
+    - MU is the mean molecular weight (in the virial scaling formulae, usually 0.6)
+    - n_chunks does not represent chunking through the full pipeline, rather, chunking on reading datasets. This is to alleviate stress on filesystems from multiple ranks simultaneously requesting multi-GB reads, but in practice leaving this at 10 is fine.
     """
 
     simulation_type: str
