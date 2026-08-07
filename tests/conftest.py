@@ -67,7 +67,13 @@ def mock_catalogue(
     snapshot_path = GIZMO_TEST_PATH if sim_type == "GIZMO" else SWIFT_TEST_PATH
     config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
     config = replace(
-        config, simulation_type=sim_type, halo_id_source="SNAPSHOT"
+        config,
+        simulation_type=sim_type,
+        halo_id_source="SNAPSHOT",
+        min_dm_per_halo=0,
+        min_stars_per_galaxy=2,
+        b=1.5,
+        velocity_factor=5,
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
