@@ -121,7 +121,19 @@ class OctavianConfig:
 @dataclass(frozen=True, slots=True)
 class OctavianConstants:
     """
-    From CODATA2014 and IAU2015 (plan to update to CODATA2022).
+    The internal constants and scaling relations used in the Octavian pipeline.
+
+    Notes
+    -----
+
+    - This is backed by the astropy API and uses the CODATA 2022 & IAU 2015 datasets.
+    - Contains some scaling factors.
+
+    To get the astropy datasets please run:
+
+    - from astropy.constants import iau2015 as iau
+    - from astropy.constants import codata2022 as codata
+    - import astropy.units as u
     """
 
     # config-dependent parameters
