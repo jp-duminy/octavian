@@ -100,9 +100,6 @@ def mock_catalogue(
     local_subhalo_ids: dict[str, np.ndarray] | None = {} if raw_subhalo_ids is not None else None
 
     for ptype in raw_halo_ids:
-        print(
-            f"{ptype}: raw_halo_ids_len={len(raw_halo_ids[ptype])}, slab_len={slabs[ptype].stop - slabs[ptype].start}"
-        )
         maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
         local_halo_ids[ptype] = redistribute_data(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
         if local_subhalo_ids is not None:
