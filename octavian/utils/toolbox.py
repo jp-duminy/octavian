@@ -1,6 +1,6 @@
 """
 
-Convenience file to build a config and run Octavian from within the comforts of a Python script.
+Convenience methods.
 
 """
 
