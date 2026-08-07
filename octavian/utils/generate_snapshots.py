@@ -55,9 +55,13 @@ halo_velocities = rng.normal(loc=0, scale=100, size=(N_HALOES, 3))
 
 def generate_gizmo_snapshot(path: Path) -> None:
     """
-    Procedurally generates a gizmo snapshot. NOTE: a real GIZMO snapshot bakes h into its datasets, but since the data is junk we can divide junk by h and get a self-consistent catalogue anyway.
-    """
+    Procedurally generates a GIZMO snapshot filled with junk data. The catalogue is self-consistent, but its data only exists to be accessed for file validation, not any sort of physics checks.
 
+    Parameters
+    ----------
+    path: pathlib.Path
+        Path object pointing to where the GIZMO snapshot should be written.
+    """
     # generate the junk data
     gas_base = _generate_base_datasets(n_particles=N_GAS, halo_centres=halo_centres, halo_velocities=halo_velocities)
     dm_base = _generate_base_datasets(n_particles=N_DM, halo_centres=halo_centres, halo_velocities=halo_velocities)
@@ -129,7 +133,12 @@ def generate_gizmo_snapshot(path: Path) -> None:
 
 def generate_swift_snapshot(path: Path) -> None:
     """
-    Procedurally generates a SWIFT snapshot.
+    Procedurally generates a SWIFT snapshot filled with junk data. The catalogue is self-consistent, but its data only exists to be accessed for file validation, not any sort of physics checks.
+
+    Parameters
+    ----------
+    path: pathlib.Path
+        Path object pointing to where the SWIFT snapshot should be written.
     """
 
     gas_base = _generate_base_datasets(n_particles=N_GAS, halo_centres=halo_centres, halo_velocities=halo_velocities)
