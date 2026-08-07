@@ -97,7 +97,7 @@ def parse_args() -> argparse.Namespace:
         "--config",
         type=Path,
         required=False,
-        help="The filepath to your config; if not provided, the default is used.",
+        help="The filepath to your config; if not provided, the default config.yaml from the repository is parsed, which can be edited directly.",
     )
 
     return parser.parse_args()
@@ -197,9 +197,25 @@ def run_octavian(
     snapshot_path: Path,
     output_dir: Path,
     config: OctavianConfig,
-) -> None:
+) -> Path:
     """
-    Conduct a full parallel run of Octavian.
+    Runs the full Octavian analysis pipeline. This function will automatically discern whether it is being run in serial or parallel configuration. It is importable and can be run standalone in a Python script; for batch processing, it is recommended users instead use the Octavian command line functionality called on run_octavian.py instead.
+
+    Parameters
+    ----------
+    snapshot_path: pathlib.Path
+        Path object pointing to the snapshot you would like to analyse.
+    output_dir: pathlib.Path
+        Path object pointing to the directory to which you would like the catalogue delivered to.
+    config: OctavianConfig
+        OctavianConfig object. You can call the from_yaml(yaml_filepath) method on it to parse a config.yaml file, or type the parameters manually.
+
+    If run from the command line, these parameters are filled in from the command line arguments. Please run --help for more information.
+
+    Returns
+    -------
+    catalogue_path: pathlib.Path
+        Path object pointing towards the analysis catalogue.
     """
     comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0
@@ -319,10 +335,12 @@ def run_octavian(
         )
         clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
 
+    return catalogue_path
+
 
 if __name__ == "__main__":
     args = parse_args()
     config_path = args.config if args.config else CONFIG_PATH
     config = OctavianConfig.from_yaml(config_path=config_path)
 
-    run_octavian(snapshot_path=args.snapshot, output_dir=args.output, config=config)
+    catalogue = run_octavian(snapshot_path=args.snapshot, output_dir=args.output, config=config)
