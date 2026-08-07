@@ -18,7 +18,7 @@ from yaml import safe_load
 from pathlib import Path
 
 # other packages
-from astropy.constants import codata2014 as codata  # unyt uses codata2014, need to migrate to codata2022
+from astropy.constants import codata2022 as codata
 from astropy.constants import iau2015 as iau
 import astropy.units as u
 from astropy.cosmology import FLRW
