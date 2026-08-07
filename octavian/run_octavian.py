@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from mpi4py import MPI
     from .data_management import SnapshotReader, RankPackedData, RedistributionMap
-    from .external_halo_sources import HaloAssignments, SubhaloInformation
+    from .external_halo_sources import SubhaloInformation
 
 # internal package imports
 from .data_management import (
@@ -39,6 +39,7 @@ from .data_management import (
     write_catalogue_headers,
 )
 from .external_halo_sources import (
+    HaloAssignments,
     build_halo_source,
 )
 from .galaxy_finding import find_galaxies
@@ -293,7 +294,7 @@ def run_octavian(
         global_subhalo_info=subhalo_info,
     )
 
-    catalogue_path = output_catalogue_path(directory=output_dir)
+    catalogue_path = output_catalogue_path(snapshot_path=snapshot_path, output_dir=output_dir)
 
     write_catalogue(
         packed_data=packed_data,
