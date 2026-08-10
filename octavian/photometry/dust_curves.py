@@ -2,17 +2,43 @@
 
 Standard attenuation curve formulae which compute the optical depth tau as a function of wavelength.
 
+Top of file: attenuation laws
+Bottom of file: extinction laws.
+
 """
 
 # default library imports
+from dataclasses import dataclass
 
 # other packages
 import numpy as np
 from numba import njit
 
-# internal imports
-
 NORMALISATION = 5500  # angstrom
+
+
+@dataclass(slots=True, frozen=True)
+class DustCurves:
+    """
+    Container for attenuation curves:
+
+    - Calzetti
+    - Conroy
+    - Power law
+
+    And extinction curves:
+
+    - Cardelli
+    - Small Magellanic Cloud
+    - Large Magellanic Cloud
+    """
+
+    calzetti: np.ndarray
+    conroy: np.ndarray
+    cardelli: np.ndarray
+    smc: np.ndarray
+    lmc: np.ndarray
+    power_law: np.ndarray
 
 
 @njit(cache=True)
@@ -242,3 +268,27 @@ def atten_conroy(wavelengths: np.ndarray, f_bump: float = 0.6) -> np.ndarray:
         taus[i] = tau
 
     return taus
+
+
+@njit(cache=True)
+def extinct_cardelli(wavelengths: np.ndarray) -> np.ndarray:
+    """
+    TBD.
+    """
+    pass
+
+
+@njit(cache=True)
+def extinct_smc(wavelengths: np.ndarray) -> np.ndarray:
+    """
+    TBD.
+    """
+    pass
+
+
+@njit(cache=True)
+def extinct_lmc(wavelengths: np.ndarray) -> np.ndarray:
+    """
+    TBD.
+    """
+    pass
