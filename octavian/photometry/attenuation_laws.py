@@ -19,7 +19,6 @@ NORMALISATION = 5500  # angstrom
 def atten_power_law(
     wavelengths: np.ndarray,
     alpha: float = 1.0,
-    normalisation: float = 5500.0,
 ) -> np.ndarray:
     """
     Attenuate based on a simple power law in -(alpha), normalised by default to 5,500 angstrom. Returns:
@@ -37,14 +36,10 @@ def _calzetti_ir(
     R_v: float = 4.05,
 ) -> float:
     """
-    Evaluates the Calzetti IR attenuation law (defined between 6.3um and 22um) at the input wavelength (in angstrom). Returns:
-
-    - k_lambda: k(lambda) at the input wavelength.
-
-    Daniela Calzetti et al. 2000 ApJ 533 682 (doi: 10.1086/308692) Eq. 4
+    Returns k(lambda) from the Calzetti IR attenuation law (defined between 6.3um and 22um) evaluated at the input wavelength (in angstrom).
     """
-    wavelength_um = wavelength / 1e4
-    k_lambda = 2.659 * (-1.857 + (1.040 / wavelength_um)) + R_v
+    wavelength_um = 1e4 / wavelength
+    k_lambda = 2.659 * (-1.857 + (1.040 * wavelength_um)) + R_v
 
     return k_lambda
 
@@ -55,15 +50,11 @@ def _calzetti_uv(
     R_v: float = 4.05,
 ) -> float:
     """
-    Evaluates the Calzetti UV attenuation law (defined between 0.12um and 6.3um) at the input wavelength (in angstrom). Returns:
-
-    - k_lambda: k(lambda) at the input wavelength.
-
-    Daniela Calzetti et al. 2000 ApJ 533 682 (doi: 10.1086/308692) Eq. 4
+    Returns k(lambda) from the Calzetti UV attenuation law (defined between 0.12um and 6.3um) evaluated at the input wavelength (in angstrom).
     """
-    wavelength_um = wavelength / 1e4
+    wavelength_um = 1e4 / wavelength
     k_lambda = (
-        2.659 * (-2.156 + (1.509 / wavelength_um) - (0.198 / wavelength_um**2) + (0.011 / wavelength_um**3)) + R_v
+        2.659 * (-2.156 + (1.509 * wavelength_um) - (0.198 * wavelength_um**2) + (0.011 * wavelength_um**3)) + R_v
     )
 
     return k_lambda
@@ -76,7 +67,7 @@ def atten_calzetti(wavelengths: np.ndarray) -> np.ndarray:
 
     - taus: the optical depth at each wavelength.
 
-    Daniela Calzetti et al. 2000 ApJ 533 682 (doi: 10.1086/308692)
+    Daniela Calzetti et al. 2000 ApJ 533 682 (doi: 10.1086/308692) Eq. 4
     """
     calzetti_rv = 4.05  # +/- 0.8
 
@@ -97,23 +88,157 @@ def atten_calzetti(wavelengths: np.ndarray) -> np.ndarray:
     taus = np.empty(shape=n_wave, dtype=np.float64)
 
     for i in range(n_wave):
-        wave = wavelengths[i]
+        wavelength = wavelengths[i]
 
-        if wave < 1200.0:
-            k = k_1100 + (wave - 1100.0) * uv_slope
+        if wavelength < 1200.0:
+            k = k_1100 + (wavelength - 1100.0) * uv_slope
 
-        elif wave < 6300.0:
-            k = _calzetti_uv(wavelength=wave, R_v=calzetti_rv)
+        elif wavelength < 6300.0:
+            k = _calzetti_uv(wavelength=wavelength, R_v=calzetti_rv)
 
-        elif wave <= 22000.0:
-            k = _calzetti_ir(wavelength=wave, R_v=calzetti_rv)
+        elif wavelength <= 22000.0:
+            k = _calzetti_ir(wavelength=wavelength, R_v=calzetti_rv)
 
         else:
-            k = k_22000 + (wave - 22000.0) * ir_slope
+            k = k_22000 + (wavelength - 22000.0) * ir_slope
 
         if k < 0.0:
             k = 0.0
 
         taus[i] = k / calzetti_rv / normalisation
+
+    return taus
+
+
+@njit(cache=True)
+def _conroy_ir(
+    x: float,
+    R_v: float = 3.1,
+) -> float:
+    """
+    Returns a(lambda) + b(lambda)/R_v from the Conroy IR attenuation law (defined between 0.3um^-1 and 1.1um^-1) evaluated at the input wavelength (in angstroms).
+    """
+    a = 0.574 * (x**1.61)
+    b = -0.527 * (x**1.61)
+    result = a + b / R_v
+
+    return result
+
+
+@njit(cache=True)
+def _conroy_optical(
+    x: float,
+    R_v: float = 3.1,
+) -> float:
+    """
+    Returns a(lambda) + b(lambda)/R_v from the Conroy optical/near-IR attenuation law (defined between 1.1um^-1 and 3.3um^-1) evaluated at the input wavelength (in angstroms).
+    """
+    y = x - 1.82  # NOTE: in the paper they define y = x - 1.82 where x is in um^-1
+
+    a = (
+        1
+        + (0.177 * y)
+        - (0.504 * y**2)
+        - (0.0243 * y**3)
+        + (0.721 * y**4)
+        + (0.0198 * y**5)
+        - (0.775 * y**6)
+        + (0.330 * y**7)
+    )
+    b = (
+        (1.413 * y)
+        + (2.283 * y**2)
+        + (1.072 * y**3)
+        - (5.384 * y**4)
+        - (0.622 * y**5)
+        + (5.303 * y**6)
+        - (2.090 * y**7)
+    )
+
+    result = a + b / R_v
+
+    return result
+
+
+@njit(cache=True)
+def _conroy_mid_uv(
+    x: float,
+    f_bump: float,
+    R_v: float = 3.1,
+) -> float:
+    """
+    Returns a(lambda) + b(lambda)/R_v from the Conroy near/mid UV attenuation law (defined between 3.3um^-1 and 5.9um^-1) evaluated at the input wavelength (in angstroms).
+    """
+    fa = (3.3 / x) ** 6 * (
+        -0.0370 + (0.0469 * f_bump) - (0.601 * f_bump / R_v) + (0.542 / R_v)
+    )  # this is the paper variable name
+
+    a = 1.752 - (0.316 * x) - ((0.104 * f_bump) / ((x - 4.67) ** 2 + 0.341)) + fa
+    b = -3.09 + (1.825 * x) + ((1.206 * f_bump) / ((x - 4.62) ** 2 + 0.263))
+
+    result = a + b / R_v
+
+    return result
+
+
+@njit(cache=True)
+def _conroy_far_uv(
+    x: float,
+    f_bump: float,
+    R_v: float = 3.1,
+) -> float:
+    """
+    Returns a(lambda) + b(lambda)/R_v from the Conroy far-UV attenuation law (defined between 3.3um^-1 and 5.9um^-1) evaluated at the input wavelength (in angstrom).
+    """
+    fa = -0.0447 * (x - 5.9) ** 2 - 0.00978 * (x - 5.9) ** 3  # this is the paper variable name
+    fb = 0.213 * (x - 5.9) ** 2 + 0.121 * (x - 5.9) ** 3  # this is the paper variable name
+
+    a = 1.752 - (0.316 * x) - ((0.104 * f_bump) / ((x - 4.67) ** 2 + 0.341)) + fa
+    b = -3.09 + (1.825 * x) + ((1.206 * f_bump) / ((x - 4.62) ** 2 + 0.263)) + fb
+
+    result = a + b / R_v
+
+    return result
+
+
+@njit(cache=True)
+def atten_conroy(wavelengths: np.ndarray, f_bump: float = 0.6) -> np.ndarray:
+    """
+    Attenuate based on the Milky Way extinction curve with arbitrary UV bump (parametrised by f_bump) described by Conroy et al. (2010). This is defined from 0.3um to 8.0um. At f_bump = 0, Cardelli is recovered; 1.0 returns the standard UV bump. Returns:
+
+    - taus: the optical depth at each wavelength.
+
+    Charlie Conroy et al 2010 ApJ 718 184 (doi: 10.1088/0004-637X/718/1/184)
+    """
+    conroy_rv = 3.1
+
+    wavelengths_inverse_um = 1e4 / wavelengths  # angstrom -> um^-1
+    n_wave = wavelengths_inverse_um.shape[0]
+    taus = np.empty(shape=n_wave, dtype=np.float64)
+
+    upper_value = 8.0  # where Conroy ends
+    end_of_domain = _conroy_far_uv(x=upper_value, f_bump=f_bump, R_v=conroy_rv)  # tau at the value where Conroy ends
+
+    for i in range(n_wave):
+        x = wavelengths_inverse_um[
+            i
+        ]  # wavelength in inverse microns (what the paper calls it, and why the loop looks slightly weird))
+
+        if x > upper_value:  # X-UV extrapolation
+            tau = (upper_value / x) ** -1.3 * end_of_domain  # power law taken from pyloser in Caesar (undocumented)
+
+        elif x > 5.9:
+            tau = _conroy_far_uv(x=x, f_bump=f_bump, R_v=conroy_rv)
+
+        elif x > 3.3:
+            tau = _conroy_mid_uv(x=x, f_bump=f_bump, R_v=conroy_rv)
+
+        elif x > 1.1:
+            tau = _conroy_optical(x=x, R_v=conroy_rv)
+
+        else:
+            tau = _conroy_ir(x=x, R_v=conroy_rv)
+
+        taus[i] = tau
 
     return taus
