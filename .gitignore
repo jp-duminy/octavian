@@ -48,3 +48,4 @@ htmlcov/
 
 # jp's testing files
 test_attributes.py
+test_fsps.py
