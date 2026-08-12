@@ -7,3 +7,8 @@ from .dust_curves import (
     extinct_smc as extinct_smc,
     extinct_lmc as extinct_lmc,
 )
+
+from .data_tables import (
+    generate_photometry_table as generate_photometry_table,
+    generate_photometry_table_from_sp as generate_photometry_table_from_sp,
+)

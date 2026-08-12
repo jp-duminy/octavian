@@ -1,4 +1,5 @@
 from .data_management import OctavianConfig as OctavianConfig, OctavianConstants as OctavianConstants
+from .photometry import generate_photometry_table, generate_photometry_table_from_sp
 from .run_octavian import (
     run_octavian as run_octavian,
 )
@@ -18,5 +19,7 @@ __all__ = [
     "generate_test_catalogue",
     "generate_swift_snapshot",
     "generate_gizmo_snapshot",
+    "generate_photometry_table",
+    "generate_photometry_table_from_sp",
     "repack_catalogue",
 ]
