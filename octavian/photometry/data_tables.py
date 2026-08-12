@@ -20,6 +20,9 @@ import h5py
 
 # internal imports
 from ..version import __version__
+from ..log import get_logger
+
+logger = get_logger()
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +53,68 @@ class FilterCurve(NamedTuple):
 
     wavelength: np.ndarray
     transmission: np.ndarray
+
+
+def read_photometry_table(table_path: Path) -> PhotometryTable:
+    """
+    Parses the photometry .hdf5 file generated from generate_photometry_table(_from_sp). Returns:
+
+    - PhotometryTable dataclass with all fields populated. Generator ensures all fields are float64.
+    """
+    logger.info(f"Parsing photometry table at {table_path}")
+
+    with h5py.File(table_path, "r") as tab:
+        # debugging
+        oversample = tab.attrs["oversample"]
+        spectral_library = tab.attrs["spectral_library"]
+        logger.debug(f"Oversampling: {oversample}")
+        logger.debug(f"Spectral Library: {spectral_library}")
+
+        table_version = tab.attrs["octavian_version"]
+        if table_version != __version__:
+            logger.warning(
+                f"Photometry table was generated with version {table_version}; you are running version {__version__}"
+            )
+
+        # SSP datasets
+        ssp = tab["ssp"]  # top-level SSP group
+        age_dataset = ssp["ages"]
+        metal_dataset = ssp["metallicities"]
+        wavelength_dataset = ssp["wavelengths"]
+        spectra_dataset = ssp["spectra"]
+        mass_dataset = ssp["mass_remaining"]
+
+        # ensure the multidimensional datasets have the proper array ordering
+        assert spectra_dataset.shape == (metal_dataset.shape[0], age_dataset.shape[0], wavelength_dataset.shape[0]), (
+            "spectra dataset does not match expected (Z, age, wavelength) shape."
+        )
+        assert mass_dataset.shape == (metal_dataset.shape[0], age_dataset.shape[0]), (
+            "mass_remaining dataset does not match expected (Z, age) shape."
+        )
+
+        # filter datasets
+        filters: dict[str, FilterCurve] = {}
+        filters_group = tab["filters"]
+
+        for filter_name, filter_group in filters_group.items():  # each filter is also its own group
+            wave = filter_group["wavelength"][:]
+            trans = filter_group["transmission"][:]
+            curve = FilterCurve(wavelength=wave, transmission=trans)
+            filters[filter_name] = curve
+
+        # build PhotometryTable
+        table = PhotometryTable(
+            spectra=spectra_dataset[:],
+            mass_remaining=mass_dataset[:],
+            ages=age_dataset[:],
+            metallicities=metal_dataset[:],
+            wavelengths=wavelength_dataset[:],
+            filters=filters,
+        )
+
+    logger.info("Successfully parsed photometry table.")
+
+    return table
 
 
 def generate_photometry_table(
@@ -112,7 +177,7 @@ def generate_photometry_table_from_sp(
 
     if sp.params["sfh"] != 0:
         raise ValueError(f"Value of parameters sfh (current: {sp.params['sfh']}) is incompatible (required: 0).")
-    if sp.params["zcontinuous"] != 1:
+    if sp._zcontinuous != 1:
         raise ValueError(
             f"Values of parameters zcontinuous (current: {sp.params['zcontinuous']}) is incompatible (required: 1)."
         )
