@@ -78,6 +78,16 @@ stages:
           ptype: [gas, star, dm, bh, HI, H2, total]
           aperture: from_config:aperture_size
 
+  photometry:
+    label: photometry
+    applies_to: [galaxies]
+    requires: [properties_ptype_specific]  # needs the sfr and metallicity
+    needs_particle_columns: [pos, vel, mass, age, metallicity, smoothing_length]
+    outputs:
+      - columns: ["mag_abs_{band}", "mag_abs_nodust_{band}", "mag_app_{band}", "mag_app_nodust_{band}"]
+        over: {band: from_config:bands}  # helper methods exist to make this work (see photometry_tables.py)
+      - columns: ["luminosity_fir", "beta", "beta_nodust"]
+
 # output column conventions
 # stamped onto HDF5 arrays on the output catalogue
 # enforces dtypes, units, and provides descriptors
@@ -394,6 +404,52 @@ output_columns:
     unit:        "1/kpc**3"
     a_exp:       -3
     description: "Local number density (smoothing over specified kpc radius)."
+
+  "mag_abs_{band}":
+    over:        {band: from_config:bands}
+    dtype:       float64
+    unit:        "mag"
+    a_exp:       0
+    description: "Dust-attenuated absolute AB magnitude."
+
+  "mag_abs_nodust_{band}":
+    over:        {band: from_config:bands}
+    dtype:       float64
+    unit:        "mag"
+    a_exp:       0
+    description: "Absolute AB magnitude (no dust attenuation)."
+
+  "mag_app_{band}":
+    over:        {band: from_config:bands}
+    dtype:       float64
+    unit:        "mag"
+    a_exp:       0
+    description: "Dust-attenuated apparent AB magnitude."
+
+  "mag_app_nodust_{band}":
+    over:        {band: from_config:bands}
+    dtype:       float64
+    unit:        "mag"
+    a_exp:       0
+    description: "Apparent AB magnitude (no dust attenuation)."
+
+  "luminosity_fir":
+    dtype:       float64
+    unit:        "Lsun"
+    a_exp:       0
+    description: "Far infrared luminosity."  # TODO: make this more descriptive when I've written it
+
+  beta:
+    dtype:       float64
+    unit:        ""
+    a_exp:       0
+    description: "Dust-attenuated UV spectral slope."
+
+  beta_nodust:
+    dtype:       float64
+    unit:        ""
+    a_exp:       0
+    description: "UV spectral slope (no dust attenutation)."
 
 membership_columns:
 
