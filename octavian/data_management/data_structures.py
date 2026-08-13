@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .conventions import OctavianConstants, OctavianConfig
     from ..external_halo_sources import HaloAssignments, SubhaloInformation
     from .parallel_reading import RedistributionMap
+    from ..photometry.photometry_tables import PhotometryTable
     from mpi4py.MPI import Comm
 
 # defaults
@@ -933,6 +934,7 @@ class SimulationData:
     constants: OctavianConstants
     particles: dict[str, ParticleStore]
     groups: dict[str, GroupStore]
+    photometry_table: PhotometryTable | None = None
 
     @property
     def available_ptypes(self) -> list[str]:
