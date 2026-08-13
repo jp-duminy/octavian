@@ -55,6 +55,17 @@ aperture_size:    [30]                # kpc
 virial_factors:   [200, 500, 2500]    # factor * critical density
 density_radii:    [300, 1000, 3000]   # kpc
 
+
+# PHOTOMETRY
+
+bands: ["sdss_u", "sdss_g", "sdss_r", "sdss_i", "sdss_z", "v"]
+table_filepath: "/path/to/ssp_table.hdf5"
+extinction_law: "composite"
+viewing_direction: "z"
+use_dust: true
+use_cosmic_extinction: true
+
+
 # PARALLELISM
 
 cores_per_rank:     4 # number of VPU cores assigned to each MPI rank
