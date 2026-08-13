@@ -49,11 +49,16 @@ from .aggregate_properties import (
     run_local_environment,
     assign_membership,
 )
+from .photometry import (
+    resolve_band_names,
+    read_filter_names,
+)
 from .log import configure_logger, get_logger, clean_logs
 
 # default libraries
 from pathlib import Path
 import argparse
+from dataclasses import replace
 
 # others
 import numpy as np
@@ -230,7 +235,10 @@ def run_octavian(
     logger.info(f"Analysing {snapshot_path} with {size} ranks.")
 
     # initialise snapshot/halo readers, constants, internal metadata
-    internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
+    if config.stages.get("photometry", False):
+        names, lambda_effs = read_filter_names(config.table_filepath)
+        config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
+        internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
