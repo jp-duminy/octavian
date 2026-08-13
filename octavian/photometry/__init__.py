@@ -8,7 +8,9 @@ from .dust_curves import (
     extinct_lmc as extinct_lmc,
 )
 
-from .data_tables import (
+from .photometry_tables import (
     generate_photometry_table as generate_photometry_table,
     generate_photometry_table_from_sp as generate_photometry_table_from_sp,
+    read_filter_names as read_filter_names,
+    resolve_band_names as resolve_band_names,
 )
