@@ -53,6 +53,7 @@ class FilterCurve(NamedTuple):
 
     wavelength: np.ndarray
     transmission: np.ndarray
+    lambda_eff: float
 
 
 def read_photometry_table(table_path: Path) -> PhotometryTable:
@@ -96,10 +97,14 @@ def read_photometry_table(table_path: Path) -> PhotometryTable:
         filters: dict[str, FilterCurve] = {}
         filters_group = tab["filters"]
 
-        for filter_name, filter_group in filters_group.items():  # each filter is also its own group
+        for (
+            filter_name
+        ) in filters_group:  # loop over groupd without .items() otherwise VS code can't infer types (annoying)
+            filter_group = filters_group[filter_name]
             wave = filter_group["wavelength"][:]
             trans = filter_group["transmission"][:]
-            curve = FilterCurve(wavelength=wave, transmission=trans)
+            lambda_eff = filter_group.attrs["lambda_eff"]
+            curve = FilterCurve(wavelength=wave, transmission=trans, lambda_eff=lambda_eff)
             filters[filter_name] = curve
 
         # build PhotometryTable
