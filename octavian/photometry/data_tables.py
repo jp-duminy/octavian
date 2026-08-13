@@ -234,6 +234,10 @@ def generate_photometry_table_from_sp(
             band_group.create_dataset("wavelength", data=wave)
             band_group.create_dataset("transmission", data=trans)
 
+            # add effective wavelength (transmission-weighted mean wavelength) too
+            lambda_eff = np.sum((wave * trans)) / np.sum(trans)
+            band_group.attrs["lambda_eff"] = lambda_eff
+
         # add some metadata
         f.attrs["fsps_version"] = fsps.__version__
         f.attrs["octavian_version"] = __version__
