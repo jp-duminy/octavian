@@ -74,6 +74,13 @@ class OctavianConfig:
     virial_factors: list[int]
     density_radii: list[int]
 
+    bands: list[str]
+    table_filepath: str
+    extinction_law: str
+    viewing_dir: str
+    dust: bool
+    cosmic_extinction: bool
+
     cores_per_rank: int
     fof6d_weight: float
     properties_weight: float
@@ -110,6 +117,12 @@ class OctavianConfig:
             aperture_size=raw["aperture_size"],
             virial_factors=raw["virial_factors"],
             density_radii=raw["density_radii"],
+            bands=raw["bands"],
+            table_filepath=raw["table_filepath"],
+            extinction_law=raw["extinction_law"],
+            viewing_dir=raw["viewing_direction"],
+            dust=raw["use_dust"],
+            cosmic_extinction=raw["use_cosmic_extinction"],
             cores_per_rank=raw["cores_per_rank"],
             fof6d_weight=raw["fof6d_weight"],
             properties_weight=raw["properties_weight"],
