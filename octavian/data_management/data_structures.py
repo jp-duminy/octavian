@@ -79,6 +79,8 @@ class GizmoReader(SnapshotReader):
         "fH2": "FractionH2",
         "bhmass": "BH_Mass",
         "bhmdot": "BH_Mdot",
+        "dust_mass": "Dust_Masses",
+        "smoothing_length": "SmoothingLength",
     }
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
@@ -361,6 +363,8 @@ class SwiftReader(SnapshotReader):
         "fH2": "MolecularHydrogenFractions",
         "bhmass": "SubgridMasses",
         "bhmdot": "AccretionRates",
+        "dust_mass": "DustMasses",
+        "smoothing_length": "SmoothingLengths",
     }
 
     dataset_map_overrides: dict[tuple[str, str], str] = {  # this is for the dynamical vs subgrid bh mass
