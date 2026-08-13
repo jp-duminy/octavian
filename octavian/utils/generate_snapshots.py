@@ -99,6 +99,8 @@ def generate_gizmo_snapshot(path: Path) -> None:
         gas.create_dataset("StarFormationRate", data=gas_specific["sfr"])
         gas.create_dataset("FractionH2", data=gas_specific["fH2"])
         gas.create_dataset("Metallicity", data=gas_specific["metallicity"])
+        gas.create_dataset("Dust_Masses", data=gas_specific["dust_mass"])
+        gas.create_dataset("SmoothingLength", data=gas_specific["smoothing_length"])
 
         # dm datasets
         dm = f.create_group("PartType1")
@@ -190,6 +192,8 @@ def generate_swift_snapshot(path: Path) -> None:
         _create_swift_dataset(gas, "MolecularHydrogenFractions", gas_specific["fH2"])
         _create_swift_dataset(gas, "MetalMassFractions", gas_specific["metallicity"][:, 0])
         _create_swift_dataset(gas, "ElementMassFractions", gas_specific["metallicity"])
+        _create_swift_dataset(gas, "DustMasses", gas_specific["dust_mass"])
+        _create_swift_dataset(gas, "SmoothingLengths", gas_specific["smoothing_length"])
 
         # dm
         dm = f.create_group("PartType1")
@@ -269,6 +273,8 @@ def _generate_gas_datasets(n_gas: int) -> dict[str, np.ndarray]:
         "sfr": rng.uniform(0.0, 10.0, size=n_gas).astype(np.float64),
         "metallicity": rng.uniform(0.0, 0.05, size=(n_gas, 11)).astype(np.float64),
         "fH2": rng.uniform(0.0, 1.0, size=n_gas).astype(np.float64),
+        "dust_mass": rng.uniform(1e-5, 1e-3, size=n_gas).astype(np.float64),
+        "smoothing_length": rng.uniform(1.0, 10.0, size=n_gas).astype(np.float64),
     }
 
 
