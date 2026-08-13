@@ -10,6 +10,7 @@ Helper functions for the photometry pipeline.
 
 # other packages
 import numpy as np
+from numba import njit
 
 # internal imports
 from ..log import get_logger
@@ -61,3 +62,95 @@ def extinct_madau(
     transmission = np.clip(np.exp(-tau), 0.0, 1.0)  # this clip is more a guard and shouldn't be hit in practice
 
     return transmission
+
+
+@njit(cache=True)
+def build_interpolation_table(
+    n_bins: int,
+    kernel_type: int,
+) -> np.ndarray:
+    """
+    Precomputes the kernel weight integral via numerical integration over the range of impact parameter values with n_bins controlling the granularity. Returns:
+
+    - table: a table of the kernel weights for impact parameters. Key with the impact parameter normalised by h**2.
+    """
+    bin_width = 1.0 / n_bins
+    table = np.zeros(shape=(n_bins + 1), dtype=np.float64)
+
+    for i in range(n_bins + 1):  # outer loop over impact params (b)
+        b_sq = (i * bin_width) ** 2
+        z_max = np.sqrt(1.0 - b_sq)
+        integral = 0.0
+
+        for j in range(n_bins):  # inner loop over radial coord along LOS (z)
+            z_lo = j * bin_width
+            z_hi = z_lo + bin_width
+
+            if z_lo >= z_max:
+                break
+
+            q_lo = np.sqrt(z_lo**2 + b_sq)
+            q_hi = np.sqrt(z_hi**2 + b_sq)
+
+            if kernel_type == 0:  # 0 = cubic
+                w_lo = _cubic_kernel(q_lo)
+                w_hi = _cubic_kernel(q_hi)
+            else:  # 1 = quintic
+                w_lo = _quintic_kernel(q_lo)
+                w_hi = _quintic_kernel(q_hi)
+
+            integral += 0.5 * bin_width * (w_lo + w_hi)  # trapezoid rule
+
+        table[i] = 2.0 * integral  # factor of 2 comes from symmetry in z
+
+    return table
+
+
+@njit(cache=True)
+def _cubic_kernel(
+    q: float,
+) -> float:
+    """
+    Evaluates the 3D cubic kernel and returns the corresponding weight.
+
+    (JJ Monaghan 1992, doi: 10.1146/annurev.aa.30.090192.002551)
+
+    NOTE: different to the FOF6D cubic_spline_kernel() function.
+    """
+    # defined over interval [0, 1] coming from setting h' = 2h.
+    if q >= 1.0:
+        return 0.0
+
+    normalisation = 8.0 / np.pi
+    u = 2.0 * q  # so the formulae follow the form in the paper (but rescaled)
+
+    if q >= 0.5:
+        return normalisation * (2.0 - u) ** 3
+
+    else:
+        return normalisation * ((2.0 - u) ** 3 - 4.0 * (1.0 - u) ** 3)
+
+
+@njit(cache=True)
+def _quintic_kernel(q: float) -> float:
+    """
+    Evaluates the 3D quintic kernel and returns the corresponding weight.
+
+    (Liu and Liu 2010, doi: https://doi.org/10.1007/s11831-010-9040-7); originally described by Morris (1996).
+    """
+    # defined over interval [0, 1] coming from setting h' = 3h.
+
+    if q >= 1.0:
+        return 0.0
+
+    normalisation = 81.0 / (359.0 * np.pi)
+    u = 3.0 * q  # so the formulae follow the form in the paper (but rescaled)
+
+    if q > (2.0 / 3.0):
+        return normalisation * (3.0 - u) ** 5
+
+    elif q > (1.0 / 3.0):
+        return normalisation * ((3.0 - u) ** 5 - 6.0 * (2.0 - u) ** 5)
+
+    else:
+        return normalisation * ((3.0 - u) ** 5 - 6.0 * (2.0 - u) ** 5 + 15.0 * (1.0 - u) ** 5)
