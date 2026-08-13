@@ -93,11 +93,11 @@ def build_interpolation_table(
             q_hi = np.sqrt(z_hi**2 + b_sq)
 
             if kernel_type == 0:  # 0 = cubic
-                w_lo = _cubic_kernel(q_lo)
-                w_hi = _cubic_kernel(q_hi)
+                w_lo = _cubic_kernel(q=q_lo)
+                w_hi = _cubic_kernel(q=q_hi)
             else:  # 1 = quintic
-                w_lo = _quintic_kernel(q_lo)
-                w_hi = _quintic_kernel(q_hi)
+                w_lo = _quintic_kernel(q=q_lo)
+                w_hi = _quintic_kernel(q=q_hi)
 
             integral += 0.5 * bin_width * (w_lo + w_hi)  # trapezoid rule
 
