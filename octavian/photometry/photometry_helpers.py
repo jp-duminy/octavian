@@ -6,8 +6,6 @@ Helper functions for the photometry pipeline.
 
 """
 
-# default packages
-
 # other packages
 import numpy as np
 from numba import njit
@@ -154,3 +152,68 @@ def _quintic_kernel(q: float) -> float:
 
     else:
         return normalisation * ((3.0 - u) ** 5 - 6.0 * (2.0 - u) ** 5 + 15.0 * (1.0 - u) ** 5)
+
+
+@njit(cache=True)
+def interpolate_ssp(
+    log_age: float,
+    log_Z: float,
+    age_grid: np.ndarray,
+    Z_grid: np.ndarray,
+    spectra: np.ndarray,
+    mass_remaining: np.ndarray,
+    out_spectrum: np.ndarray,
+) -> float:
+    """
+    Interpolates the log(age) and log(Z) values for a star into the SSP table to recover the spectra and remaining mass. Returns:
+
+    - mass_remaining: the fraction of original mass the star has now
+    - (overwrites out_spectrum in place)
+    """
+    # NOTE: this function is hefty and runs per-star, and therefore requires careful optimisation to avoid memory spikes; hence it overwrites out_spectrum in place and avoids materialising intermediates through fancy indexing
+
+    age_idx, age_frac = _get_interpolation_idx(grid=age_grid, value=log_age)
+    Z_idx, Z_frac = _get_interpolation_idx(grid=Z_grid, value=log_Z)
+
+    # formula from wikipedia: bilinear interpolation, "on the unit square", where x is age and y is metallicity
+    w11 = (1 - age_frac) * (1 - Z_frac)
+    w12 = (1 - age_frac) * Z_frac
+    w21 = (1 - Z_frac) * age_frac
+    w22 = age_frac * Z_frac
+
+    for wave_idx in range(len(out_spectrum)):  # spectra is (Z, age, wavelength)
+        out_spectrum[wave_idx] = (
+            w11 * spectra[Z_idx, age_idx, wave_idx]
+            + w12 * spectra[Z_idx + 1, age_idx, wave_idx]  # NOTE: columns are in (y, x)
+            + w21 * spectra[Z_idx, age_idx + 1, wave_idx]
+            + w22 * spectra[Z_idx + 1, age_idx + 1, wave_idx]
+        )
+
+    mass_frac = (  # mass_remaining is (Z, age)
+        w11 * mass_remaining[Z_idx, age_idx]
+        + w12 * mass_remaining[Z_idx + 1, age_idx]
+        + w21 * mass_remaining[Z_idx, age_idx + 1]
+        + w22 * mass_remaining[Z_idx + 1, age_idx + 1]
+    )
+
+    return mass_frac
+
+
+@njit(cache=True)
+def _get_interpolation_idx(grid: np.ndarray, value: float) -> tuple[int, float]:
+    """
+    Finds the idx into 'grid' where 'value' can be interpolated from and the corresponding coefficient. Returns:
+
+    - idx: index into 'grid' from which the value should be interpolated
+    - coefficient: the fraction coefficient for linear polynomial interpolation
+    """
+    n_grid = len(grid)
+
+    # find position: side="right" returns last idx where value can be inserted to maintain order
+    idx = np.searchsorted(grid, value, side="right") - 1  # -1 floors idx to the value in grid
+    idx = np.clip(idx, a_min=0, a_max=(n_grid - 2))  # prevents negative/OOB idx
+
+    fraction = (value - grid[idx]) / (grid[idx + 1] - grid[idx])
+    fraction = np.clip(fraction, a_min=0.0, a_max=1.0)  # clip to physical range
+
+    return idx, fraction
