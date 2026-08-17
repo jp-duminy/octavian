@@ -70,7 +70,7 @@ def build_interpolation_table(
     """
     Precomputes the kernel weight integral via numerical integration over the range of impact parameter values with n_bins controlling the granularity. Returns:
 
-    - table: a table of the kernel weights for impact parameters. Key with the impact parameter normalised by h**2.
+    - table: a table of the kernel weights for impact parameters. Key with the impact parameter normalised by smoothing length (b/h).
     """
     bin_width = 1.0 / n_bins
     table = np.zeros(shape=(n_bins + 1), dtype=np.float64)
