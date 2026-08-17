@@ -156,6 +156,7 @@ class OctavianConstants:
     # fundamental values (CODATA/IAU)
     G_CGS: float = codata.G.cgs.value
     C_CGS: float = codata.c.cgs.value
+    C_KMS: float = codata.c.to(u.km / u.s).value
     PROTON_MASS_G: float = codata.m_p.cgs.value
     BOLTZMANN_CGS: float = codata.k_B.cgs.value
     SIGMA_T_CGS: float = codata.sigma_T.cgs.value
@@ -163,6 +164,12 @@ class OctavianConstants:
     KPC_CM: float = iau.kpc.cgs.value
     KPC_M: float = iau.kpc.si.value
     GYR_S: float = (1 * u.Gyr).to(u.s).value
+
+    X_H: float = 0.76  # primoridal hydrogen fraction
+    MW_DUST_TO_METAL: float = 0.4 / 0.6  # dwek 1998, watson 2011
+    Z_SUN_WATSON: float = 0.0189  # watson 2011
+    Z_SUN_ASPLUND: float = 0.0134  # asplund 2009
+    AV_TO_NH: float = 2.2e21  # watson 2011
 
     # derived unit conversions
     G_VCIRC: float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
