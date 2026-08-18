@@ -129,6 +129,63 @@ def compute_spectrum(
 
 
 @njit(cache=True)
+def compute_fir_luminosity(
+    spectrum_dust: np.ndarray,
+    spectrum_nodust: np.ndarray,
+    bin_weights: np.ndarray,
+) -> float:
+    """
+    Returns:
+
+    - luminosity_fir: the dust-reprocessed luminosity.
+    """
+    luminosity_fir = 0.0
+
+    for i in range(len(spectrum_dust)):
+        luminosity_fir += (spectrum_nodust[i] - spectrum_dust[i]) * bin_weights[i]
+
+    return luminosity_fir
+
+
+@njit(cache=True)
+def compute_uv_slope(
+    spectrum: np.ndarray,
+    log_wavelengths: np.ndarray,
+    uv_start_idx: int,
+    uv_end_idx: int,
+) -> float:
+    """
+    Returns:
+
+    - beta: the UV slope.
+    """
+    # NOTE: numba is yet to support numpy.polynomial classes so polyfit is not available
+    sum_xy = 0.0
+    sum_x = 0.0  # x = log10(lambda)
+    sum_x_sq = 0.0
+    sum_y = 0.0  # y = log10(L)
+    n = 0
+
+    for i in range(uv_start_idx, uv_end_idx):
+        if spectrum[i] > 0.0:
+            log_L = np.log10(spectrum[i])
+            log_lambda = log_wavelengths[i]
+
+            sum_xy += log_L * log_lambda
+            sum_x += log_lambda
+            sum_x_sq += log_lambda**2
+            sum_y += log_L
+            n += 1
+
+    if n < 2:  # undetermined for n=1 too
+        return np.nan
+
+    beta = (n * sum_xy - (sum_x * sum_y)) / ((n * sum_x_sq) - sum_x**2)
+
+    return beta
+
+
+@njit(cache=True)
 def _compute_doppler_shift(
     star_spectrum: np.ndarray,
     wavelengths: np.ndarray,
