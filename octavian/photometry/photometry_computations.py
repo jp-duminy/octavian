@@ -8,6 +8,216 @@ The photometry engine room. Photometry has a less well-defined boundary than agg
 from numba import njit
 import numpy as np
 
+# internal imports
+from .photometry_helpers import interpolate_ssp
+
+
+DUST_CURVE_IDX = {
+    "calzetti": 0,
+    "conroy": 1,
+    "cardelli": 2,
+    "smc": 3,
+    "lmc": 4,
+    "mix_calz_mw": 5,
+    "composite": 6,
+}
+
+
+@njit(cache=True)
+def compute_spectrum(
+    star_masses: np.ndarray,
+    star_ages: np.ndarray,
+    star_metallicities: np.ndarray,
+    star_los_velocities: np.ndarray,
+    star_A_v: np.ndarray,
+    attenuation_curve: np.ndarray,
+    ssp_spectra: np.ndarray,
+    ssp_ages: np.ndarray,
+    ssp_metallicities: np.ndarray,
+    ssp_mass_remaining: np.ndarray,
+    wavelengths: np.ndarray,
+    c_kms: float,
+    split_age: float,
+    out_spectrum_dust: np.ndarray,
+    out_spectrum_nodust: np.ndarray,
+) -> None:
+    """
+    Computes the spectrum for a galaxy from its individual stars; writes in-place to the two output arrays.
+    """
+    n_wave = len(wavelengths)
+    n_stars = len(star_masses)
+    star_spectrum = np.empty(shape=n_wave, dtype=np.float64)
+    out_spectrum_dust[:] = 0.0
+    out_spectrum_nodust[:] = 0.0
+
+    for i in range(n_stars):
+        star_age = star_ages[i]
+        los_velocity = star_los_velocities[i]
+        shift_factor = 1.0 + los_velocity / c_kms  # for doppler shift
+        log_Z = np.log10(star_metallicities[i])
+
+        # if stars are below split_age, we split its age into time bins
+        if star_age < split_age and star_age > 0.0:
+            n_bins = min(int(split_age / star_age), 10)  # upper limit of ten bins for stars > split_age
+            age_step = star_age / (n_bins + 1)
+
+            # this is called just for mass_remaining
+            mass_remaining = interpolate_ssp(
+                log_age=np.log10(star_age) + 9.0,  # convert to log10(yr)
+                log_Z=log_Z,
+                age_grid=ssp_ages,
+                Z_grid=ssp_metallicities,
+                spectra=ssp_spectra,
+                mass_remaining=ssp_mass_remaining,
+                out_spectrum=star_spectrum,
+            )
+            formation_mass = star_masses[i] / mass_remaining
+            split_mass = formation_mass / (2 * n_bins + 1)
+
+            for j in range(-n_bins, n_bins + 1):
+                sub_age = star_age + j * age_step
+                sub_age_log_yr = np.log10(sub_age) + 9
+
+                interpolate_ssp(  # discard the mass_remaining from here
+                    log_age=sub_age_log_yr,
+                    log_Z=log_Z,
+                    age_grid=ssp_ages,
+                    Z_grid=ssp_metallicities,
+                    spectra=ssp_spectra,
+                    mass_remaining=ssp_mass_remaining,
+                    out_spectrum=star_spectrum,  # writes to this pre-allocated array
+                )
+
+                # doppler shift
+                _compute_doppler_shift(
+                    star_spectrum=star_spectrum,
+                    wavelengths=wavelengths,
+                    shift_factor=shift_factor,
+                    A_v=star_A_v[i],
+                    attenuation_curve=attenuation_curve,
+                    mass=split_mass,
+                    out_spectrum_dust=out_spectrum_dust,
+                    out_spectrum_nodust=out_spectrum_nodust,
+                )
+
+        elif star_age <= 0.0:  # prevents log(age) going to -inf
+            continue
+
+        else:  # otherwise don't bother
+            mass_remaining = interpolate_ssp(
+                log_age=np.log10(star_age) + 9.0,  # convert to log10(yr)
+                log_Z=log_Z,
+                age_grid=ssp_ages,
+                Z_grid=ssp_metallicities,
+                spectra=ssp_spectra,
+                mass_remaining=ssp_mass_remaining,
+                out_spectrum=star_spectrum,
+            )
+
+            formation_mass = star_masses[i] / mass_remaining
+
+            _compute_doppler_shift(
+                star_spectrum=star_spectrum,
+                wavelengths=wavelengths,
+                shift_factor=shift_factor,
+                A_v=star_A_v[i],
+                attenuation_curve=attenuation_curve,
+                mass=formation_mass,
+                out_spectrum_dust=out_spectrum_dust,
+                out_spectrum_nodust=out_spectrum_nodust,
+            )
+
+
+@njit(cache=True)
+def _compute_doppler_shift(
+    star_spectrum: np.ndarray,
+    wavelengths: np.ndarray,
+    shift_factor: float,
+    A_v: float,
+    attenuation_curve: np.ndarray,
+    mass: float,
+    out_spectrum_dust: np.ndarray,
+    out_spectrum_nodust: np.ndarray,
+) -> None:
+    """
+    Computes the Doppler shift for a star and writes in-place to the out spectra.
+    """
+    n_wave = len(wavelengths)
+    j = 0  # idx into the spectra
+    for i in range(n_wave):
+        # initial guess as to where we expect to shift to
+        target_wavelength = wavelengths[i] * shift_factor
+
+        while j < n_wave - 1 and wavelengths[j + 1] <= target_wavelength:  # go to initial guess
+            j += 1
+
+        # check whether j or (j+1) is closest
+        if j < n_wave - 1 and abs(wavelengths[j + 1] - target_wavelength) < abs(wavelengths[j] - target_wavelength):
+            j += 1
+
+        dust_correction = np.exp(-A_v * attenuation_curve[i])
+
+        spectrum = star_spectrum[i]
+        out_spectrum_dust[j] += mass * dust_correction * spectrum
+        out_spectrum_nodust[j] += mass * spectrum
+
+
+@njit(cache=True)
+def apply_extinction_law(
+    out_curve: np.ndarray,
+    log_ssfr: float,
+    log_Z_solar: float,
+    dust_curves: np.ndarray,
+    dust_law: int,
+) -> None:
+    """
+    Applies the user-selected extinction law (uses the DUST_CURVE_IDX mapping). Writes in-place to out_curve.
+    """
+    n_lambdas = len(out_curve)
+
+    if dust_law <= 4:
+        out_curve[:] = dust_curves[dust_law]
+
+    else:  # calzetti for log_ssfr > 0, MW for log_ssfr < -1; linear mix in between
+        ssfr_weight = np.clip(log_ssfr + 1, a_min=0, a_max=1)  # shift to [0, 1] for weighting
+
+        for i in range(n_lambdas):
+            out_curve[i] = (dust_curves[0][i] * ssfr_weight) + (dust_curves[2][i] * (1 - ssfr_weight))
+
+        if dust_law == 6:  # mix in SMC curve at low metallicities, ramping up between log(Z) = -1 to -2
+            Z_weight = np.clip(log_Z_solar + 2, a_min=0, a_max=1)  # shift to [0, 1] again
+
+            for i in range(n_lambdas):
+                out_curve[i] = (out_curve[i] * Z_weight) + (dust_curves[3][i] * (1 - Z_weight))
+
+
+@njit(cache=True)
+def compute_ab_magnitude(
+    spectrum: np.ndarray,
+    transmission_weighted: np.ndarray,
+    transmission_norm: float,
+    flux_factor: float,
+) -> float:
+    """
+    Computes the AB magnitude; expects flux_factor to absorb distance so this function can do both absolute & apparent magnitudes. Returns:
+
+    - magnitude: the AB magnitude.
+    """
+    band_luminosity = 0.0
+
+    for i in range(len(spectrum)):
+        band_luminosity += spectrum[i] * transmission_weighted[i]
+
+    band_luminosity /= transmission_norm
+    band_flux = band_luminosity * flux_factor  # flux_factor should have distance baked in
+
+    if band_flux <= 0.0:
+        return np.nan  # sentinel value for no/negative flux
+
+    magnitude = -2.5 * np.log10(band_flux) - 48.6  # cgs form
+
+    return magnitude
+
 
 @njit(cache=True)
 def compute_metal_column_densities(
@@ -22,7 +232,7 @@ def compute_metal_column_densities(
     boxsize: float,
 ) -> np.ndarray:
     """
-    Computes dust extinction magnitude A_v for the stars in a galaxy along the LOS. star_pos should be the stars in the galaxy; gas quantities should be halo-level. Returns:
+    Computes the total metal column density from gas along the LOS for the stars in a galaxy along the LOS. star_pos should be the stars in the galaxy; gas quantities should be halo-level. Returns:
 
     - Z_col: the total metal column density from gas along the LOS
     """
