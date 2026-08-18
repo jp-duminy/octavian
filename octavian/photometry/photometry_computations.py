@@ -4,12 +4,74 @@ The photometry engine room. Photometry has a less well-defined boundary than agg
 
 """
 
+# default packages
+from collections import namedtuple
+
 # other packages
 from numba import njit
 import numpy as np
 
 # internal imports
 from .photometry_helpers import interpolate_ssp
+
+# for code tidiness (otherwise you get a horrific 35-argument function)
+StarData = namedtuple(
+    "StarData",
+    [
+        "pos",
+        "vel_los",
+        "mass",
+        "age",
+        "metallicity",
+        "offsets",
+        "idx_sorted",
+    ],
+)
+
+GasData = namedtuple(
+    "GasData",
+    [
+        "pos",
+        "hsml",
+        "dust_mass",
+        "metallicity",
+        "offsets",
+        "idx_sorted",
+    ],
+)
+
+SSPData = namedtuple(
+    "SSPData",
+    [
+        "spectra",
+        "mass_remaining",
+        "ages",
+        "metallicities",
+    ],
+)
+
+FilterData = namedtuple(
+    "FilterData",
+    [
+        "transmission_weighted_abs",
+        "transmission_norm_abs",
+        "transmission_weighted_app",
+        "transmission_norm_app",
+        "flux_factor_abs",
+        "flux_factor_app",
+    ],
+)
+
+DustData = namedtuple(
+    "DustData",
+    [
+        "dust_curves",
+        "ext_law_idx",
+        "gal_ssfr",
+        "gal_Z",
+        "Z_sun",
+    ],
+)
 
 
 DUST_CURVE_IDX = {
@@ -21,6 +83,43 @@ DUST_CURVE_IDX = {
     "mix_calz_mw": 5,
     "composite": 6,
 }
+
+
+@njit(cache=True, parallel=True)
+def compute_photometric_properties(
+    # namedtuple data containers
+    star_data: StarData,
+    gas_data: GasData,
+    ssp_data: SSPData,
+    filter_data: FilterData,
+    dust_data: DustData,
+    # galaxy-halo mapping (use field halo)
+    field_halo_idx: np.ndarray,
+    n_galaxies: int,
+    # uv slope/fir luminosity quantities
+    delta_nu: np.ndarray,
+    log_wavelengths: np.ndarray,
+    uv_start_idx: int,
+    uv_end_idx: int,
+    # misc
+    madau_transmission: np.ndarray,
+    kernel_table: np.ndarray,
+    # config/constants
+    split_age: float,
+    c_kms: float,
+) -> tuple[np.ndarray, ...]:
+    """
+    Runs all photometric property computations for galaxies in parallel. Returns:
+
+    - mag_abs: (n_galaxies) absolute AB magnitudes
+    - mag_abs_nodust: (n_galaxies) absolute AB magnitudes (no dust correction)
+    - mag_app: (n_galaxies) apparent AB magnitudes
+    - mag_app_nodust: (n_galaxies) apparent AB magnitudes (no dust correction)
+    - luminosity_fir: (n_galaxies) dust-reprocessed luminosities
+    - beta: uv slope
+    - beta_nodust: uv slope (no dust correction)
+    """
+    pass
 
 
 @njit(cache=True)
