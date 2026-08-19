@@ -67,6 +67,7 @@ use_cosmic_extinction: true
 interpolation_bins: 5000
 kernel_type: "cubic"
 power_law_alpha: 1.0
+split_age: 0.01  # Gyr
 
 
 # PARALLELISM
