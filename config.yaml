@@ -64,6 +64,7 @@ extinction_law: "composite"
 viewing_direction: "z"
 use_dust: true
 use_cosmic_extinction: true
+interpolation_bins: 5000
 
 
 # PARALLELISM
