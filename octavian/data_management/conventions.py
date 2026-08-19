@@ -83,6 +83,7 @@ class OctavianConfig:
     interpolation_bins: int
     kernel_type: str
     power_law_alpha: float
+    split_age: float
 
     cores_per_rank: int
     fof6d_weight: float
@@ -129,6 +130,7 @@ class OctavianConfig:
             interpolation_bins=raw["interpolation_bins"],
             kernel_type=raw["kernel_type"],
             power_law_alpha=raw["power_law_alpha"],
+            split_age=raw["split_age"],
             cores_per_rank=raw["cores_per_rank"],
             fof6d_weight=raw["fof6d_weight"],
             properties_weight=raw["properties_weight"],
