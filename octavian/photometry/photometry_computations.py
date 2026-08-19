@@ -29,6 +29,7 @@ def compute_photometric_properties(
     phot_constants: PhotometryConstants,
     # galaxy-halo mapping (use field halo)
     field_halo_idx: np.ndarray,
+    galaxy_L: np.ndarray,
     n_galaxies: int,
     # uv slope/fir luminosity quantities
     delta_nu: np.ndarray,

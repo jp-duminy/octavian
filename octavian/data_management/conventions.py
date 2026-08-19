@@ -171,6 +171,7 @@ class OctavianConstants:
     M_SUN_G: float = iau.M_sun.cgs.value
     L_SUN_CGS: float = iau.L_sun.cgs.value
     KPC_CM: float = iau.kpc.cgs.value
+    PC_CM: float = iau.pc.cgs.value
     KPC_M: float = iau.kpc.si.value
     GYR_S: float = (1 * u.Gyr).to(u.s).value
 

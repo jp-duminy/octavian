@@ -14,37 +14,12 @@ All functions expect to receive a wavelengths array in angstrom. They convert in
 """
 
 # default library imports
-from dataclasses import dataclass
 
 # other packages
 import numpy as np
 from numba import njit
 
 NORMALISATION = 5500  # angstrom
-
-
-@dataclass(slots=True, frozen=True)
-class DustCurves:
-    """
-    Container for attenuation curves:
-
-    - Calzetti
-    - Conroy
-    - Power law
-
-    And extinction curves:
-
-    - Cardelli
-    - Small Magellanic Cloud
-    - Large Magellanic Cloud
-    """
-
-    calzetti: np.ndarray
-    conroy: np.ndarray
-    cardelli: np.ndarray
-    smc: np.ndarray
-    lmc: np.ndarray
-    power_law: np.ndarray
 
 
 @njit(cache=True)
