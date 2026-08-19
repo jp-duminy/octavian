@@ -214,10 +214,10 @@ def _get_interpolation_idx(grid: np.ndarray, value: float) -> tuple[int, float]:
 
     # find position: side="right" returns last idx where value can be inserted to maintain order
     idx = np.searchsorted(grid, value, side="right") - 1  # -1 floors idx to the value in grid
-    idx = np.clip(idx, a_min=0, a_max=(n_grid - 2))  # prevents negative/OOB idx
+    idx = min(max(idx, 0), (n_grid - 2))  # prevents negative/OOB idx
 
     fraction = (value - grid[idx]) / (grid[idx + 1] - grid[idx])
-    fraction = np.clip(fraction, a_min=0.0, a_max=1.0)  # clip to physical range
+    fraction = min(max(fraction, 0.0), 1.0)  # clip to physical range
 
     return idx, fraction
 
@@ -298,13 +298,14 @@ PhotometryConstants = namedtuple(
 
 
 DUST_CURVE_IDX = {
-    "calzetti": 0,
-    "conroy": 1,
-    "cardelli": 2,
-    "smc": 3,
-    "lmc": 4,
-    "mix_calz_mw": 5,
-    "composite": 6,
+    "power_law": 0,
+    "calzetti": 1,
+    "conroy": 2,
+    "cardelli": 3,
+    "smc": 4,
+    "lmc": 5,
+    "mix_calz_mw": 6,
+    "composite": 7,
 }
 
 LOS_AXIS_MAP = {

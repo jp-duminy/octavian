@@ -122,7 +122,7 @@ class OctavianConfig:
             virial_factors=raw["virial_factors"],
             density_radii=raw["density_radii"],
             bands=raw["bands"],
-            table_filepath=raw["table_filepath"],
+            table_filepath=Path(raw["table_filepath"]).expanduser() if "table_filepath" in raw else None,
             extinction_law=raw["extinction_law"],
             viewing_dir=raw["viewing_direction"],
             dust=raw["use_dust"],

@@ -13,6 +13,7 @@ stages:
   properties_core:                true
   properties_ptype_specific:      true
   properties_local_environment:   true
+  photometry:                     true
 
 # CHUNKED I/O READS
 
@@ -58,14 +59,14 @@ density_radii:    [300, 1000, 3000]   # kpc
 
 # PHOTOMETRY
 
-bands: ["sdss_u", "sdss_g", "sdss_r", "sdss_i", "sdss_z", "v"]
-table_filepath: "/path/to/ssp_table.hdf5"
-extinction_law: "composite"
-viewing_direction: "z"
+bands: ["sdss", "all", "v"]
+table_filepath: ~/Octavian/phot_table.hdf5
+extinction_law: composite
+viewing_direction: z
 use_dust: true
 use_cosmic_extinction: true
 interpolation_bins: 5000
-kernel_type: "cubic"
+kernel_type: cubic
 power_law_alpha: 1.0
 split_age: 0.01  # Gyr
 
