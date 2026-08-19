@@ -35,17 +35,21 @@ from .photometry_helpers import (
 )
 from .photometry_tables import read_photometry_table
 from .photometry_computations import compute_photometric_properties
+from ..log import get_logger
+
+logger = get_logger()
 
 
 def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> None:
     """
     Top-level executor for photometry.
     """
+    logger.info("Preparing photometry data.")
     photometry_table = read_photometry_table(table_path=config.table_filepath)
     constants = simulation_data.constants
     sim = simulation_data.simulation
     kernel_table = build_interpolation_table(n_bins=config.interpolation_bins, kernel_type=config.kernel_type)
-    los_axis = LOS_AXIS_MAP[config.viewing_dir]  # since we rotate everything onto the z axis?
+    los_axis = LOS_AXIS_MAP[config.viewing_dir]
 
     # construct dust curves
     wavelengths = photometry_table.wavelengths
@@ -103,7 +107,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     gal_ssfr = np.log10(ssfr)
     Z_ratio = (
         galaxies["metallicity_sfr_weighted"] / constants.Z_SUN_ASPLUND
-    )  # REVIEW: inherited convention (might want to move to config?)
+    )  # REVIEW: asplund metallicity is inherited convention (might want to move to config?)
     Z_ratio[Z_ratio <= 0.0] = 1e-30  # prevent NaN/inf
     gal_Z = np.log10(Z_ratio)
     star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
@@ -155,9 +159,11 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     if effective_use_dust:
         dust_mass = gas["dust_mass"]
         dust_metallicity = np.ones(shape=len(gas), dtype=np.float64)
+        logger.debug("Using dust from snapshot.")
     else:
         dust_mass = gas["mass"]
         dust_metallicity = gas["metallicity"]
+        logger.debug("Computing dust from Li (2019) relation.")
 
     gas_data = GasData(
         pos=gas["pos"],
@@ -204,6 +210,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
         flux_factor_app=flux_factor_app,
     )
 
+    logger.info("Computing photometric properties for galaxies.")
     mag_abs, mag_abs_nodust, mag_app, mag_app_nodust, luminosity_fir, beta, beta_nodust = (
         compute_photometric_properties(
             star_data=star_data,
@@ -233,3 +240,5 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     galaxies["luminosity_fir"] = luminosity_fir
     galaxies["beta"] = beta
     galaxies["beta_nodust"] = beta_nodust
+
+    logger.info(f"Successfully computed photometric properties for {galaxies.n_groups} galaxies.")
