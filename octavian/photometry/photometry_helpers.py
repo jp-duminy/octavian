@@ -277,7 +277,6 @@ DustData = namedtuple(
         "dust_law_idx",
         "gal_ssfr",
         "gal_Z",
-        "Z_sun",
     ],
 )
 
@@ -306,4 +305,10 @@ DUST_CURVE_IDX = {
     "lmc": 4,
     "mix_calz_mw": 5,
     "composite": 6,
+}
+
+LOS_AXIS_MAP = {
+    "x": 0,
+    "y": 1,
+    "z": 2,
 }
