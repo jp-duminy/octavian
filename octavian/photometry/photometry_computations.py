@@ -8,7 +8,7 @@ The photometry engine room. Photometry has a less well-defined boundary than agg
 from collections import namedtuple
 
 # other packages
-from numba import njit
+from numba import njit, prange
 import numpy as np
 
 # internal imports
@@ -32,7 +32,7 @@ GasData = namedtuple(
     "GasData",
     [
         "pos",
-        "hsml",
+        "smoothing_lengths",
         "dust_mass",
         "metallicity",
         "offsets",
@@ -66,10 +66,26 @@ DustData = namedtuple(
     "DustData",
     [
         "dust_curves",
-        "ext_law_idx",
+        "dust_law_idx",
         "gal_ssfr",
         "gal_Z",
         "Z_sun",
+    ],
+)
+
+PhotometryConstants = namedtuple(
+    "PhotometryConstants",
+    [
+        "los_axis",
+        "split_age",
+        "c_kms",
+        "boxsize",
+        "redshift",
+        "mw_dust_to_metal",
+        "Z_sun",
+        "Z_col_to_A_v",
+        "use_cosmic_ext",
+        "use_dust",
     ],
 )
 
@@ -93,20 +109,18 @@ def compute_photometric_properties(
     ssp_data: SSPData,
     filter_data: FilterData,
     dust_data: DustData,
+    phot_constants: PhotometryConstants,
     # galaxy-halo mapping (use field halo)
     field_halo_idx: np.ndarray,
     n_galaxies: int,
     # uv slope/fir luminosity quantities
     delta_nu: np.ndarray,
-    log_wavelengths: np.ndarray,
+    wavelengths: np.ndarray,
     uv_start_idx: int,
     uv_end_idx: int,
     # misc
     madau_transmission: np.ndarray,
     kernel_table: np.ndarray,
-    # config/constants
-    split_age: float,
-    c_kms: float,
 ) -> tuple[np.ndarray, ...]:
     """
     Runs all photometric property computations for galaxies in parallel. Returns:
@@ -119,7 +133,164 @@ def compute_photometric_properties(
     - beta: uv slope
     - beta_nodust: uv slope (no dust correction)
     """
-    pass
+    n_bands = len(filter_data.transmission_norm_abs)
+    n_lambdas = len(wavelengths)
+    log_wavelengths = np.log10(wavelengths)
+
+    # make allocations for outputs
+    mag_abs = np.full(shape=(n_galaxies, n_bands), fill_value=np.nan)
+    mag_abs_nodust = np.full(shape=(n_galaxies, n_bands), fill_value=np.nan)
+    mag_app = np.full(shape=(n_galaxies, n_bands), fill_value=np.nan)
+    mag_app_nodust = np.full(shape=(n_galaxies, n_bands), fill_value=np.nan)
+    luminosity_fir = np.full(shape=n_galaxies, fill_value=np.nan)
+    beta = np.full(shape=n_galaxies, fill_value=np.nan)
+    beta_nodust = np.full(shape=n_galaxies, fill_value=np.nan)
+
+    # misc
+    neighbour_offsets = np.array(  # for dust cells
+        [(dx, dy) for dx in range(-1, 2) for dy in range(-1, 2)],
+        dtype=np.int64,
+    )
+    dtm_slope = -0.104 * phot_constants.redshift + 0.97  # for nodust Li 2019 branch
+    dtm_intercept = -0.059 * phot_constants.redshift + 0.005
+
+    for gal_idx in prange(n_galaxies):
+        # per galaxy allocations
+        spectrum_dust = np.zeros(shape=n_lambdas)
+        spectrum_nodust = np.zeros(shape=n_lambdas)
+        extinction_curve = np.empty(shape=n_lambdas)
+
+        # dust extinction/attenutation
+        apply_extinction_law(
+            out_curve=extinction_curve,
+            log_ssfr=dust_data.gal_ssfr[gal_idx],
+            log_Z_solar=dust_data.gal_Z[gal_idx],
+            dust_curves=dust_data.dust_curves,
+            dust_law=dust_data.dust_law_idx,
+        )
+
+        # index mapping
+        halo_idx = field_halo_idx[gal_idx]
+        gas_start = gas_data.offsets[halo_idx]  # halo gas attenuates stars
+        gas_end = gas_data.offsets[halo_idx + 1]
+        gas_slice = gas_data.idx_sorted[gas_start:gas_end]
+
+        star_start = star_data.offsets[gal_idx]
+        star_end = star_data.offsets[gal_idx + 1]
+        star_slice = star_data.idx_sorted[star_start:star_end]
+
+        # compute metal column density
+        Z_col = compute_metal_column_densities(
+            star_pos=star_data.pos[star_slice],
+            gas_pos=gas_data.pos[gas_slice],
+            gas_mass=gas_data.dust_mass[gas_slice],
+            gas_metallicity=gas_data.metallicity[gas_slice],
+            smoothing_lengths=gas_data.smoothing_lengths[gas_slice],
+            neighbour_offsets=neighbour_offsets,
+            kernel_table=kernel_table,
+            los_axis=phot_constants.los_axis,
+            boxsize=phot_constants.boxsize,
+        )
+
+        # convert metal column density -> A_v
+        star_A_v = np.empty(shape=len(Z_col), dtype=np.float64)
+        star_A_v[:] = Z_col * phot_constants.Z_col_to_A_v
+
+        if not phot_constants.use_dust:
+            for s in range(len(star_A_v)):  # Li et al. 2019
+                if Z_col[s] > 0.0:
+                    z_solar = Z_col[s] / phot_constants.Z_sun  # normalise
+                    dtm = 10.0 ** (dtm_slope * np.log10(z_solar) + dtm_intercept)
+
+                    if dtm < phot_constants.mw_dust_to_metal:
+                        star_A_v[s] *= dtm / phot_constants.mw_dust_to_metal
+
+        compute_spectrum(
+            star_masses=star_data.mass[star_slice],
+            star_ages=star_data.age[star_slice],
+            star_metallicities=star_data.metallicity[star_slice],
+            star_los_velocities=star_data.vel_los[star_slice],
+            star_A_v=star_A_v,
+            attenuation_curve=extinction_curve,
+            ssp_spectra=ssp_data.spectra,
+            ssp_ages=ssp_data.ages,
+            ssp_metallicities=ssp_data.metallicities,
+            ssp_mass_remaining=ssp_data.mass_remaining,
+            wavelengths=wavelengths,
+            c_kms=phot_constants.c_kms,
+            split_age=phot_constants.split_age,
+            out_spectrum_dust=spectrum_dust,
+            out_spectrum_nodust=spectrum_nodust,
+        )
+
+        # absolute magnitudes
+        for band in range(n_bands):
+            mag_abs[gal_idx, band] = compute_ab_magnitude(
+                spectrum=spectrum_dust,
+                transmission_weighted=filter_data.transmission_weighted_abs[band],
+                transmission_norm=filter_data.transmission_norm_abs[band],
+                flux_factor=filter_data.flux_factor_abs,
+            )
+            mag_abs_nodust[gal_idx, band] = compute_ab_magnitude(
+                spectrum=spectrum_nodust,
+                transmission_weighted=filter_data.transmission_weighted_abs[band],
+                transmission_norm=filter_data.transmission_norm_abs[band],
+                flux_factor=filter_data.flux_factor_abs,
+            )
+
+        # apply cosmic extinction if desired (Madau 1995)
+        if phot_constants.use_cosmic_ext:
+            spectrum_dust_app = spectrum_dust * madau_transmission
+            spectrum_nodust_app = spectrum_nodust * madau_transmission
+        else:
+            spectrum_dust_app = spectrum_dust
+            spectrum_nodust_app = spectrum_nodust
+
+        # apparent magnitudes
+        for band in range(n_bands):
+            mag_app[gal_idx, band] = compute_ab_magnitude(
+                spectrum=spectrum_dust_app,
+                transmission_weighted=filter_data.transmission_weighted_app[band],
+                transmission_norm=filter_data.transmission_norm_app[band],
+                flux_factor=filter_data.flux_factor_app,
+            )
+            mag_app_nodust[gal_idx, band] = compute_ab_magnitude(
+                spectrum=spectrum_nodust_app,
+                transmission_weighted=filter_data.transmission_weighted_app[band],
+                transmission_norm=filter_data.transmission_norm_app[band],
+                flux_factor=filter_data.flux_factor_app,
+            )
+
+        # dust-reprocessed luminosity
+        luminosity_fir[gal_idx] = compute_fir_luminosity(
+            spectrum_dust=spectrum_dust,
+            spectrum_nodust=spectrum_nodust,
+            bin_weights=delta_nu,
+        )
+
+        # uv slope
+        beta[gal_idx] = compute_uv_slope(
+            spectrum=spectrum_dust,
+            log_wavelengths=log_wavelengths,
+            uv_start_idx=uv_start_idx,
+            uv_end_idx=uv_end_idx,
+        )
+        beta_nodust[gal_idx] = compute_uv_slope(
+            spectrum=spectrum_nodust,
+            log_wavelengths=log_wavelengths,
+            uv_start_idx=uv_start_idx,
+            uv_end_idx=uv_end_idx,
+        )
+
+    return (
+        mag_abs,
+        mag_abs_nodust,
+        mag_app,
+        mag_app_nodust,
+        luminosity_fir,
+        beta,
+        beta_nodust,
+    )
 
 
 @njit(cache=True)
@@ -279,7 +450,8 @@ def compute_uv_slope(
     if n < 2:  # undetermined for n=1 too
         return np.nan
 
-    beta = (n * sum_xy - (sum_x * sum_y)) / ((n * sum_x_sq) - sum_x**2)
+    slope = (n * sum_xy - (sum_x * sum_y)) / ((n * sum_x_sq) - sum_x**2)
+    beta = slope - 2.0  # c/lambda^2 conversion factor gives -2 in logspace
 
     return beta
 
