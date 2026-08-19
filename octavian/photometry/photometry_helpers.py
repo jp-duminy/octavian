@@ -6,6 +6,9 @@ Helper functions for the photometry pipeline.
 
 """
 
+# default packages
+from collections import namedtuple
+
 # other packages
 import numpy as np
 from numba import njit
@@ -217,3 +220,90 @@ def _get_interpolation_idx(grid: np.ndarray, value: float) -> tuple[int, float]:
     fraction = np.clip(fraction, a_min=0.0, a_max=1.0)  # clip to physical range
 
     return idx, fraction
+
+
+# for code tidiness (otherwise you get a horrific 35-argument function)
+StarData = namedtuple(
+    "StarData",
+    [
+        "pos",
+        "vel_los",
+        "mass",
+        "age",
+        "metallicity",
+        "offsets",
+        "idx_sorted",
+    ],
+)
+
+GasData = namedtuple(
+    "GasData",
+    [
+        "pos",
+        "smoothing_lengths",
+        "dust_mass",
+        "metallicity",
+        "offsets",
+        "idx_sorted",
+    ],
+)
+
+SSPData = namedtuple(
+    "SSPData",
+    [
+        "spectra",
+        "mass_remaining",
+        "ages",
+        "metallicities",
+    ],
+)
+
+FilterData = namedtuple(
+    "FilterData",
+    [
+        "transmission_weighted_abs",
+        "transmission_norm_abs",
+        "transmission_weighted_app",
+        "transmission_norm_app",
+        "flux_factor_abs",
+        "flux_factor_app",
+    ],
+)
+
+DustData = namedtuple(
+    "DustData",
+    [
+        "dust_curves",
+        "dust_law_idx",
+        "gal_ssfr",
+        "gal_Z",
+        "Z_sun",
+    ],
+)
+
+PhotometryConstants = namedtuple(
+    "PhotometryConstants",
+    [
+        "los_axis",
+        "split_age",
+        "c_kms",
+        "boxsize",
+        "redshift",
+        "mw_dust_to_metal",
+        "Z_sun",
+        "Z_col_to_A_v",
+        "use_cosmic_ext",
+        "use_dust",
+    ],
+)
+
+
+DUST_CURVE_IDX = {
+    "calzetti": 0,
+    "conroy": 1,
+    "cardelli": 2,
+    "smc": 3,
+    "lmc": 4,
+    "mix_calz_mw": 5,
+    "composite": 6,
+}

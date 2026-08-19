@@ -4,8 +4,11 @@ The photometry engine room. Photometry has a less well-defined boundary than agg
 
 """
 
-# default packages
-from collections import namedtuple
+# type checking
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .photometry_helpers import StarData, GasData, SSPData, FilterData, DustData, PhotometryConstants
 
 # other packages
 from numba import njit, prange
@@ -13,92 +16,6 @@ import numpy as np
 
 # internal imports
 from .photometry_helpers import interpolate_ssp
-
-# for code tidiness (otherwise you get a horrific 35-argument function)
-StarData = namedtuple(
-    "StarData",
-    [
-        "pos",
-        "vel_los",
-        "mass",
-        "age",
-        "metallicity",
-        "offsets",
-        "idx_sorted",
-    ],
-)
-
-GasData = namedtuple(
-    "GasData",
-    [
-        "pos",
-        "smoothing_lengths",
-        "dust_mass",
-        "metallicity",
-        "offsets",
-        "idx_sorted",
-    ],
-)
-
-SSPData = namedtuple(
-    "SSPData",
-    [
-        "spectra",
-        "mass_remaining",
-        "ages",
-        "metallicities",
-    ],
-)
-
-FilterData = namedtuple(
-    "FilterData",
-    [
-        "transmission_weighted_abs",
-        "transmission_norm_abs",
-        "transmission_weighted_app",
-        "transmission_norm_app",
-        "flux_factor_abs",
-        "flux_factor_app",
-    ],
-)
-
-DustData = namedtuple(
-    "DustData",
-    [
-        "dust_curves",
-        "dust_law_idx",
-        "gal_ssfr",
-        "gal_Z",
-        "Z_sun",
-    ],
-)
-
-PhotometryConstants = namedtuple(
-    "PhotometryConstants",
-    [
-        "los_axis",
-        "split_age",
-        "c_kms",
-        "boxsize",
-        "redshift",
-        "mw_dust_to_metal",
-        "Z_sun",
-        "Z_col_to_A_v",
-        "use_cosmic_ext",
-        "use_dust",
-    ],
-)
-
-
-DUST_CURVE_IDX = {
-    "calzetti": 0,
-    "conroy": 1,
-    "cardelli": 2,
-    "smc": 3,
-    "lmc": 4,
-    "mix_calz_mw": 5,
-    "composite": 6,
-}
 
 
 @njit(cache=True, parallel=True)
