@@ -174,6 +174,19 @@ class GizmoReader(SnapshotReader):
         with h5py.File(self.snapshot_path) as f:
             return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
 
+    def has_dataset(self, ptype: str, dataset: str) -> bool:
+        """
+        Checks whether a dataset exists in the snapshot.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        hdf5_name = self.dataset_map.get(dataset)
+
+        if hdf5_name is None:
+            logger.warning(f"{dataset} is not defined to the reader.")
+            return False
+        with h5py.File(self.snapshot_path, "r") as f:
+            return hdf5_name in f.get(hdf5_group, {})
+
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
         Reads a HDF5 dataset from the file. Returns an ndarray of the chosen dataset in Octavian code units with the correct dtype applied, masked to the rank's allocation.
@@ -467,6 +480,19 @@ class SwiftReader(SnapshotReader):
         )
 
         return self.simulation_attributes
+
+    def has_dataset(self, ptype: str, dataset: str) -> bool:  # TODO: identical to gizmo method, maybe do inheritance
+        """
+        Checks whether a dataset exists in the snapshot.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        hdf5_name = self.dataset_map.get(dataset)
+
+        if hdf5_name is None:
+            logger.warning(f"{dataset} is not defined to the reader.")
+            return False
+        with h5py.File(self.snapshot_path, "r") as f:
+            return hdf5_name in f.get(hdf5_group, {})
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
