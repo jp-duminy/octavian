@@ -82,6 +82,7 @@ class OctavianConfig:
     cosmic_extinction: bool
     interpolation_bins: int
     kernel_type: str
+    power_law_alpha: float
 
     cores_per_rank: int
     fof6d_weight: float
@@ -127,6 +128,7 @@ class OctavianConfig:
             cosmic_extinction=raw["use_cosmic_extinction"],
             interpolation_bins=raw["interpolation_bins"],
             kernel_type=raw["kernel_type"],
+            power_law_alpha=raw["power_law_alpha"],
             cores_per_rank=raw["cores_per_rank"],
             fof6d_weight=raw["fof6d_weight"],
             properties_weight=raw["properties_weight"],
