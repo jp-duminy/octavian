@@ -365,6 +365,12 @@ class SnapshotReader:
         """
         raise NotImplementedError
 
+    def has_dataset(self, ptype: str, dataset: str) -> bool:
+        """
+        Checks whether a dataset exists in the snapshot.
+        """
+        raise NotImplementedError
+
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
         Returns array in Octavian code units with the correct dtype.
