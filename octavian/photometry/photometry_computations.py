@@ -4,18 +4,12 @@ The photometry engine room. Photometry has a less well-defined boundary than agg
 
 """
 
-# type checking
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .photometry_helpers import StarData, GasData, SSPData, FilterData, DustData, PhotometryConstants
-
 # other packages
 from numba import njit, prange
 import numpy as np
 
 # internal imports
-from .photometry_helpers import interpolate_ssp
+from .photometry_helpers import interpolate_ssp, StarData, GasData, SSPData, FilterData, DustData, PhotometryConstants
 
 
 @njit(cache=True, parallel=True)
@@ -29,7 +23,6 @@ def compute_photometric_properties(
     phot_constants: PhotometryConstants,
     # galaxy-halo mapping (use field halo)
     field_halo_idx: np.ndarray,
-    galaxy_L: np.ndarray,
     n_galaxies: int,
     # uv slope/fir luminosity quantities
     delta_nu: np.ndarray,
@@ -421,20 +414,22 @@ def apply_extinction_law(
     """
     n_lambdas = len(out_curve)
 
-    if dust_law <= 4:
+    if dust_law <= 5:
         out_curve[:] = dust_curves[dust_law]
 
     else:  # calzetti for log_ssfr > 0, MW for log_ssfr < -1; linear mix in between
-        ssfr_weight = np.clip(log_ssfr + 1, a_min=0, a_max=1)  # shift to [0, 1] for weighting
+        ssfr_weight = min(
+            max(log_ssfr + 1.0, 0.0), 1.0
+        )  # shift to [0, 1] for weighting (np.clip only works on scalars in numba)
 
         for i in range(n_lambdas):
-            out_curve[i] = (dust_curves[0][i] * ssfr_weight) + (dust_curves[2][i] * (1 - ssfr_weight))
+            out_curve[i] = (dust_curves[1][i] * ssfr_weight) + (dust_curves[3][i] * (1 - ssfr_weight))
 
-        if dust_law == 6:  # mix in SMC curve at low metallicities, ramping up between log(Z) = -1 to -2
-            Z_weight = np.clip(log_Z_solar + 2, a_min=0, a_max=1)  # shift to [0, 1] again
+        if dust_law == 7:  # mix in SMC curve at low metallicities, ramping up between log(Z) = -1 to -2
+            Z_weight = min(max(log_Z_solar + 2, 0.0), 1.0)  # shift to [0, 1] again
 
             for i in range(n_lambdas):
-                out_curve[i] = (out_curve[i] * Z_weight) + (dust_curves[3][i] * (1 - Z_weight))
+                out_curve[i] = (out_curve[i] * Z_weight) + (dust_curves[4][i] * (1 - Z_weight))
 
 
 @njit(cache=True)
@@ -502,10 +497,10 @@ def compute_metal_column_densities(
         # the cell in which the star lives
         cx = int((star_pos[i, ax0] - origin_x) / cell_width)
         cy = int((star_pos[i, ax1] - origin_y) / cell_width)
-        cx = np.clip(
-            cx, a_min=0, a_max=(n_cells_x - 1)
+        cx = min(
+            max(cx, 0), (n_cells_x - 1)
         )  # clip because cells were built on gas so stars can be outside the covered region
-        cy = np.clip(cy, a_min=0, a_max=(n_cells_y - 1))
+        cy = min(max(cy, 0), (n_cells_y - 1))
 
         for j in range(len(neighbour_offsets)):  # loop over cells (cells are 2D so we only check 9 adjacent cells)
             nx = cx + neighbour_offsets[j, 0]

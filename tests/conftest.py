@@ -42,6 +42,10 @@ from octavian.external_halo_sources import (
     build_halo_source,
     HaloAssignments,
 )
+from octavian.photometry import (
+    read_filter_names,
+    resolve_band_names,
+)
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
@@ -75,6 +79,10 @@ def mock_catalogue(
         b=1.5,
         velocity_factor=5,
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
+    if config.stages.get("photometry", False):
+        names, lambda_effs = read_filter_names(config.table_filepath)
+        config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
+        internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
 

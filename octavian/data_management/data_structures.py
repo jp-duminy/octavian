@@ -481,12 +481,12 @@ class SwiftReader(SnapshotReader):
 
         return self.simulation_attributes
 
-    def has_dataset(self, ptype: str, dataset: str) -> bool:  # TODO: identical to gizmo method, maybe do inheritance
+    def has_dataset(self, ptype: str, dataset: str) -> bool:
         """
         Checks whether a dataset exists in the snapshot.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
-        hdf5_name = self.dataset_map.get(dataset)
+        hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map.get(dataset))
 
         if hdf5_name is None:
             logger.warning(f"{dataset} is not defined to the reader.")

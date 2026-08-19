@@ -13,3 +13,5 @@ from .photometry_tables import (
     read_filter_names as read_filter_names,
     resolve_band_names as resolve_band_names,
 )
+
+from .properties_photometry import run_photometry as run_photometry

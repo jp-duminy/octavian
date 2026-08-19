@@ -13,8 +13,10 @@ rng = np.random.default_rng(seed=SEED)
 
 SWIFT_DATASET_ATTRS: dict[str, dict[str, float]] = {
     "Coordinates": {"a-scale exponent": 1, "h-scale exponent": 0, "cgs_factor": 3.08567758e24},
+    "SmoothingLengths": {"a-scale exponent": 1, "h-scale exponent": 0, "cgs_factor": 3.08567758e24},
     "Velocities": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 100000},
     "Masses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
+    "DustMasses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
     "Potentials": {"a-scale exponent": -1, "h-scale exponent": 0, "cgs_factor": 9999999999.999998},
     "InternalEnergies": {"a-scale exponent": -2, "h-scale exponent": 0, "cgs_factor": 9999999999.999998},
     "Densities": {"a-scale exponent": -3, "h-scale exponent": 0, "cgs_factor": 6.767905773162602e-31},

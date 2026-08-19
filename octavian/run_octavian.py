@@ -52,6 +52,7 @@ from .aggregate_properties import (
 from .photometry import (
     resolve_band_names,
     read_filter_names,
+    run_photometry,
 )
 from .log import configure_logger, get_logger, clean_logs
 
@@ -162,6 +163,10 @@ def execute_pipeline(
 
     particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
     particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
+    particles["gas"]["smoothing_length"] = reader.read_dataset(ptype="gas", dataset="smoothing_length")
+
+    if reader.has_dataset("gas", "dust_mass"):
+        particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
     assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
@@ -173,6 +178,7 @@ def execute_pipeline(
         "properties_core": run_core_properties,
         "properties_ptype_specific": run_ptype_specific_properties,
         "properties_local_environment": run_local_environment,
+        "photometry": run_photometry,
     }
 
     for stage_index, stage in enumerate(ordered_stages):

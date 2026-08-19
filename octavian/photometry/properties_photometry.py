@@ -161,7 +161,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
 
     gas_data = GasData(
         pos=gas["pos"],
-        smoothing_lengths=gas["smoothing_lengths"],
+        smoothing_lengths=gas["smoothing_length"],
         dust_mass=dust_mass,
         metallicity=dust_metallicity,
         offsets=gas_offsets,
