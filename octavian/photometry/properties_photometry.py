@@ -33,6 +33,7 @@ from .photometry_helpers import (
     DUST_CURVE_IDX,
     LOS_AXIS_MAP,
 )
+from .photometry_tables import read_photometry_table
 from .photometry_computations import compute_photometric_properties
 
 
@@ -40,7 +41,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     """
     Top-level executor for photometry.
     """
-    photometry_table = simulation_data.photometry_table
+    photometry_table = read_photometry_table(table_path=config.table_filepath)
     constants = simulation_data.constants
     sim = simulation_data.simulation
     kernel_table = build_interpolation_table(n_bins=config.interpolation_bins, kernel_type=config.kernel_type)
