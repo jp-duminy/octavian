@@ -167,6 +167,7 @@ class OctavianConstants:
     BOLTZMANN_CGS: float = codata.k_B.cgs.value
     SIGMA_T_CGS: float = codata.sigma_T.cgs.value
     M_SUN_G: float = iau.M_sun.cgs.value
+    L_SUN_CGS: float = iau.L_sun.cgs.value
     KPC_CM: float = iau.kpc.cgs.value
     KPC_M: float = iau.kpc.si.value
     GYR_S: float = (1 * u.Gyr).to(u.s).value
@@ -183,6 +184,7 @@ class OctavianConstants:
     # derived factors
     VIRIAL_TEMP_FACTOR: float = field(init=False)
     EDD_FACTOR: float = field(init=False)
+    Z_COL_TO_AV: float = field(init=False)
 
     def __post_init__(self) -> None:
 
