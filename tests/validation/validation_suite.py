@@ -23,6 +23,7 @@ import subprocess
 from datetime import datetime
 from collections.abc import Generator
 import argparse
+from dataclasses import replace
 
 # IO
 import h5py
@@ -73,6 +74,11 @@ from octavian.aggregate_properties import (
     run_core_properties,
     run_local_environment,
     assign_membership,
+)
+from octavian.photometry import (
+    resolve_band_names,
+    read_filter_names,
+    run_photometry,
 )
 from octavian.run_octavian import get_mpi_communicator
 from .output_validation import (
@@ -219,6 +225,10 @@ def _profiled_pipeline(
 
         particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
         particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
+        particles["gas"]["smoothing_length"] = reader.read_dataset(ptype="gas", dataset="smoothing_length")
+
+        if reader.has_dataset("gas", "dust_mass"):
+            particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
     assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
@@ -230,6 +240,7 @@ def _profiled_pipeline(
         "properties_core": run_core_properties,
         "properties_ptype_specific": run_ptype_specific_properties,
         "properties_local_environment": run_local_environment,
+        "photometry": run_photometry,
     }
 
     for stage_index, stage in enumerate(ordered_stages):
@@ -514,6 +525,11 @@ def test_run(args: argparse.Namespace) -> None:
 
     with memray.Tracker(memray_file, native_traces=True):
         config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
+
+        if config.stages.get("photometry", False):
+            names, lambda_effs = read_filter_names(config.table_filepath)
+            config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
+
         internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
 
         if rank == 0:
