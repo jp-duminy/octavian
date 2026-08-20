@@ -91,9 +91,15 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     # prefactor for absolute magnitude flux (10pc)
     flux_factor_abs = constants.L_SUN_CGS / (4.0 * np.pi * (10.0 * constants.PC_CM) ** 2)
     # prefactor for apparent magnitude flux (luminosity distance)
-    flux_factor_app = constants.L_SUN_CGS / (
-        4.0 * np.pi * sim.cosmology.luminosity_distance(sim.redshift).to("cm").value ** 2
-    )
+    if sim.redshift < 1e-10:
+        flux_factor_app = np.nan
+        logger.info("Snapshot is at z = 0; apparent magnitudes are undefined as luminosity distance is zero.")
+    else:
+        flux_factor_app = (
+            constants.L_SUN_CGS
+            / (4.0 * np.pi * sim.cosmology.luminosity_distance(sim.redshift).to("cm").value ** 2)
+            * (1.0 + sim.redshift)
+        )  # apparent magnitude is computed by blueshifting band; correct for corresponding (1+z) flux reduction
 
     # UV bounds
     uv_start_idx = int(np.searchsorted(wavelengths, 1500.0))
