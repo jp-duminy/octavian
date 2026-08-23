@@ -10,6 +10,7 @@ import numpy as np
 
 # internal imports
 from .photometry_helpers import interpolate_ssp, StarData, GasData, SSPData, FilterData, DustData, PhotometryConstants
+from ..utils import unwrap_positions
 
 
 @njit(cache=True, parallel=True)
@@ -23,6 +24,7 @@ def compute_photometric_properties(
     phot_constants: PhotometryConstants,
     # galaxy-halo mapping (use field halo)
     field_halo_idx: np.ndarray,
+    gal_com_pos: np.ndarray,
     n_galaxies: int,
     # uv slope/fir luminosity quantities
     delta_nu: np.ndarray,
@@ -97,6 +99,7 @@ def compute_photometric_properties(
             gas_mass=gas_data.dust_mass[gas_slice],
             gas_metallicity=gas_data.metallicity[gas_slice],
             smoothing_lengths=gas_data.smoothing_lengths[gas_slice],
+            gal_centre=gal_com_pos[gal_idx],
             neighbour_offsets=neighbour_offsets,
             kernel_table=kernel_table,
             los_axis=phot_constants.los_axis,
@@ -470,6 +473,7 @@ def compute_metal_column_densities(
     gas_metallicity: np.ndarray,
     smoothing_lengths: np.ndarray,
     neighbour_offsets: np.ndarray,
+    gal_centre: np.ndarray,  # galaxy com
     kernel_table: np.ndarray,
     los_axis: int,
     boxsize: float,
@@ -481,6 +485,10 @@ def compute_metal_column_densities(
     """
     if len(star_pos) == 0 or len(gas_pos) == 0:  # avoid wasted computations if no gas (or stars)
         return np.zeros(shape=len(star_pos), dtype=np.float64)
+
+    # NOTE: this internal unwrapper mutates in place, which is ok, because star/gas pos are copied slices
+    unwrap_positions(positions=star_pos, centre=gal_centre, boxsize=boxsize)
+    unwrap_positions(positions=gas_pos, centre=gal_centre, boxsize=boxsize)
 
     # orthogonal axes
     ax0 = (los_axis + 1) % 3
@@ -523,10 +531,6 @@ def compute_metal_column_densities(
 
                 for d in range(3):  # inherited convention: observer lives at -infinity
                     dx[d] = gas_pos[g, d] - star_pos[i, d]
-                    if dx[d] > (0.5 * boxsize):
-                        dx[d] -= boxsize
-                    if dx[d] < (-0.5 * boxsize):
-                        dx[d] += boxsize
 
                 if dx[los_axis] > 0:
                     continue  # if gas is behind star it contributes 0 to attenuation
