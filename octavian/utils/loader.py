@@ -14,6 +14,9 @@ import h5py
 import numpy as np
 import astropy.units as u
 
+# internal imports
+from ..version import CATALOGUE_VERSION
+
 
 def load(
     catalogue_path: Path,
@@ -31,6 +34,13 @@ def load(
     catalogue: OctavianCatalogue
         The loaded catalogue interface.
     """
+    with h5py.File(catalogue_path, "r") as f:
+        file_version = f["metadata"].attrs.get("catalogue_format_version", 0)
+        if file_version > CATALOGUE_VERSION:
+            raise ValueError(
+                f"Catalogue version {file_version} is new and not supported by the version of Octavius currently installed, which can read up to version {CATALOGUE_VERSION}; please update."
+            )
+
     return OctavianCatalogue(catalogue_path=catalogue_path)
 
 

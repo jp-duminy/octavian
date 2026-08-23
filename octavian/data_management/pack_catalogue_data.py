@@ -28,7 +28,7 @@ from .conventions import (
     OctavianConfig,
 )
 from ..log import get_logger
-from ..version import __version__
+from ..version import __version__, CATALOGUE_VERSION
 
 logger = get_logger()
 
@@ -118,8 +118,17 @@ def construct_membership_arrays(
 
             offsets, sorted_local = group_store.csr_membership[ptype]
 
+            # sort indices into increasing order so the original snapshot can be indexed hassle-free
+            sorted_indices = indices[ptype][sorted_local].astype(DTYPES["csr_indices"])
+            for g in range(
+                len(offsets) - 1
+            ):  # the alternative to a python loop would be memory-unfriendly (this is particle-level)
+                start, end = offsets[g], offsets[g + 1]
+                if end - start > 1:
+                    sorted_indices[start:end] = np.sort(sorted_indices[start:end], stable=True)
+
             result[group_name][ptype] = MembershipArrays(
-                indices=indices[ptype][sorted_local].astype(DTYPES["csr_indices"]),
+                indices=sorted_indices,  # sort so users can fancy-index original snapshot
                 offsets=offsets.astype(DTYPES["csr_offsets"]),
             )
 
@@ -206,6 +215,7 @@ def write_catalogue_headers(
         # basic snapshot metadata
         metadata = f.create_group("metadata")
         metadata.attrs["octavian_version"] = __version__
+        metadata.attrs["catalogue_format_version"] = CATALOGUE_VERSION
         metadata.attrs["timestamp"] = datetime.now(timezone.utc).isoformat()
         metadata.attrs["original_snapshot_path"] = str(snapshot_path.resolve())
         metadata.attrs["simulation_type"] = config.simulation_type
