@@ -168,6 +168,13 @@ CONDITIONAL_NAN = {
                 "properties/core/kappa_rot_star",
                 "properties/particle_specific/metallicity_stellar",
                 "properties/particle_specific/age_mass_weighted",
+                "properties/photometry/luminosity_fir",
+                "properties/photometry/mag_abs_v",
+                "properties/photometry/mag_abs_nodust_v",
+                "properties/photometry/mag_app_v",
+                "properties/photometry/mag_app_nodust_v",
+                "properties/photometry/beta",
+                "properties/photometry/beta_nodust",
             ],
         ),
         (
