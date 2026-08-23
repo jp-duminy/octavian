@@ -97,6 +97,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
 
     # galaxy data
     galaxies = simulation_data.groups["galaxies"]
+    gal_com_pos = galaxies["com_pos_baryon"]
     field_halo_idx = galaxies["field_halo_index"]
     gal_ssfr, gal_Z = _prepare_galaxy_quantities(
         galaxies=galaxies, Z_sun=constants.Z_SUN_ASPLUND
@@ -199,6 +200,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
             dust_data=dust_data,
             phot_constants=phot_constants,
             field_halo_idx=field_halo_idx,
+            gal_com_pos=gal_com_pos,
             n_galaxies=galaxies.n_groups,
             delta_nu=delta_nu,
             wavelengths=wavelengths,
@@ -239,8 +241,11 @@ def _prepare_galaxy_quantities(galaxies: GroupStore, Z_sun: float) -> tuple[np.n
     )
     ssfr_gyr[ssfr_gyr <= 0.0] = 1e-30  # prevent NaN/inf
     gal_ssfr = np.log10(ssfr_gyr)
+    Z_sfr_weighted = np.nan_to_num(
+        galaxies["metallicity_sfr_weighted"], nan=0.0
+    )  # masked to NaN for undefined groups; set to zero as we want magnitudes for all galaxies
     Z_ratio = guarded_divide(
-        numerator=galaxies["metallicity_sfr_weighted"],
+        numerator=Z_sfr_weighted,
         denominator=Z_sun,
         fill_value=0.0,
     )
