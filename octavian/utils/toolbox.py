@@ -11,7 +11,6 @@ import shutil
 from dataclasses import replace
 
 # internal imports
-from ..run_octavian import run_octavian
 from ..data_management import OctavianConfig
 from ..data_management import output_catalogue_path
 from .generate_snapshots import generate_gizmo_snapshot, generate_swift_snapshot
@@ -73,6 +72,8 @@ def generate_test_catalogue(
     test_catalogue: pathlib.Path
         A path object pointing to the test catalogue.
     """
+    from ..run_octavian import run_octavian  # avoid circular import
+
     snapshot_path = output_dir / "test_snap.hdf5"
     output_path = output_catalogue_path(snapshot_path=snapshot_path, output_dir=output_dir)
 

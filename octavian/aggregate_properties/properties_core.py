@@ -37,9 +37,9 @@ from .aggregate_helpers import (
     count_per_group,
     min_idx_per_group,
     first_idx_per_group,
-    guarded_arcsin,
-    guarded_divide,
 )
+
+from ..utils import guarded_divide, guarded_arcsin
 
 from ..data_management import (
     build_group_csr,
