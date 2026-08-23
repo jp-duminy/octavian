@@ -70,9 +70,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
         constants.M_SUN_G
         * constants.X_H
         * (1 + sim.redshift) ** 2
-        / (constants.KPC_CM**2 * constants.PROTON_MASS_G)
-        * constants.MW_DUST_TO_METAL
-        / (constants.AV_TO_NH * constants.Z_SUN_WATSON)
+        / (constants.KPC_CM**2 * constants.PROTON_MASS_G * constants.AV_TO_NH * constants.Z_SUN_WATSON)
     )
 
     # precompute cosmic extinction (Madau 1995): ssp table is in rest frame so shift
