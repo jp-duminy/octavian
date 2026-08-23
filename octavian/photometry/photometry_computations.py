@@ -32,7 +32,7 @@ def compute_photometric_properties(
     # misc
     madau_transmission: np.ndarray,
     kernel_table: np.ndarray,
-) -> tuple[np.ndarray, ...]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Runs all photometric property computations for galaxies in parallel. Returns:
 
@@ -228,7 +228,7 @@ def compute_spectrum(
     n_wave = len(wavelengths)
     n_stars = len(star_masses)
     star_spectrum = np.empty(shape=n_wave, dtype=np.float64)
-    out_spectrum_dust[:] = 0.0
+    out_spectrum_dust[:] = 0.0  # we reuse the output arrays, so set them equal to zero at instantiation
     out_spectrum_nodust[:] = 0.0
 
     for i in range(n_stars):
@@ -477,6 +477,9 @@ def compute_metal_column_densities(
 
     - Z_col: the total metal column density from gas along the LOS
     """
+    if len(star_pos) or len(gas_pos) == 0:  # avoid wasted computations if no gas (or stars)
+        return np.zeros(shape=len(star_pos), dtype=np.float64)
+
     # orthogonal axes
     ax0 = (los_axis + 1) % 3
     ax1 = (los_axis + 2) % 3
@@ -549,7 +552,7 @@ def build_dust_cell_list(
     smoothing_lengths: np.ndarray,
     ax0: int,
     ax1: int,
-) -> tuple[np.ndarray, ...]:
+) -> tuple[np.ndarray, np.ndarray, int, int, float, float, float]:
     """
     Creates a cell linked list for dust attenutation. Returns:
 
@@ -559,6 +562,11 @@ def build_dust_cell_list(
     - origin_{x/y}: the origin of the cell list in the orthogonal directions
     - cell_width: the width of each cell (max smoothing length)
     """
+    if len(gas_pos) == 0:  # you can't hit this in principle, but I'm leaving it here in case the code changes in future
+        empty = np.empty(0, dtype=np.int64)
+        offsets = np.zeros(1, dtype=np.int64)
+        return empty, offsets, 0, 0, 0.0, 0.0, 0.0  # match type check
+
     # set the maximum cell width to h_max so a star will always access all gas which contributes to its attenutation
     cell_width = np.max(smoothing_lengths)
 
@@ -571,7 +579,9 @@ def build_dust_cell_list(
     n_cells_y = int((max_y - origin_y) / cell_width) + 1
 
     n_particles = len(gas_pos)
-    cell_ids = np.empty(shape=n_particles, dtype=np.int32)
+    cell_ids = np.empty(
+        shape=n_particles, dtype=np.int32
+    )  # NOTE: int32 should suffice here since this is performance-critical
 
     for i in range(n_particles):
         ix = int((gas_pos[i, ax0] - origin_x) / cell_width)
@@ -579,7 +589,7 @@ def build_dust_cell_list(
         cell_idx = ix * n_cells_y + iy  # row-major ordering
         cell_ids[i] = cell_idx
 
-    sort_order = np.argsort(cell_ids, kind="quicksort")
+    sort_order = np.argsort(cell_ids, kind="quicksort")  # NOTE: dense, not sparse, due to the geometry of the cells
     n_total_cells = n_cells_x * n_cells_y
     cell_offsets = np.zeros(n_total_cells + 1, dtype=np.int64)
 

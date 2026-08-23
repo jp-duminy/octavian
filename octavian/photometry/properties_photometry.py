@@ -7,10 +7,12 @@ Functions to handle executing the photometry pipeline (physics in photometry_com
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import SimulationData, OctavianConfig
+    from ..data_management import SimulationData, OctavianConfig, GroupStore
+    from .photometry_tables import PhotometryTable
 
 # other packages
 import numpy as np
+from astropy import units as u
 
 # internal imports
 from .dust_curves import (
@@ -35,6 +37,8 @@ from .photometry_helpers import (
 )
 from .photometry_tables import read_photometry_table
 from .photometry_computations import compute_photometric_properties
+from ..data_management import CODE_UNITS
+from ..utils import guarded_divide
 from ..log import get_logger
 
 logger = get_logger()
@@ -53,25 +57,11 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
 
     # construct dust curves
     wavelengths = photometry_table.wavelengths
-    n_wave = len(wavelengths)
-    calzetti = atten_calzetti(wavelengths=wavelengths)
-    conroy = atten_conroy(wavelengths=wavelengths)
-    power_law = atten_power_law(wavelengths=wavelengths, alpha=config.power_law_alpha)
-    cardelli = extinct_cardelli(wavelengths=wavelengths)
-    smc = extinct_smc(wavelengths=wavelengths)
-    lmc = extinct_lmc(wavelengths=wavelengths)
-
-    # pack dust curves into the expected 2D array form
-    dust_curves = np.empty(shape=(len(DUST_CURVE_IDX), n_wave), dtype=np.float64)
-    dust_curves[DUST_CURVE_IDX["calzetti"]] = calzetti
-    dust_curves[DUST_CURVE_IDX["conroy"]] = conroy
-    dust_curves[DUST_CURVE_IDX["cardelli"]] = cardelli
-    dust_curves[DUST_CURVE_IDX["smc"]] = smc
-    dust_curves[DUST_CURVE_IDX["lmc"]] = lmc
-    dust_curves[DUST_CURVE_IDX["power_law"]] = power_law
+    n_wavelengths = len(wavelengths)
+    dust_curves = _build_dust_curves(wavelengths=wavelengths, n_wavelengths=n_wavelengths, alpha=config.power_law_alpha)
 
     # construct delta_nu (c/lambda**2 * bin width)
-    wavelengths_cm = wavelengths * 1e-8  # angstrom -> cm (CGS)
+    wavelengths_cm = wavelengths * u.angstrom.to(u.cm)  # convert to CGS
     delta_lambda = np.gradient(wavelengths_cm)
     delta_nu = (constants.C_CGS / wavelengths_cm**2) * delta_lambda
 
@@ -110,43 +100,26 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     # galaxy data
     galaxies = simulation_data.groups["galaxies"]
     field_halo_idx = galaxies["field_halo_index"]
-    ssfr = galaxies["sfr"] / galaxies["mass_star"]
-    ssfr[ssfr <= 0.0] = 1e-30  # prevent NaN/inf
-    gal_ssfr = np.log10(ssfr)
-    Z_ratio = (
-        galaxies["metallicity_sfr_weighted"] / constants.Z_SUN_ASPLUND
-    )  # REVIEW: asplund metallicity is inherited convention (might want to move to config?)
-    Z_ratio[Z_ratio <= 0.0] = 1e-30  # prevent NaN/inf
-    gal_Z = np.log10(Z_ratio)
+    gal_ssfr, gal_Z = _prepare_galaxy_quantities(
+        galaxies=galaxies, Z_sun=constants.Z_SUN_ASPLUND
+    )  # REVIEW: asplund metallicity is inherited convention
     star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
 
     # halo data
     haloes = simulation_data.groups["halos"]
     gas_offsets, gas_idx = haloes.get_particle_csr(ptype="gas")
 
-    # filter data transmission coefficients [0, 1] + normalisations for apparent and absolute magnitudes
-    n_bands = len(config.bands)
-    transmission_weighted_abs = np.zeros((n_bands, n_wave), dtype=np.float64)
-    transmission_norm_abs = np.empty(n_bands, dtype=np.float64)
-    transmission_weighted_app = np.zeros((n_bands, n_wave), dtype=np.float64)
-    transmission_norm_app = np.empty(n_bands, dtype=np.float64)
-
-    for band_idx, band_name in enumerate(config.bands):
-        curve = photometry_table.filters[band_name]
-
-        # absolute magnitude: rest frame (what ssp table outputs)
-        T_abs = np.interp(
-            wavelengths, curve.wavelength, curve.transmission, left=0.0, right=0.0
-        )  # set to 0 outside valid range
-        transmission_weighted_abs[band_idx] = T_abs * delta_nu
-        transmission_norm_abs[band_idx] = np.sum(T_abs * delta_nu)
-
-        # apparent magnitude: observer frame, shift ssp output
-        T_app = np.interp(
-            wavelengths, curve.wavelength / (1.0 + sim.redshift), curve.transmission, left=0.0, right=0.0
-        )  # set to 0 outside valid range
-        transmission_weighted_app[band_idx] = T_app * delta_nu
-        transmission_norm_app[band_idx] = np.sum(T_app * delta_nu)
+    # filter data transmission coefficients [0, 1] + normalisations for the apparent and absolute magnitude integrands
+    transmission_weighted_abs, transmission_norm_abs, transmission_weighted_app, transmission_norm_app = (
+        _build_filter_transmissions(
+            wavelengths=wavelengths,
+            n_wavelengths=n_wavelengths,
+            delta_nu=delta_nu,
+            phot_table=photometry_table,
+            bands=config.bands,
+            redshift=sim.redshift,
+        )
+    )
 
     # build namedtuples
     stars = simulation_data.particles["star"]
@@ -162,9 +135,9 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
 
     # ascertain whether to include dust
     gas = simulation_data.particles["gas"]
-    effective_use_dust = config.dust and ("dust_mass" in gas.columns)  # both flags have to pass
+    use_dust = config.dust and ("dust_mass" in gas.columns)  # both flags have to pass
 
-    if effective_use_dust:
+    if use_dust:
         dust_mass = gas["dust_mass"]
         dust_metallicity = np.ones(shape=len(gas), dtype=np.float64)
         logger.debug("Using dust from snapshot.")
@@ -199,7 +172,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
         Z_sun=constants.Z_SUN_ASPLUND,  # 0.0134
         Z_col_to_A_v=Z_col_to_A_v,
         use_cosmic_ext=config.cosmic_extinction,
-        use_dust=config.dust,
+        use_dust=use_dust,
     )
 
     dust_data = DustData(
@@ -250,3 +223,94 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     galaxies["beta_nodust"] = beta_nodust
 
     logger.info(f"Successfully computed photometric properties for {galaxies.n_groups} galaxies.")
+
+
+def _prepare_galaxy_quantities(galaxies: GroupStore, Z_sun: float) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Prepares galaxy quantities needed for photometry with astropy-backed unit conversions. Returns:
+
+    - gal_ssfr: specific ssfr of galaxies in log10(Gyr**-1)
+    - gal_Z: sfr-weighted galaxy metallicity in log10(dimensionless)
+    """
+    ssfr_to_gyr_inv = (CODE_UNITS["sfr"].unit / CODE_UNITS["mass"].unit).to(u.Gyr**-1)
+
+    ssfr_gyr = guarded_divide(
+        numerator=(galaxies["sfr"] * ssfr_to_gyr_inv),
+        denominator=(galaxies["mass_star"]),
+        fill_value=0.0,
+    )
+    ssfr_gyr[ssfr_gyr <= 0.0] = 1e-30  # prevent NaN/inf
+    gal_ssfr = np.log10(ssfr_gyr)
+    Z_ratio = guarded_divide(
+        numerator=galaxies["metallicity_sfr_weighted"],
+        denominator=Z_sun,
+        fill_value=0.0,
+    )
+    Z_ratio[Z_ratio <= 0.0] = 1e-30  # prevent NaN/inf
+    gal_Z = np.log10(Z_ratio)
+
+    return gal_ssfr, gal_Z
+
+
+def _build_dust_curves(wavelengths: np.ndarray, n_wavelengths: int, alpha: float) -> np.ndarray:
+    """
+    Constructs the 2D dust curves array, shaped automatically according to the dust curve indices dict and the number of available wavelengths n_wavelengths. Returns:
+
+    - dust_curves: (n_dust_curves, n_wavelengths) array.
+    """
+    calzetti = atten_calzetti(wavelengths=wavelengths)
+    conroy = atten_conroy(wavelengths=wavelengths)
+    power_law = atten_power_law(wavelengths=wavelengths, alpha=alpha)
+    cardelli = extinct_cardelli(wavelengths=wavelengths)
+    smc = extinct_smc(wavelengths=wavelengths)
+    lmc = extinct_lmc(wavelengths=wavelengths)
+
+    # pack dust curves into the expected 2D array form
+    dust_curves = np.empty(shape=(len(DUST_CURVE_IDX), n_wavelengths), dtype=np.float64)
+
+    dust_curves[DUST_CURVE_IDX["calzetti"]] = calzetti
+    dust_curves[DUST_CURVE_IDX["conroy"]] = conroy
+    dust_curves[DUST_CURVE_IDX["cardelli"]] = cardelli
+    dust_curves[DUST_CURVE_IDX["smc"]] = smc
+    dust_curves[DUST_CURVE_IDX["lmc"]] = lmc
+    dust_curves[DUST_CURVE_IDX["power_law"]] = power_law
+
+    return dust_curves
+
+
+def _build_filter_transmissions(
+    wavelengths: np.ndarray,
+    n_wavelengths: int,
+    delta_nu: np.ndarray,
+    phot_table: PhotometryTable,
+    bands: list[str],
+    redshift: float,
+) -> tuple[np.ndarray, ...]:
+    """
+    Constructs the weights and normalisation for the filter integrands in apparent and absolute magnitudes.
+    """
+    # allocate output arrays
+    n_bands = len(bands)
+    transmission_weighted_abs = np.zeros((n_bands, n_wavelengths), dtype=np.float64)
+    transmission_norm_abs = np.empty(n_bands, dtype=np.float64)
+    transmission_weighted_app = np.zeros((n_bands, n_wavelengths), dtype=np.float64)
+    transmission_norm_app = np.empty(n_bands, dtype=np.float64)
+
+    for band_idx, band_name in enumerate(bands):
+        curve = phot_table.filters[band_name]
+
+        # absolute magnitude: rest frame (what ssp table outputs)
+        T_abs = np.interp(
+            wavelengths, curve.wavelength, curve.transmission, left=0.0, right=0.0
+        )  # set to 0 outside valid range
+        transmission_weighted_abs[band_idx] = T_abs * delta_nu
+        transmission_norm_abs[band_idx] = np.sum(T_abs * delta_nu)
+
+        # apparent magnitude: observer frame, shift ssp output
+        T_app = np.interp(
+            wavelengths, curve.wavelength / (1.0 + redshift), curve.transmission, left=0.0, right=0.0
+        )  # set to 0 outside valid range
+        transmission_weighted_app[band_idx] = T_app * delta_nu
+        transmission_norm_app[band_idx] = np.sum(T_app * delta_nu)
+
+    return transmission_weighted_abs, transmission_norm_abs, transmission_weighted_app, transmission_norm_app
