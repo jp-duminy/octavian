@@ -28,6 +28,7 @@ from .pipeline_management import (
     resolve_dependencies as resolve_dependencies,
 )
 from .conventions import (
+    CODE_UNITS as CODE_UNITS,
     DTYPES as DTYPES,
     OctavianConstants as OctavianConstants,
     OctavianConfig as OctavianConfig,
