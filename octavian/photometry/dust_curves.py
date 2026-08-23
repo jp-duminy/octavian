@@ -19,7 +19,7 @@ All functions expect to receive a wavelengths array in angstrom. They convert in
 import numpy as np
 from numba import njit
 
-NORMALISATION = 5500  # angstrom
+NORMALISATION = 5500.0  # angstrom
 
 
 @njit(cache=True)
@@ -89,7 +89,7 @@ def atten_calzetti(wavelengths: np.ndarray) -> np.ndarray:
     ir_slope = (k_22000 - k_21900) / 100
 
     # normalisation
-    normalisation = _calzetti_ir(wavelength=NORMALISATION, R_v=calzetti_rv) / calzetti_rv
+    normalisation = _calzetti_uv(wavelength=NORMALISATION, R_v=calzetti_rv) / calzetti_rv
 
     n_wave = wavelengths.shape[0]
     taus = np.empty(shape=n_wave, dtype=np.float64)
