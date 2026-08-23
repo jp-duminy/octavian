@@ -107,8 +107,10 @@ def compute_photometric_properties(
         star_A_v = np.empty(shape=len(Z_col), dtype=np.float64)
         star_A_v[:] = Z_col * phot_constants.Z_col_to_A_v
 
+        # Li et al. 2019 correction (https://arxiv.org/pdf/1906.09277)
+        # this is ported from Caesar cyloser, I am unsure where their coefficients come from, but I have assumed they are correct
         if not phot_constants.use_dust:
-            for s in range(len(star_A_v)):  # Li et al. 2019
+            for s in range(len(star_A_v)):
                 if Z_col[s] > 0.0:
                     z_solar = Z_col[s] / phot_constants.Z_sun  # normalise
                     dtm = 10.0 ** (dtm_slope * np.log10(z_solar) + dtm_intercept)
@@ -477,7 +479,7 @@ def compute_metal_column_densities(
 
     - Z_col: the total metal column density from gas along the LOS
     """
-    if len(star_pos) or len(gas_pos) == 0:  # avoid wasted computations if no gas (or stars)
+    if len(star_pos) == 0 or len(gas_pos) == 0:  # avoid wasted computations if no gas (or stars)
         return np.zeros(shape=len(star_pos), dtype=np.float64)
 
     # orthogonal axes
