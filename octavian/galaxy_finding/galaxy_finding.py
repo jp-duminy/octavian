@@ -21,8 +21,9 @@ import numpy as np
 import numba
 
 # internal imports
-from .fof6d_algorithm import dispatch_fof6d, unwrap_positions
+from .fof6d_algorithm import dispatch_fof6d
 from ..data_management import DTYPES, OctavianConfig
+from ..utils import unwrap_positions
 from ..log import get_logger
 
 logger = get_logger()
@@ -209,7 +210,9 @@ def prepare_fof6d_data(
 
     for halo_idx in range(len(ordered_starts)):
         s, e = ordered_starts[halo_idx], ordered_ends[halo_idx]
-        unwrap_positions(positions=all_pos[s:e], boxsize=simulation.boxsize)
+        unwrap_positions(
+            positions=all_pos[s:e], centre=all_pos[s], boxsize=simulation.boxsize
+        )  # pass first particle as centre
 
     data = FOF6DData(
         pos=all_pos,

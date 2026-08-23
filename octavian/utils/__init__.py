@@ -13,4 +13,5 @@ from .toolbox import (
 from .helpers import (
     guarded_divide as guarded_divide,
     guarded_arcsin as guarded_arcsin,
+    unwrap_positions as unwrap_positions,
 )
