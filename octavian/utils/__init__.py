@@ -9,3 +9,8 @@ from .toolbox import (
     generate_test_catalogue as generate_test_catalogue,
     repack_catalogue as repack_catalogue,
 )
+
+from .helpers import (
+    guarded_divide as guarded_divide,
+    guarded_arcsin as guarded_arcsin,
+)

@@ -18,10 +18,10 @@ if TYPE_CHECKING:
 import numpy as np
 
 # internal imports
+from ..utils import guarded_divide
 from ..aggregate_properties.aggregate_helpers import (
     sum_per_group,
     max_idx_per_group,
-    guarded_divide,
 )
 from ..log import get_logger
 
