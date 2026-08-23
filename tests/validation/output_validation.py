@@ -57,6 +57,18 @@ def _validate_csr_integrity(
     assert len(dupes) == 0, f"{group_data}/{particle_list}: {len(dupes)} duplicate particles in groups."
     logger.info(f"{group_data}/{particle_list} has no intra-group duplicate particles.")
 
+    if len(indices) > 1:
+        diffs = np.diff(indices)
+        group_boundaries = offsets[1:-1]  # exclude first and last
+        group_boundaries = group_boundaries[
+            (group_boundaries > 0) & (group_boundaries < len(indices))
+        ]  # exclude empty groups
+        interior = np.ones(len(diffs), dtype=bool)
+        interior[group_boundaries - 1] = False  # pre-set false at group boundaries
+        assert np.all(diffs[interior] > 0), (
+            f"{group_data}/{particle_list}: indices do not monotonically increase within at least one group."
+        )
+
     # no particle appears in two groups
     if row_mask is None:
         row_mask = np.ones(len(lengths), dtype=bool)
