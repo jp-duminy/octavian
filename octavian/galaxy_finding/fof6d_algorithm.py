@@ -86,27 +86,6 @@ def dispatch_fof6d(
 
 
 @njit(cache=True)
-def unwrap_positions(positions: np.ndarray, boxsize: float) -> None:
-    """
-    Unwraps PBCs by anchoring a halo to its first particle; mutates the positions array in-place.
-    """
-    half_box = boxsize * 0.5
-    n_particles = len(positions)
-
-    for axis in range(3):
-        anchor = positions[0, axis]
-
-        for i in range(1, n_particles):
-            delta = positions[i, axis] - anchor
-
-            if delta > half_box:
-                positions[i, axis] -= boxsize
-
-            elif delta < -half_box:
-                positions[i, axis] += boxsize
-
-
-@njit(cache=True)
 def construct_sparse_cell_linked_list(pos: np.ndarray, linking_length: float) -> tuple[np.ndarray, ...]:
     """
     Partitions particles in halos into a (sparse) cell linked-list. Returns a tuple of arrays:
