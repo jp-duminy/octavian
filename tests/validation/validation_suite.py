@@ -25,20 +25,13 @@ from collections.abc import Generator
 import argparse
 from dataclasses import replace
 
-# IO
-import h5py
-
-# memory profiling
+# other packages
 import memray
 import psutil
-
-# maths
+import h5py
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib as mpl
-from cycler import cycler
 
-# octavian pipeline stages
+# internal imports
 from octavian.data_management import (
     write_catalogue,
     construct_membership_arrays,
@@ -88,38 +81,6 @@ from .output_validation import (
     validate_halo_membership,
     validate_mass_budget,
     check_for_nans,
-)
-
-mpl.rcParams.update(
-    {
-        "axes.prop_cycle": cycler(
-            "color", ["#0C5DA5", "#00B945", "#FF9500", "#FF2C00", "#845B97", "#474747", "#9e9e9e"]
-        ),
-        "figure.figsize": (3.5, 2.625),
-        "xtick.direction": "in",
-        "xtick.major.size": 3,
-        "xtick.major.width": 0.5,
-        "xtick.minor.size": 1.5,
-        "xtick.minor.width": 0.5,
-        "xtick.minor.visible": True,
-        "xtick.top": True,
-        "ytick.direction": "in",
-        "ytick.major.size": 3,
-        "ytick.major.width": 0.5,
-        "ytick.minor.size": 1.5,
-        "ytick.minor.width": 0.5,
-        "ytick.minor.visible": True,
-        "ytick.right": True,
-        "axes.linewidth": 0.5,
-        "grid.linewidth": 0.5,
-        "lines.linewidth": 1.0,
-        "legend.frameon": False,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.05,
-        "font.family": "serif",
-        "mathtext.fontset": "dejavuserif",
-        "text.usetex": False,
-    }
 )
 
 _PROCESS = psutil.Process()
@@ -389,59 +350,6 @@ def conduct_output_catalogue_validation(catalogue: Path) -> None:
             validate_mass_budget(f=f)
 
 
-def plot_gsmf(catalogue: Path, boxsize: float, minstars: int = 32) -> None:
-    """
-    Plots the galactic stellar mass function (useful for FOF6D testing)
-    """
-    logger = get_logger()
-
-    with h5py.File(catalogue, "r") as f:
-        mass = f["galaxy_data"]["properties/core/mass_star"][:]
-        mass_gas = f["galaxy_data"]["properties/core/mass_gas"][:]
-        n_star = f["galaxy_data"]["properties/core/n_star"][:]
-        n_gas = f["galaxy_data"]["properties/core/n_gas"][:]
-
-        star_mask = n_star >= minstars
-        mass = mass[star_mask]
-        mass_gas = mass_gas[star_mask]
-        n_star = n_star[star_mask]
-        n_gas = n_gas[star_mask]
-
-        logger.info(f"Resolved star mass: {np.sum(mass):.2e}")
-        logger.info(f"Resolved star counts: {np.sum(n_star):.2e}")
-        logger.info(f"Resolved gas mass: {np.sum(mass_gas):.2e}")
-        logger.info(f"Resolved gas counts: {np.sum(n_gas):.2e}")
-        logger.info(f"Resolved galaxies: {star_mask.sum()}")
-
-        positive_mask = mass > 0
-        log_mass = np.log10(mass[positive_mask])
-
-        bin_edges = np.arange(8.5, 12.0 + 0.2, 0.2)
-        counts, _ = np.histogram(log_mass, bins=bin_edges)
-
-        volume = boxsize**3
-
-        bin_centres = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        bin_width = bin_edges[1] - bin_edges[0]
-
-        phi = counts / (bin_width * volume)
-        phi_err = np.sqrt(counts) / (bin_width * volume)
-
-        mask = counts > 0
-
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.errorbar(
-            x=bin_centres[mask], y=phi[mask], yerr=phi_err[mask], color="red", fmt="o", ls="-", capsize=3, label="GSMF"
-        )
-        ax.legend()
-        ax.set_yscale("log")
-        ax.set_xlabel(r"$\log_{10}(M_\star / M_\odot)$")
-        ax.set_ylabel(r"$\Phi$ [dex$^{-1}$ Mpc$^{-3}$ $h^3$]")
-        ax.set_title(f"Galaxy Stellar Mass Function for {catalogue.name}")
-        fig.tight_layout()
-        fig.savefig(fname="gsmf.png", dpi=300)
-
-
 def record_test_results(
     all_timings: list[dict[str, float]],
     all_memories: list[dict[str, float]],
@@ -660,7 +568,6 @@ def test_run(args: argparse.Namespace) -> None:
                 cores_per_rank=config.cores_per_rank,
                 args=args,
             )
-            plot_gsmf(catalogue=catalogue_path, boxsize=25, minstars=32)
             validate_against_reference(catalogue=catalogue_path, reference=args.reference)
 
 
