@@ -169,6 +169,7 @@ def _profiled_pipeline(
             subhalo_key="SubhaloID",
             group_kind=internals.group_types["halos"]["kind"],
             subhalo_info=subhalo_info,
+            original_halo_ids=halo_assignments.original_hids,
         )
 
         if fof6d_result.n_galaxies > 0:
@@ -437,6 +438,7 @@ def test_run(args: argparse.Namespace) -> None:
             halo_to_rank = generate_rank_halo_assignments(
                 halo_assignments=all_halo_assignments, config=config, n_ranks=size
             )
+            original_halo_ids = all_halo_assignments.original_hids
             test_rank_assignments(halo_to_rank=halo_to_rank, all_halo_assignments=all_halo_assignments, n_ranks=size)
             halo_to_rank_length = len(halo_to_rank)
             assert halo_to_rank.dtype == np.int64
@@ -444,6 +446,7 @@ def test_run(args: argparse.Namespace) -> None:
         else:
             halo_to_rank = None
             subhalo_info = None
+            original_halo_ids = None
             halo_to_rank_length = 0
 
         if comm is not None:
@@ -456,6 +459,7 @@ def test_run(args: argparse.Namespace) -> None:
             subhalo_info = (
                 comm.bcast(subhalo_info, root=0) if comm else subhalo_info
             )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
+            original_halo_ids = comm.bcast(original_halo_ids, root=0) if comm else original_halo_ids
 
             slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
 
@@ -486,6 +490,7 @@ def test_run(args: argparse.Namespace) -> None:
             halo_ids=local_halo_ids,
             n_total_halos=len(halo_to_rank),
             subhalo_ids=local_subhalo_ids,
+            original_hids=original_halo_ids,
         )
 
         reader.set_maps(slabs=slabs, masks=masks, maps=maps, comm=comm)

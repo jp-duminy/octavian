@@ -97,6 +97,7 @@ def validate_halo_membership(f: h5py.File) -> None:
     all_keys = [f"membership/{p}_{s}" for p in PTYPES for s in SUFFIXES] + [
         "membership/parent",
         "membership/depth",
+        "membership/original_ids",
     ]  # TODO: move to validation_columns.py
     logger = get_logger()
     # check keys exist

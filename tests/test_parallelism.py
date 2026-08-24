@@ -36,6 +36,7 @@ test_subhalo_info = SubhaloInformation(
     depth=np.array([1, 1, 1, 1, 2], dtype=np.int64),
     global_index=np.array([0, 1, 2, 3, 4], dtype=np.int64),
     n_bound=np.array([10, 5, 8, 3, 4], dtype=np.int64),
+    original_subhids=np.array([0, 1, 2, 3, 4], dtype=np.int64),
 )
 
 # this rank owns HaloIDs 0, 1, 2, 3 and has one sentinel particle

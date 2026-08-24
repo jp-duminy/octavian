@@ -33,6 +33,7 @@ class HaloAssignments:
     halo_ids: dict[str, np.ndarray]
     n_total_halos: int
     subhalo_ids: dict[str, np.ndarray] | None = None
+    original_hids: np.ndarray | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -44,6 +45,7 @@ class SubhaloInformation:
     - parent_index: immediate parent subhalo index
     - depth: the level of nestage, always >=1
     - n_bound: the number of bound particles (inclusive)
+    - original_subhids: the original finder IDs
     """
 
     host_halo_ids: np.ndarray  # top-level HaloID
@@ -51,6 +53,7 @@ class SubhaloInformation:
     depth: np.ndarray  # >= 1
     global_index: np.ndarray
     n_bound: np.ndarray
+    original_subhids: np.ndarray | None = None
 
 
 def build_halo_source(config: OctavianConfig, reader: SnapshotReader) -> HaloSource:
@@ -146,8 +149,11 @@ class SnapshotHaloSource(HaloSource):
         n_total_halos = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
 
         return HaloAssignments(
-            halo_ids=halo_ids, n_total_halos=n_total_halos, subhalo_ids=None
-        )  # on-the-fly currently does not do subhalos
+            halo_ids=halo_ids,
+            n_total_halos=n_total_halos,
+            subhalo_ids=None,
+            original_hids=None,
+        )  # on-the-fly currently does not do subhaloes
 
     def distribute_raw_halo_ids(self, slabs: dict[str, slice], comm=None, global_ids=None) -> dict[str, np.ndarray]:
         """

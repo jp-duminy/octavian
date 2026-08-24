@@ -284,6 +284,7 @@ def assign_local_subhalos(
         parent_index=new_parent_index,
         depth=subhalo_info.depth[keep],
         n_bound=subhalo_info.n_bound[keep],
+        original_subhids=subhalo_info.original_subhids[keep],
     )
 
     return new_subhalo_info
