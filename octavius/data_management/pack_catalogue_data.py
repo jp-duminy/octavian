@@ -1,6 +1,9 @@
 """
 
-Functions which write data from analysis stages into CSR format lists for HDF5 compatibility (and fast, straightforward access) and create output HDF5 files (per-rank currently).
+This file contains the functionality for what ranks do with their own data, including
+the metadata and header writes which rank 0 does. The parallel writes are perhaps the most
+complex part of the codebase; here the output dataclasses which ranks broadcast to each other
+are defined.
 
 """
 

@@ -1,8 +1,7 @@
 """
 
-Logger; much easier than littered than print statements.
-
-Lets warnings and info go through, debugging is saved for the output file. When running with MPI, only rank 0 will talk to the terminal. The other ranks will only chat to you if some sort of error or warning is flagged. However, the output files will contain everything.
+This file contains everything to do with the logger, which prints output to the terminal. It is MPI-aware,
+and there is functionality for concatenating per-rank logs at the end of a run.
 
 """
 
@@ -25,7 +24,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
     logger.setLevel(level=logging.DEBUG)  # allow all calls through, so handlers can suppress lower levels
     logger.propagate = False
 
-    rank_tag = f"Rank {rank}"
+    rank_tag = f"RANK {rank}"
     terminal_format = f"OCTAVIUS [{rank_tag}] | %(levelname)s | %(message)s"
     file_format = f"%(asctime)s | OCTAVIUS [{rank_tag}] | %(levelname)s | %(message)s"
 

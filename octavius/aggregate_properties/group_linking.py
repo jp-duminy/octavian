@@ -1,6 +1,11 @@
 """
 
-Functionality to assign galaxies their parent halos. This has two paths: if there is no subhalo information, it naïvely assigns galaxies a parent_halo_index corresponding to the HaloID of the first particle in the galaxy; the parent_membership_fraction is then trivially also 1.0. If subhalo information is present, it uses a plurality vote to determine parent_halo_index and registers parent_membership_fraction accordingly.
+Functionality to assign galaxies their parent haloes. This has two paths: if there is no subhalo information,
+it naïvely assigns galaxies a parent_halo_index corresponding to the HaloID of the first particle in the galaxy;
+the parent_membership_fraction is then trivially also 1.0. If subhalo information is present, it uses a
+plurality vote to determine parent_halo_index and registers parent_membership_fraction accordingly.
+
+# TODO: add method to trim galaxy particles if desired.
 
 """
 
@@ -31,20 +36,20 @@ def assign_membership(
     Assigns the galaxy groupstore the parent information depending on whether subhalo info exists.
     """
     results: dict[str, np.ndarray] = {}
-    halos = simulation_data.groups["halos"]
+    haloes = simulation_data.groups["haloes"]
     if "galaxies" not in simulation_data.groups:  # early return in case FOF6D did not find galaxies
         return
     galaxies = simulation_data.groups["galaxies"]
     particles = simulation_data.particles
     available_baryonic = [pt for pt, s in particles.items() if s.is_baryonic]
-    n_field_halos = int((halos["depth"] == 0).sum()) if "depth" in halos else halos.n_groups
+    n_field_haloes = int((haloes["depth"] == 0).sum()) if "depth" in haloes else haloes.n_groups
 
     field_halo_index = assign_galaxy_field_indices(
         particles=particles,
         galaxies=galaxies,
-        halos=halos,
+        haloes=haloes,
         available_baryonic_ptypes=available_baryonic,
-        n_field_halos=n_field_halos,
+        n_field_haloes=n_field_haloes,
     )
 
     if subhalo_info is not None:
@@ -52,9 +57,9 @@ def assign_membership(
             particles=particles,
             galaxies=galaxies,
             available_baryonic_ptypes=available_baryonic,
-            n_subhalos=len(subhalo_info.depth),
+            n_subhaloes=len(subhalo_info.depth),
         )
-        parent_halo_index = np.where(raw_winners >= 0, raw_winners + n_field_halos, field_halo_index)
+        parent_halo_index = np.where(raw_winners >= 0, raw_winners + n_field_haloes, field_halo_index)
         parent_membership_frac[raw_winners < 0] = 1.0  # interlopers: unambiguous field membership
     else:
         parent_halo_index = field_halo_index.copy()
@@ -69,9 +74,9 @@ def assign_membership(
 def assign_galaxy_field_indices(
     particles: dict[str, ParticleStore],
     galaxies: GroupStore,
-    halos: GroupStore,
+    haloes: GroupStore,
     available_baryonic_ptypes: list[str],
-    n_field_halos: int,
+    n_field_haloes: int,
 ) -> np.ndarray:
     """
     Naïvely assigns galaxies their parent halo indices based on the HaloID of the first particle in the galaxy.
@@ -102,7 +107,7 @@ def assign_galaxy_field_indices(
     galaxy_halo_id = np.full(shape=galaxies.n_groups, fill_value=-1, dtype=DTYPES["HaloID"])
     galaxy_halo_id[valid] = all_hids[first_particle_idx[valid]]
 
-    field_ids = halos.group_ids[:n_field_halos]
+    field_ids = haloes.group_ids[:n_field_haloes]
     positions = np.searchsorted(field_ids, galaxy_halo_id)
     positions = np.clip(positions, 0, len(field_ids) - 1)
     found = field_ids[positions] == galaxy_halo_id
@@ -116,7 +121,7 @@ def assign_galaxy_field_indices(
 
 
 def assign_galaxy_halo_indices(
-    particles: dict[str, ParticleStore], galaxies: GroupStore, available_baryonic_ptypes: list[str], n_subhalos: int
+    particles: dict[str, ParticleStore], galaxies: GroupStore, available_baryonic_ptypes: list[str], n_subhaloes: int
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Assigns parent halo index by plurality of subhalo membership.
@@ -132,14 +137,14 @@ def assign_galaxy_halo_indices(
 
     subhids, galaxy_idx = np.concatenate(all_subhids), np.concatenate(all_galaxy_idx)
 
-    order = np.argsort(galaxy_idx, kind="stable")  # make each galaxy's members contiguous across ptypes
+    order = np.argsort(galaxy_idx, stable=True)  # make each galaxy's members contiguous across ptypes
     subhids = subhids[order]  # sorted here (so the numba function can assume so)
 
     lengths = np.bincount(galaxy_idx, minlength=galaxies.n_groups)
     gal_offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(DTYPES["csr_offsets"])
 
     raw_winners, parent_membership_frac = _find_galaxy_parent(
-        gal_offsets=gal_offsets, subhids=subhids, n_galaxies=galaxies.n_groups, n_subhalos=n_subhalos
+        gal_offsets=gal_offsets, subhids=subhids, n_galaxies=galaxies.n_groups, n_subhaloes=n_subhaloes
     )
 
     return raw_winners, parent_membership_frac
@@ -150,12 +155,12 @@ def _find_galaxy_parent(
     gal_offsets: np.ndarray,
     subhids: np.ndarray,
     n_galaxies: int,
-    n_subhalos: int,
+    n_subhaloes: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     For each galaxy, determine its parent subhalo index and parent membership fraction from the subhalo info. Returns a tuple of (parent_halo_index, parent_membership_fraction).
     """
-    counts = np.zeros(n_subhalos, dtype=np.int64)
+    counts = np.zeros(n_subhaloes, dtype=np.int64)
     parent_halo_index = np.full(shape=n_galaxies, fill_value=-1, dtype=np.int64)
     parent_membership_frac = np.full(shape=n_galaxies, fill_value=0, dtype=np.float32)
 

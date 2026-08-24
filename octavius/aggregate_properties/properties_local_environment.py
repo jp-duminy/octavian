@@ -2,7 +2,9 @@
 
 Properties related to a structure's local environment (number densities, aperture masses, etc.).
 
-# TODO: use MPI to make aperture masses globally-invariant; they are currently dependent on the number of ranks being run.
+# TODO: use MPI to make local densities globally-invariant; they are currently dependent on the number of ranks being run.
+Furthermore, the aperture masses are currently inaccurate for galaxies at the edge of a halo, because particles are split
+across ranks by halo and not spatially decomposed.
 
 """
 
@@ -50,7 +52,7 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
         aperture_results = compute_galaxy_aperture_masses(
             particles=simulation_data.particles,
             galaxies=galaxies,
-            halos=simulation_data.groups["halos"],
+            haloes=simulation_data.groups["haloes"],
             boxsize=sim.boxsize,
             aperture_size=aperture,
             cores_per_rank=config.cores_per_rank,
@@ -60,7 +62,7 @@ def run_local_environment(simulation_data: SimulationData, config: OctaviusConfi
     logger.info("Local environment properties computed.")
 
 
-def compute_local_densities(
+def compute_local_densities(  # FIXME: not MPI-invariant
     pos: np.ndarray,
     mass: np.ndarray,
     n_groups: int,
@@ -99,10 +101,10 @@ def compute_local_densities(
     return results
 
 
-def compute_galaxy_aperture_masses(
+def compute_galaxy_aperture_masses(  # FIXME: aperture masses of galaxies at edge of halo are less accurate as particles are split across ranks
     particles: dict[str, ParticleStore],
     galaxies: GroupStore,
-    halos: GroupStore,
+    haloes: GroupStore,
     boxsize: float,
     aperture_size: float,
     cores_per_rank: int,
@@ -146,21 +148,21 @@ def compute_galaxy_aperture_masses(
         np.concatenate(hids_list, dtype=DTYPES["HaloID"]),
     )
 
-    halo_idx = halos.get_indexer(group_id=all_hids)
-    halo_offsets, halo_idx_sorted = build_group_csr(group_idx=halo_idx, n_groups=halos.n_groups)
+    halo_idx = haloes.get_indexer(group_id=all_hids)
+    halo_offsets, halo_idx_sorted = build_group_csr(group_idx=halo_idx, n_groups=haloes.n_groups)
 
-    # galaxy membership aligned to their parent halos
-    parent_halo_ids = halos.group_ids[galaxies["parent_halo_index"]]
-    parent_halo_idx = halos.get_indexer(group_id=parent_halo_ids)
-    gal_offsets, gal_idx_sorted = build_group_csr(group_idx=parent_halo_idx, n_groups=halos.n_groups)
+    # galaxy membership aligned to their parent haloes
+    parent_halo_ids = haloes.group_ids[galaxies["parent_halo_index"]]
+    parent_halo_idx = haloes.get_indexer(group_id=parent_halo_ids)
+    gal_offsets, gal_idx_sorted = build_group_csr(group_idx=parent_halo_idx, n_groups=haloes.n_groups)
 
     result = np.zeros(shape=(galaxies.n_groups, len(ptypes)))
     result_HI, result_H2 = np.zeros(shape=galaxies.n_groups), np.zeros(shape=galaxies.n_groups)
     gal_pos = galaxies["com_pos_baryon"]  # avoid repeated lookup
 
     for h in range(
-        halos.n_groups
-    ):  # a galaxy's aperture can and does often extend into multiple halos, so parallelising this is unsafe
+        haloes.n_groups
+    ):  # a galaxy's aperture can and does often extend into multiple haloes, so parallelising this is unsafe
         if gal_offsets[h] == gal_offsets[h + 1]:  # if halo has no galaxies
             continue
 

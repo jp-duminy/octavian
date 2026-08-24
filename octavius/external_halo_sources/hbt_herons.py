@@ -107,7 +107,9 @@ class HeronsHaloSource(HaloSource):
             )  # handles unmatched particles' sentinels
             subhalo_assignments[ptype] = apply_lookup(ids=subhalo_ids, lookup=self.subhid_lookup)
 
-        return HaloAssignments(halo_ids=halo_assignments, subhalo_ids=subhalo_assignments)
+        return HaloAssignments(
+            halo_ids=halo_assignments, subhalo_ids=subhalo_assignments
+        )  # FIXME: now 4 fields on HaloAssignments
 
     def read_subhalo_info(self) -> SubhaloInformation:
         """
@@ -118,7 +120,7 @@ class HeronsHaloSource(HaloSource):
             host_halo_ids=apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
             track_ids=track_ids,
             n_bound=n_bound,
-        )  # this is basically a wrapper; I envision AHF needing more on this method
+        )  # FIXME: now 6 fields on SubhaloInformation
 
 
 def match_particle_ids(
@@ -165,7 +167,7 @@ def read_subsnap_particles(catalogue_path: Path) -> tuple[np.ndarray, ...]:
             )
 
         particle_ids = catalogue["Particles/ParticleIDs"][:]
-        particle_offsets = catalogue["Subhalos/ParticleOffset"][:]
+        particle_offsets = catalogue["Subhaloes/ParticleOffset"][:]
 
     return particle_ids, particle_offsets
 
@@ -177,9 +179,9 @@ def read_subsnap_properties(catalogue_path: Path) -> tuple[np.ndarray, ...]:
     NOTE: n_bound == 0 for orphan particles and is not filtered here.
     """
     with h5py.File(catalogue_path, "r") as catalogue:
-        track_ids = catalogue["Subhalos/TrackId"][:]
-        host_halo_ids = catalogue["Subhalos/HostHaloId"][:]
-        n_bound = catalogue["Subhalos/Nbound"][:]
+        track_ids = catalogue["Subhaloes/TrackId"][:]
+        host_halo_ids = catalogue["Subhaloes/HostHaloId"][:]
+        n_bound = catalogue["Subhaloes/Nbound"][:]
 
     return track_ids, host_halo_ids, n_bound
 

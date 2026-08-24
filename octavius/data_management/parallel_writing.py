@@ -1,6 +1,14 @@
 """
 
-Functions to collate per-rank analysis data via MPI and create a final, globally-ordered Octavius catalogue; the global order does not change between seriial/parallel runs.
+Functions to collate per-rank analysis data via MPI and create a final, globally-ordered
+catalogue; it is important the global order does not change between serial/parallel runs, to
+ensure the output is deterministic.
+
+In practice this becomes really quite finicky, mainly due to the indices dataset, which is
+particle-level (so gigabyte-order). Since int64 was only supported in MPI-4 for the operations
+which would allow this to be safely done, we have the group-level data get broadcast normally,
+then rank 0 calculates where each rank should write its indices output to, then ranks take turns
+sequentially writing their indices to the output file.
 
 """
 
@@ -26,7 +34,7 @@ from ..log import get_logger
 
 logger = get_logger()
 
-SORT_COLUMN_BY_KIND: dict[str, str] = {  # this is necessitated by halos and galaxies having different total mass keys
+SORT_COLUMN_BY_KIND: dict[str, str] = {  # this is necessitated by haloes and galaxies having different total mass keys
     "halo": "mass_total",
     "galaxy": "mass_baryon",
 }
@@ -115,7 +123,7 @@ def write_catalogue(
 
                 for rank_data in (
                     all_lightweight
-                ):  # there is a fair bit of nestage in the dataclass here but hopefully this reads okay
+                ):  # there is a fair bit of nesting in the dataclass here but hopefully this reads okay
                     if hdf5_name in rank_data.groups and ptype in rank_data.groups[hdf5_name].particle_lists:
                         rank_lengths.append(
                             np.diff(rank_data.groups[hdf5_name].particle_lists[ptype].offsets)
@@ -212,7 +220,8 @@ def write_catalogue(
 
 def _resolve_pointer_column(chunks: list[np.ndarray], inverse_halo_order: np.ndarray, order: np.ndarray) -> np.ndarray:
     """
-    Concatenates per-rank pointers and reindexes them into final merged catalogue order.
+    Concatenates per-rank pointers and reindexes them into final merged catalogue order. Necessary because, after the global
+    sort is applied, the local ordering is now invalid.
     """
     merged_pointers = np.concatenate(chunks)
     reindexed = np.where(merged_pointers == -1, -1, inverse_halo_order[merged_pointers])
@@ -220,29 +229,29 @@ def _resolve_pointer_column(chunks: list[np.ndarray], inverse_halo_order: np.nda
 
 
 def build_galaxy_membership_arrays(
-    galaxy_parent_halo_index: np.ndarray, halo_parent: np.ndarray, n_halos: int
+    galaxy_parent_halo_index: np.ndarray, halo_parent: np.ndarray, n_haloes: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Builds the galaxy membership CSR arrays and derives the central galaxy index from parent halos, returning a tuple of:
+    Builds the galaxy membership CSR arrays and derives the central galaxy index from parent haloes, returning a tuple of:
 
     - indices: ndarray of galaxy indices
     - offsets: ndarray of galaxy offsets
     - lengths: ndarray of galaxy lengths
     - central_galaxy_index: the index into galaxy_data which corresponds to a halo's most-massive galaxy
     """
-    lengths = np.zeros(n_halos, dtype=DTYPES["csr_lengths"])
+    lengths = np.zeros(n_haloes, dtype=DTYPES["csr_lengths"])
     level_halo_rows: list[np.ndarray] = []
     level_galaxy_indices: list[np.ndarray] = []
 
     current_rows = galaxy_parent_halo_index.astype(np.int64, copy=True)
     galaxy_indices = np.arange(len(galaxy_parent_halo_index), dtype=DTYPES["csr_indices"])
 
-    while True:
+    while True:  # trace the membership hierarchy, depth level by depth level
         valid_mask = current_rows >= 0
         if not valid_mask.any():
             break
 
-        lengths += np.bincount(current_rows[valid_mask], minlength=n_halos).astype(DTYPES["csr_lengths"])
+        lengths += np.bincount(current_rows[valid_mask], minlength=n_haloes).astype(DTYPES["csr_lengths"])
         level_halo_rows.append(current_rows[valid_mask])
         level_galaxy_indices.append(galaxy_indices[valid_mask])
         current_rows[valid_mask] = halo_parent[current_rows[valid_mask]]  # walk one level up; roots become -1
@@ -257,11 +266,11 @@ def build_galaxy_membership_arrays(
     else:
         indices = np.empty(0, dtype=DTYPES["csr_indices"])
 
-    central_galaxy_index = np.full(n_halos, -1, dtype=np.int64)
+    central_galaxy_index = np.full(n_haloes, -1, dtype=np.int64)
     non_empty = lengths > 0
     central_galaxy_index[non_empty] = indices[
         offsets[:-1][non_empty]
-    ]  # NOTE: this works because the global order uses mass_baryon so the central is the most massive baryonic galaxy (this)
+    ]  # NOTE: this works because the global order uses mass_baryon so the first galaxy automatically has the largest baryonic mass
 
     return indices, offsets, lengths, central_galaxy_index
 
@@ -288,7 +297,7 @@ def unpack_data(
         }
         for group_type in internals.group_types
     }
-    cumulative_halos = 0
+    cumulative_haloes = 0
 
     # NOTE: this is where the functionality begins
     for rank_data in all_rank_data:  # the rank_data dataclass is also (thankfully) keyed by hdf5 names
@@ -323,7 +332,7 @@ def unpack_data(
                     chunk = np.full(n_groups, FILL_VALUES[column_name], dtype=np.dtype(column_meta.dtype))
 
                 if column_name in HALO_POINTER_COLUMNS:
-                    chunk = np.where(chunk == -1, -1, chunk + cumulative_halos)
+                    chunk = np.where(chunk == -1, -1, chunk + cumulative_haloes)
 
                 membership_chunks[group_type][column_name].append(chunk)
 
@@ -336,7 +345,7 @@ def unpack_data(
             # group IDs
             all_group_ids[group_type].append(group.group_ids)
 
-        cumulative_halos += group_lengths["halos"][
+        cumulative_haloes += group_lengths["haloes"][
             -1
         ]  # use the previous rank's contribution so the next knows where to start
 
@@ -368,7 +377,7 @@ def resolve_global_ordering(
 
         merged = np.concatenate(
             unpacked.sort_arrays[group_type]
-        )  # sort_arrays is needed because galaxies/halos use baryonic/total mass
+        )  # sort_arrays is needed because galaxies/haloes use baryonic/total mass
         global_ids = np.concatenate(unpacked.group_ids[group_type])
         depth_chunks = unpacked.membership_chunks.get(group_type, {}).get("depth")
 
@@ -384,8 +393,8 @@ def resolve_global_ordering(
                 (global_ids, -merged)
             )  # just global IDs for galaxies as a tiebreaker (no hierarchy)
 
-    if "halos" in sort_orders:
-        inverse_halo_order = np.argsort(sort_orders["halos"], kind="stable")
+    if "haloes" in sort_orders:
+        inverse_halo_order = np.argsort(sort_orders["haloes"], stable=True)
 
     # resolve the per-rank membership pointer columns into the final catalogue order
     resolved: dict[tuple[str, str], np.ndarray] = {}
@@ -454,13 +463,13 @@ def write_group_data_to_catalogue(
                 dataset.attrs["description"] = column_meta.description
 
         # now write the galaxy membership arrays (requires halo info available), not in internals.yaml like particle membership
-        if "halos" in sort_orders and ("galaxies", "parent_halo_index") in resolved:
-            n_halos = len(sort_orders["halos"])
+        if "haloes" in sort_orders and ("galaxies", "parent_halo_index") in resolved:
+            n_haloes = len(sort_orders["haloes"])
             galaxy_indices, galaxy_offsets, galaxy_lengths, central_galaxy_index = build_galaxy_membership_arrays(
-                resolved[("galaxies", "parent_halo_index")], resolved[("halos", "parent")], n_halos
+                resolved[("galaxies", "parent_halo_index")], resolved[("haloes", "parent")], n_haloes
             )
 
-            halo_membership_grp = f_out[internals.group_types["halos"]["hdf5_group"]]["membership"]
+            halo_membership_grp = f_out[internals.group_types["haloes"]["hdf5_group"]]["membership"]
 
             # write halo-galaxy membership
             ds = halo_membership_grp.create_dataset("galaxy_indices", data=galaxy_indices, compression=1)
@@ -476,7 +485,7 @@ def write_group_data_to_catalogue(
                 "Per-halo galaxy_data lengths; galaxy_lengths[h] is the number of galaxies in halo h."
             )
 
-            central_meta = internals.membership_columns["halos"]["central_galaxy_index"]
+            central_meta = internals.membership_columns["haloes"]["central_galaxy_index"]
             central_dataset = halo_membership_grp.create_dataset(
                 "central_galaxy_index", data=central_galaxy_index, compression=1
             )

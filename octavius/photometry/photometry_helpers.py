@@ -2,7 +2,6 @@
 
 Helper functions for the photometry pipeline.
 
-# NOTE: https://doi.org/10.1093/mnras/stu936 (another IGM attenuation formula)
 
 """
 

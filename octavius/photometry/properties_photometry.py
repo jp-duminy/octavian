@@ -108,7 +108,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
 
     # halo data
-    haloes = simulation_data.groups["halos"]
+    haloes = simulation_data.groups["haloes"]
     gas_offsets, gas_idx = haloes.get_particle_csr(ptype="gas")
 
     # filter data transmission coefficients [0, 1] + normalisations for the apparent and absolute magnitude integrands

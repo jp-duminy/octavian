@@ -1,13 +1,13 @@
 """
 
-Tests whether the slabs/local subhalos functions produce sensible masks.
+Tests whether the slabs/local subhaloes functions produce sensible masks.
 
 """
 
 import numpy as np
 from octavius.data_management.parallel_reading import (
     generate_slabs,
-    assign_local_subhalos,
+    assign_local_subhaloes,
 )
 from octavius.external_halo_sources import SubhaloInformation
 from octavius.data_management import ParticleStore
@@ -40,8 +40,8 @@ test_subhalo_info = SubhaloInformation(
 )
 
 # this rank owns HaloIDs 0, 1, 2, 3 and has one sentinel particle
-# this rank also owns particles in subhalos 0, 1, 2 (plus two sentinels) (subhaloID is currently global)
-# so, this rank needs the global subhalos which have a host_halo_id which appears in this rank's particle HaloIDs
+# this rank also owns particles in subhaloes 0, 1, 2 (plus two sentinels) (subhaloID is currently global)
+# so, this rank needs the global subhaloes which have a host_halo_id which appears in this rank's particle HaloIDs
 # global subhalo -> field: 0 -> 0, 1 -> 2, 2 -> 3, 4 -> 0
 # by association, since this rank owns field 0 which owns subhalo 4, it needs subhalo 4's particles (though there are no stars on this rank in subhalo 4)
 # present on rank = [true, true, true, true, false, false]
@@ -50,31 +50,31 @@ test_subhalo_info = SubhaloInformation(
 # new subhids = [0, 1, 2, 0, -1, -1]
 
 
-def test_local_subhalos() -> None:
+def test_local_subhaloes() -> None:
     """
-    Tests parallel_reads.py function assign_local_subhalos.
+    Tests parallel_reads.py function assign_local_subhaloes.
     """
-    result = assign_local_subhalos(particles=subhalo_test_particles, subhalo_info=test_subhalo_info)
+    result = assign_local_subhaloes(particles=subhalo_test_particles, subhalo_info=test_subhalo_info)
 
     # expected derived from above (keep mask on initial arrays)
     assert np.array_equal(result.host_halo_ids, np.array([0, 2, 3, 0], dtype=np.int64)), (
-        "assign_local_subhalos failed: host IDs do not match."
+        "assign_local_subhaloes failed: host IDs do not match."
     )
     assert np.array_equal(result.depth, np.array([1, 1, 1, 2], dtype=np.int64)), (
-        "assign_local_subhalos failed: depths do not match."
+        "assign_local_subhaloes failed: depths do not match."
     )
     assert np.array_equal(result.global_index, np.array([0, 1, 2, 4], dtype=np.int64)), (
-        "assign_local_subhalos failed: global idx do not match."
+        "assign_local_subhaloes failed: global idx do not match."
     )
     assert np.array_equal(result.n_bound, np.array([10, 5, 8, 4], dtype=np.int64)), (
-        "assign_local_subhalos failed: n_bound do not match."
+        "assign_local_subhaloes failed: n_bound do not match."
     )
     assert np.array_equal(result.parent_index, np.array([-1, -1, -1, 0], dtype=np.int64)), (
-        "assign_local_subhalos failed: parent idx do not match."
+        "assign_local_subhaloes failed: parent idx do not match."
     )
     assert np.array_equal(
         subhalo_test_particles["star"]["SubhaloID"], np.array([0, 1, 2, 0, -1, -1], dtype=np.int64)
-    ), "assign_local_subhalos failed: remapped SubhaloIDs do not match."
+    ), "assign_local_subhaloes failed: remapped SubhaloIDs do not match."
 
 
 test_particle_counts: dict[str, int] = {

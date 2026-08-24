@@ -20,9 +20,10 @@ from ..version import CATALOGUE_VERSION
 
 def load(
     catalogue_path: Path,
-) -> "OctaviusCatalogue":  # in case users are behind on their python version, TODO: remove strings
+) -> OctaviusCatalogue:
     """
-    Load an Octavius catalogue, returning an OctaviusCatalogue object which contains an object-oriented interface for working with Octavius catalogues.
+    Load an Octavius catalogue, returning an OctaviusCatalogue object which contains an
+    object-oriented interface for working with Octavius catalogues.
 
     Parameters
     ----------
@@ -97,7 +98,9 @@ class OctaviusCatalogue:
 
     def _read_header(self) -> None:
         """
-        Stores metadata and the more prominent cosmological attributes on the catalogue class (those which users may want to access directly), and initialises the object-oriented header cosmology reader on the class for easy access.
+        Stores metadata and the more prominent cosmological attributes on the catalogue
+        class (those which users may want to access directly), and initialises the object-oriented
+        header cosmology reader on the class for easy access.
         """
         # simulation attributes
         header = self._file["header"]
@@ -120,7 +123,7 @@ class OctaviusCatalogue:
         """
         self._file.close()
 
-    def __enter__(self) -> "OctaviusCatalogue":  # just in case users are behind on their version, TODO: remove strings
+    def __enter__(self) -> OctaviusCatalogue:
         """
         Controls behaviour of "with load(catalogue.hdf5) as cat:" (opens the catalogue).
         """
@@ -227,7 +230,8 @@ class GroupCollection:
         verbose: bool = False,
     ) -> np.ndarray:
         """
-        Retrieves a dataset from the properties section of the catalogue and applies any requested conversions.
+        Retrieves a dataset from the properties section of the catalogue and applies any
+        requested conversions.
 
         Parameters
         ----------
@@ -280,7 +284,8 @@ class GroupCollection:
         verbose: bool = False,
     ) -> list[np.ndarray]:
         """
-        Retrieves multiple datasets from the properties section of the catalogue and applies any requested conversions.
+        Retrieves multiple datasets from the properties section of the catalogue and
+        applies any requested conversions.
 
         Parameters
         ----------
@@ -329,7 +334,10 @@ class GroupCollection:
         verbose: bool = False,
     ) -> np.ndarray:
         """
-        Retrieves a membership dataset from the membership section of the catalogue; can optionally retrieve members for the specified group_index. Membership datasets are not necessarily (n_groups) length, and therefore a mask argument is not provided; it is recommended to instead load the dataset using this method and then mask appropriately.
+        Retrieves a membership dataset from the membership section of the catalogue; can optionally
+        retrieve members for the specified group_index. Membership datasets are not necessarily (n_groups)
+        length, and therefore a mask argument is not provided; it is recommended to instead load the dataset
+        using this method and then mask appropriately.
 
         Parameters
         ----------
@@ -364,7 +372,8 @@ class GroupCollection:
         halo_index: int,
     ) -> np.ndarray:
         """
-        Retrieves the indices into the catalogue corresponding to the galaxies which belong to the halo at halo_index; will not work if used on the galaxies collection.
+        Retrieves the indices into the catalogue corresponding to the galaxies which belong to the
+        halo at halo_index; will not work if used on the galaxies collection.
 
         Parameters
         ----------

@@ -1,8 +1,8 @@
 """
 
-Octavius galaxy finding, calling the internal FOF6D algorithm in fof6d_algorith.py
+The galaxy finding pipeline. This file includes the python-level bindings to the algorithm in
+fof6d_algorithm.py, along with the pre-processing and data storage functions.
 
-If this is very slow, numba may not be jitting on your cluster. Please check whether this is the case.
 
 """
 
@@ -158,16 +158,16 @@ def prepare_fof6d_data(
         ),
         default=-1,
     )
-    n_halos = max_halo_id + 1  # this is now the number of field halos (since that's what we operate on)
+    n_haloes = max_halo_id + 1  # this is now the number of field haloes (since that's what we operate on)
     star_counts = np.bincount(
-        star_halo_ids[star_halo_ids >= 0], minlength=n_halos
+        star_halo_ids[star_halo_ids >= 0], minlength=n_haloes
     )  # NOTE: need to mask sentinel value here
 
-    eligible_halos = np.where(star_counts >= config.min_stars_per_galaxy)[
+    eligible_haloes = np.where(star_counts >= config.min_stars_per_galaxy)[
         0
-    ]  # disregard halos which would have no galaxies
+    ]  # disregard haloes which would have no galaxies
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
-    eligible_set[eligible_halos] = True
+    eligible_set[eligible_haloes] = True
 
     gas = particles["gas"]
     rho, sfr = gas["rho"], gas["sfr"]
@@ -245,7 +245,7 @@ def prepare_fof6d_data(
     ends = np.concatenate((changes, [len(sorted_halo_ids)]))
 
     sizes = ends - starts
-    size_order = np.argsort(sizes)[::-1]  # largest halos first
+    size_order = np.argsort(sizes)[::-1]  # process largest haloes first
 
     ordered_starts = starts[size_order]
     ordered_ends = ends[size_order]
@@ -276,11 +276,11 @@ def extract_galaxies_from_parents(
     """
     Extracts GalIDs from the parents array returned by the FOF6D algorithm.
     """
-    n_halos = len(work_data.starts)
+    n_haloes = len(work_data.starts)
     all_keys, all_gids, all_ptype_codes = [], [], []
     galaxy_id_offset = 0
 
-    for halo_idx in range(n_halos):
+    for halo_idx in range(n_haloes):
         s, e = work_data.starts[halo_idx], work_data.ends[halo_idx]
 
         if parents[s] == -1:

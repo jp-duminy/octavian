@@ -1,6 +1,10 @@
 """
 
-Functions for generating and parsing a bespoke .hdf5 file containing all the data needed for Octavius's photometry pipeline.
+Functions for generating and parsing a bespoke .hdf5 file containing all the data needed
+for Octavius's photometry pipeline. This localises the FSPS dependency (which is significantly
+heavyweight) to a pre-processing step which only needs to run once.
+
+Also contains the method for hacking the config.
 
 """
 

@@ -1,10 +1,28 @@
 """
 
-Octavius 6D friends-of-friends galaxy-finding algorithm which utilises cell linked-lists, an algorithm originally used in molecular dynamics simulation codes to avoid naïve O(N^2) checks in groups by partitioning the data into cells with a cutoff radius beyond which particles are not checked. This is conceptually similar to a k-d tree, however, the difference comes down to how data is partitioned. k-d trees partition space by data density, which means they are optimal for adaptive queries. For example, consider wanting to find galaxy local number densities. If this galaxy is in a cosmic void, its neighbours might be megaparsecs away, whereas in a node it could be kiloparsecs. The k-d tree adapts to either case as its density-based leaf structure allows it to traverse voids or zoom in on nodes.
+Octavius 6D friends-of-friends galaxy-finding algorithm which utilises cell linked-lists,
+an algorithm originally used in molecular dynamics simulation codes to avoid naïve O(N^2)
+checks in groups by partitioning the data into cells with a cutoff radius beyond which particles
+are not checked. This is conceptually similar to a k-d tree, however, the difference comes down
+to how data is partitioned. k-d trees partition space by data density, which means they are optimal
+for adaptive queries. For example, consider wanting to find galaxy local number densities. If this
+galaxy is in a cosmic void, its neighbours might be megaparsecs away, whereas in a node it could
+be kiloparsecs. The k-d tree adapts to either case as its density-based leaf structure allows
+it to traverse voids or zoom in on nodes.
 
-Friends-of-friends is (in our case) based on a fixed linking length. Cell linked-lists are based on fixed cell sizes; meaning partitioning is spatially-based rather than density-based, which is therefore more suited to fixed distance queries. We specifically store the linked list in CSR format.
+Friends-of-friends is (in our case) based on a fixed linking length. Cell linked-lists are
+based on fixed cell sizes; meaning partitioning is spatially-based rather than density-based,
+which is therefore more suited to fixed distance queries. We specifically store the linked
+list in CSR format.
 
-The previous Octavius FOF6D framework used the scipy.spatial and scipy.sparse framework, vectorising the galaxy-finding approach with k-d tree -> sparse distance matrix -> sparse adjacency matrix -> connected components. However, this approach involves O(E) scaling where E is Nk and k is the average number of nearest neighbours. Therefore, in highly dense regions where k tends to N, the resulting O(N^2) scaling became untenable in memory. This could also occur for moderately-dense halos with enormous number counts. By writing this new algorithm in numba we use a union find to construct the connected components, thereby avoiding holding all edges in memory simultaneously.
+The previous Octavius FOF6D framework used the scipy.spatial and scipy.sparse framework,
+vectorising the galaxy-finding approach with k-d tree -> sparse distance matrix -> sparse adjacency matrix
+-> connected components. However, this approach involves O(E) scaling where E is Nk and k
+is the average number of nearest neighbours. Therefore, in highly dense regions where k tends
+to N, the resulting O(N^2) scaling became untenable in memory. This could also occur for
+moderately-dense haloes with enormous number counts. By writing this new algorithm in numba
+we use a union find to construct the connected components, thereby avoiding holding all edges
+in memory simultaneously.
 
 Original FoF: Davis et al. 1985, doi: 10.1086/163168
 
@@ -29,19 +47,19 @@ def dispatch_fof6d(
     linking_length: float,
     velocity_factor: float,
     minstars: int,
-    star_ptype_code: np.int8,
+    star_ptype_code: np.int8,  # explicit data type for numba
 ) -> None:
     """
-    Parallelises the galaxy finding by dispatching halos to different cores; modifies the input parents array in place.
+    Parallelises the galaxy finding by dispatching haloes to different cores; modifies the input parents array in place.
     """
-    n_halos = len(starts)
+    n_haloes = len(starts)
 
     neighbour_offsets = np.array(  # for symmetric vel criterion
         [(dx, dy, dz) for dx in range(-1, 2) for dy in range(-1, 2) for dz in range(-1, 2) if (dx, dy, dz) > (0, 0, 0)],
         dtype=np.int64,
     )
 
-    for halo_idx in prange(n_halos):
+    for halo_idx in prange(n_haloes):
         s, e = starts[halo_idx], ends[halo_idx]
         n_stars = np.sum(ptype_codes[s:e] == star_ptype_code)
 
@@ -86,9 +104,11 @@ def dispatch_fof6d(
 
 
 @njit(cache=True)
-def construct_sparse_cell_linked_list(pos: np.ndarray, linking_length: float) -> tuple[np.ndarray, ...]:
+def construct_sparse_cell_linked_list(
+    pos: np.ndarray, linking_length: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Partitions particles in halos into a (sparse) cell linked-list. Returns a tuple of arrays:
+    Partitions particles in haloes into a (sparse) cell linked-list. Returns a tuple of arrays:
 
     - sort_order: the indices to sort particles by cell (np.argsort)
     - cell_ids_sorted: sorted per-particle corresponding flat cell idx
@@ -96,7 +116,7 @@ def construct_sparse_cell_linked_list(pos: np.ndarray, linking_length: float) ->
     - unique_cells: the flat cell idx of each cell
     - grid_dims: the extent of the grid in each direction
 
-    The reason we want this to be sparse is because, while a cell linked-list is more naturally suited to the geometry of FOF, there must still be some consideration of density; the naïve implementation is sensitive to lone particles at the edges of halos which can affect the entire grid structure.
+    The reason we want this to be sparse is because, while a cell linked-list is more naturally suited to the geometry of FOF, there must still be some consideration of density; the naïve implementation is sensitive to lone particles at the edges of haloes which can affect the entire grid structure.
     """
     n_particles = len(pos)
     pos_min, pos_max = _find_min_max(array=pos)

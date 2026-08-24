@@ -3,10 +3,10 @@
 
 ptypes: [gas, star, dm, bh]
 baryonic_ptypes: [gas, star, bh]
-groups: [halos, galaxies]
+groups: [haloes, galaxies]
 
 group_types:
-  halos:
+  haloes:
     key: HaloID
     kind: halo
     ptypes: [gas, star, dm, bh]
@@ -30,7 +30,7 @@ stages:
 
   properties_core:
     label: core
-    applies_to: [halos, galaxies]
+    applies_to: [haloes, galaxies]
     requires: []
     needs_particle_columns:
       all: [pos, vel, mass, potential]
@@ -50,20 +50,20 @@ stages:
         over: {combined: [baryon]}
         applies_to: [galaxies]
       - columns: ["minpot_pos", "minpot_vel"]
-        applies_to: [halos]
+        applies_to: [haloes]
       - columns: ["radius_{quantile}_{ptype}"]
         over:
           ptype: [gas, star, dm, bh, total, baryon]
           quantile: from_config:radial_quantiles
       - columns: ["r{factor}c", "m{factor}c"]
         over: {factor: from_config:virial_factors}
-        applies_to: [halos]
+        applies_to: [haloes]
       - columns: ["r200", "virial_temperature", "circular_velocity", "spin_param", "vmax", "rmax"]
-        applies_to: [halos]
+        applies_to: [haloes]
 
   properties_ptype_specific:
     label: particle_specific
-    applies_to: [halos, galaxies]
+    applies_to: [haloes, galaxies]
     requires: [properties_core]
     needs_particle_columns:
       all: [mass]
@@ -73,7 +73,7 @@ stages:
     outputs:
       - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_mass_weighted", "metallicity_sfr_weighted", "temp_mass_weighted", "mass_cold", "mass_hot"]
       - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
-        applies_to: [halos]
+        applies_to: [haloes]
       - columns: ["metallicity_stellar", "age_mass_weighted", "age_metal_weighted"]
       - columns: ["smbh_mass", "smbh_mdot", "smbh_fedd"]
 
@@ -226,7 +226,7 @@ output_columns:
     a_exp:       1
     description: "Maximum radius a particle lives at from the centre."
 
-  # only halos
+  # only haloes
   vmax:
     dtype:       float64
     unit:        "km/s"
@@ -276,7 +276,7 @@ output_columns:
     unit:        "K"
     a_exp:       0
     description: "Virial temperature (uses r200)."
-  # end only halos
+  # end only haloes
 
   # only gas
   sfr:
@@ -297,13 +297,13 @@ output_columns:
     a_exp:       0
     description: "SFR-weighted gas metallicity."
 
-  metallicity_mass_weighted_cgm: # only halos
+  metallicity_mass_weighted_cgm: # only haloes
     dtype:       float64
     unit:        ""
     a_exp:       0
     description: "Mass-weighted CGM gas metallicity."
 
-  metallicity_temp_weighted_cgm: # only halos
+  metallicity_temp_weighted_cgm: # only haloes
     dtype:       float64
     unit:        ""
     a_exp:       0
@@ -315,13 +315,13 @@ output_columns:
     a_exp:       0
     description: "Mass-weighted gas temperature."
 
-  temp_mass_weighted_cgm: # only halos
+  temp_mass_weighted_cgm: # only haloes
     dtype:       float64
     unit:        "K"
     a_exp:       0
     description: "Mass-weighted CGM gas temperature."
 
-  temp_metal_weighted_cgm: # only halos
+  temp_metal_weighted_cgm: # only haloes
     dtype:       float64
     unit:        "K"
     a_exp:       0
@@ -477,15 +477,15 @@ output_columns:
 
 membership_columns:
 
-  halos:
+  haloes:
     parent:
       dtype: int64
-      description: "Row index of immediate parent in halo_data (-1 for field halos)."
+      description: "Row index of immediate parent in halo_data (-1 for field haloes)."
       unit: ""
       a_exp:       0
     depth:
       dtype: int64
-      description: "Level of nestage (0 for field halos)."
+      description: "Depth in the hierarchy from the field halo (0 for field haloes)."
       unit: ""
       a_exp:       0
     central_galaxy_index:

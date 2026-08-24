@@ -2,6 +2,21 @@
 
 I/O functions for reading in parallel from the same .hdf5 snapshot file.
 
+The way this works is: consider a dataset of length n, and we are running with a configuration
+of r ranks. The parallelism strategy is to bin haloes across ranks by using an empirical law
+to estimate their computational weight. Rank 0 runs this algorithm and knows which haloes, and
+therefore, which particles, go where. Rank 0 will broadcasts an array called halo_to_rank to the other
+ranks, which tells them which HaloID belongs to which rank.
+
+The initial read of a dataset is embarrassingly parallel: each rank owns n/r particles in the read. We
+must then get the particles from the initial read onto the ranks which own them according to their HaloIDs.
+redistribute_data() uses comm.Alltoallv to reshuffle the particles: ranks go from owning n/r raw particles
+to their owned particles. Since haloes are self-contained units of work, the rest of the pipeline then also
+becomes embarrassingly parallel (no MPI in the computations).
+
+The existence of the n_chunks in the config is because when I wrote this my cluster was on death's doorstep
+and struggling on simultaneous big snapshot reads; moving it to a Python loop fixed things.
+
 """
 
 # type checking (semantic)
@@ -110,7 +125,7 @@ def build_redistribution_map(
     mask = np.zeros(len(slab_halo_ids), dtype=bool)
     mask[in_halo] = (
         halo_to_rank[slab_halo_ids[in_halo]] != -1
-    )  # then halos < min_dm_per_halo also have -1 in the halo_to_rank array
+    )  # then haloes < min_dm_per_halo also have -1 in the halo_to_rank array
     owner_ranks = halo_to_rank[slab_halo_ids[mask]]
 
     if comm is None:  # early return for serial case
@@ -144,9 +159,9 @@ def generate_rank_halo_assignments(
     n_ranks: int,
 ) -> np.ndarray:
     """
-    Employs a weighted binning algorithm to balance the computational load across ranks by quantifying haloes' computational weight according to the empirically-tuned constants in the config. Masks out unassigned particles (sentinels) and those belonging to halos below min_dm_per_halo. Returns:
+    Employs a weighted binning algorithm to balance the computational load across ranks by quantifying haloes' computational weight according to the empirically-tuned constants in the config. Masks out unassigned particles (sentinels) and those belonging to haloes below min_dm_per_halo. Returns:
 
-    - halo_to_rank: an (n_halos) array where halo_to_rank[i] = rank which halo i is assigned to.
+    - halo_to_rank: an (n_haloes) array where halo_to_rank[i] = rank which halo i is assigned to.
     """
     logger.info(f"Constructing per-rank indices for {n_ranks} ranks.")
     ptype_counts = {}
@@ -154,7 +169,7 @@ def generate_rank_halo_assignments(
     for ptype, halo_ids in halo_assignments.halo_ids.items():
         valid = halo_ids[halo_ids != -1]  # masks valid HaloIDs here
         ptype_counts[ptype] = np.bincount(
-            valid, minlength=halo_assignments.n_total_halos
+            valid, minlength=halo_assignments.n_total_haloes
         )  # same logic as sum_per_group in aggregate_helpers.py
 
     haloes_exist = sum(ptype_counts.values()) > 0
@@ -165,11 +180,11 @@ def generate_rank_halo_assignments(
 
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
         logger.warning("No valid HaloIDs!")
-        return np.full(shape=halo_assignments.n_total_halos, fill_value=-1, dtype=np.int64)  # match type check
+        return np.full(shape=halo_assignments.n_total_haloes, fill_value=-1, dtype=np.int64)  # match type check
 
-    n_valid_halos = halo_assignments.n_total_halos  # at this point the reader has remapped HaloIDs to 0-indexed
+    n_valid_haloes = halo_assignments.n_total_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
 
-    halo_to_rank = np.full(shape=n_valid_halos, fill_value=-1, dtype=np.int64)
+    halo_to_rank = np.full(shape=n_valid_haloes, fill_value=-1, dtype=np.int64)
 
     halo_weights = compute_halo_weights(
         ptype_counts=ptype_counts,
@@ -177,7 +192,7 @@ def generate_rank_halo_assignments(
         stages=config.stages,
     )
 
-    # bin according to computational weight: sort halos by size descending then sequentially assign to rank with lightest load
+    # bin according to computational weight: sort haloes by size descending then sequentially assign to rank with lightest load
     weight_order = np.argsort(halo_weights)[::-1]  # TODO: move to argsort(descending=True) in numpy 2.5.0
     rank_loads = np.zeros(n_ranks)
 
@@ -261,7 +276,7 @@ def split_slab(slab: slice, n_chunks: int) -> list[slice]:
     return split_slabs
 
 
-def assign_local_subhalos(
+def assign_local_subhaloes(
     particles: dict[str, ParticleStore],
     subhalo_info: SubhaloInformation | None,
 ) -> SubhaloInformation:
@@ -280,14 +295,14 @@ def assign_local_subhalos(
     max_hid = max(int(hids.max()) for hids in non_empty)
     present_on_rank = np.zeros(
         shape=(max(max_hid, subhalo_info.host_halo_ids.max()) + 1), dtype=bool
-    )  # max HaloID on rank and max host halo ID can be different due to field halos with no substructure (sizing it to either/or introduced this edge case and dropped a subhalo during writing)
+    )  # max HaloID on rank and max host halo ID can be different due to field haloes with no substructure (sizing it to either/or introduced this edge case and dropped a subhalo during writing)
     for ptype in particles:
         hids = particles[ptype]["HaloID"]
         present_on_rank[hids[hids != -1]] = True  # this works because hids are contiguous and 0-indexed
 
     keep = present_on_rank[subhalo_info.host_halo_ids]
 
-    global_to_local_map = np.full(len(subhalo_info.depth), -1, dtype=np.int64)  # depth is proxy for n_subhalos
+    global_to_local_map = np.full(len(subhalo_info.depth), -1, dtype=np.int64)  # depth is proxy for n_subhaloes
     global_to_local_map[np.flatnonzero(keep)] = np.arange(
         keep.sum()
     )  # maps global position to 0-indexed rank-local position
@@ -307,7 +322,7 @@ def assign_local_subhalos(
     )
 
     new_subhalo_info = replace(
-        subhalo_info,  # NOTE: n_total_halos should not be replaced
+        subhalo_info,  # NOTE: n_total_haloes should not be replaced
         host_halo_ids=subhalo_info.host_halo_ids[keep],
         global_index=subhalo_info.global_index[keep],
         parent_index=new_parent_index,

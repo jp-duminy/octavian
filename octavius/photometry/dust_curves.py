@@ -5,15 +5,13 @@ Standard attenuation curve formulae which compute the optical depth tau as a fun
 Top of file: attenuation laws
 Bottom of file: extinction laws.
 
-The convention I have gone with in the dust law functions is their bounds key off the values and units of what the paper defines, e.g. for Calzetti we use angstrom whereas Cardelli we use x = um^-1.
+The convention I have gone with in the dust law functions is their bounds key off the values and units of what the paper
+defines, e.g. for Calzetti we use angstrom whereas Cardelli we use x = um^-1.
 
-All functions expect to receive a wavelengths array in angstrom. They convert internally to match the coefficients and conventions of their respective papers for readability and correctedness.
-
-# TODO: add plotter for attenuation curves in validation suite (and perhaps toolbox).
+All functions expect to receive a wavelengths array in angstrom. They convert internally to match the coefficients and
+conventions of their respective papers for readability and correctedness.
 
 """
-
-# default library imports
 
 # other packages
 import numpy as np

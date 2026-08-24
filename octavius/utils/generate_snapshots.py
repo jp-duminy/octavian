@@ -57,7 +57,8 @@ halo_velocities = rng.normal(loc=0, scale=100, size=(N_HALOES, 3))
 
 def generate_gizmo_snapshot(path: Path) -> None:
     """
-    Procedurally generates a GIZMO snapshot filled with junk data. The catalogue is self-consistent, but its data only exists to be accessed for file validation, not any sort of physics checks.
+    Procedurally generates a GIZMO snapshot filled with junk data. The catalogue is self-consistent,
+    but its data only exists to be accessed for file validation, not any sort of physics checks.
 
     Parameters
     ----------
@@ -137,7 +138,8 @@ def generate_gizmo_snapshot(path: Path) -> None:
 
 def generate_swift_snapshot(path: Path) -> None:
     """
-    Procedurally generates a SWIFT snapshot filled with junk data. The catalogue is self-consistent, but its data only exists to be accessed for file validation, not any sort of physics checks.
+    Procedurally generates a SWIFT snapshot filled with junk data. The catalogue is self-consistent,
+    but its data only exists to be accessed for file validation, not any sort of physics checks.
 
     Parameters
     ----------
@@ -236,7 +238,7 @@ def _generate_base_datasets(
 ) -> dict[str, np.ndarray]:
     """
     Generates positions, velocities, masses, potential, and halo IDs
-    for n_particles distributed across N_HALOS clusters plus a field population.
+    for n_particles distributed across N_haloes clusters plus a field population.
     """
     n_interlopers = int(n_particles * FRAC_INTERLOPERS)
     n_bound = n_particles - n_interlopers
