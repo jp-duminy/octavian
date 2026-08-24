@@ -32,8 +32,8 @@ from .pipeline_management import (
 from .conventions import (
     CODE_UNITS as CODE_UNITS,
     DTYPES as DTYPES,
-    OctavianConstants as OctavianConstants,
-    OctavianConfig as OctavianConfig,
+    OctaviusConstants as OctaviusConstants,
+    OctaviusConfig as OctaviusConfig,
     output_catalogue_path as output_catalogue_path,
 )
 from .parallel_reading import (

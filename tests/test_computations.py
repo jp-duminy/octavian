@@ -8,7 +8,7 @@ For the heavier compute functions which have more intricate logic, it is not pos
 
 import numpy as np
 
-from octavian.aggregate_properties.aggregate_computations import (
+from octavius.aggregate_properties.aggregate_computations import (
     compute_kinematics,
     compute_rotational_quantities,
     compute_enclosed_mass_radii,
@@ -18,7 +18,7 @@ from octavian.aggregate_properties.aggregate_computations import (
     compute_radii,
 )
 
-from octavian.aggregate_properties.aggregate_helpers import (
+from octavius.aggregate_properties.aggregate_helpers import (
     sum_per_group,
     count_per_group,
     max_value_per_group,
@@ -28,13 +28,13 @@ from octavian.aggregate_properties.aggregate_helpers import (
     first_idx_per_group,
 )
 
-from octavian.data_management import (
+from octavius.data_management import (
     build_group_csr,
 )
 
-from octavian.data_management import OctavianConstants
+from octavius.data_management import OctaviusConstants
 
-oc = OctavianConstants()
+oc = OctaviusConstants()
 
 SEED = 2317434
 

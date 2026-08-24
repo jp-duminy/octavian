@@ -28,6 +28,6 @@ def test_package_imports() -> None:
     """
     Tests whether internal imports work.
     """
-    import octavian
+    import octavius
 
-    assert hasattr(octavian, "load")  # this will fail if the load function gets renamed
+    assert hasattr(octavius, "load")  # this will fail if the load function gets renamed

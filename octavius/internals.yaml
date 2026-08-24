@@ -1,5 +1,5 @@
 # if you are looking for user parameters, please refer to config.yaml
-# only touch this if working on Octavian internals please
+# only touch this if working on Octavius internals please
 
 ptypes: [gas, star, dm, bh]
 baryonic_ptypes: [gas, star, bh]

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .data_structures import ParticleStore
-    from .conventions import OctavianConfig
+    from .conventions import OctaviusConfig
     from ..external_halo_sources import HaloAssignments, SubhaloInformation
     from mpi4py.MPI import Comm
 
@@ -140,7 +140,7 @@ def build_redistribution_map(
 
 def generate_rank_halo_assignments(
     halo_assignments: HaloAssignments,
-    config: OctavianConfig,
+    config: OctaviusConfig,
     n_ranks: int,
 ) -> np.ndarray:
     """

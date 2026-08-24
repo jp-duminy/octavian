@@ -7,7 +7,7 @@ Functions to handle executing the photometry pipeline (physics in photometry_com
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import SimulationData, OctavianConfig, GroupStore
+    from ..data_management import SimulationData, OctaviusConfig, GroupStore
     from .photometry_tables import PhotometryTable
 
 # other packages
@@ -44,7 +44,7 @@ from ..log import get_logger
 logger = get_logger()
 
 
-def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> None:
+def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> None:
     """
     Top-level executor for photometry.
     """

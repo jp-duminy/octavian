@@ -1,6 +1,6 @@
 """
 
-Octavian testing suite. Runs the full pipeline on a small test snapshot versus a reference catalogue.
+Octavius testing suite. Runs the full pipeline on a small test snapshot versus a reference catalogue.
 
 test_snapshot_small: 600MB
 test_snapshot_large: 4GB
@@ -11,9 +11,9 @@ test_snapshot_large: 4GB
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from octavian.external_halo_sources import HaloAssignments, SubhaloInformation
-    from octavian.data_management import SnapshotReader, RankPackedData
-    from octavian.data_management.parallel_reading import RedistributionMap
+    from octavius.external_halo_sources import HaloAssignments, SubhaloInformation
+    from octavius.data_management import SnapshotReader, RankPackedData
+    from octavius.data_management.parallel_reading import RedistributionMap
 
 # default libraries
 from pathlib import Path
@@ -33,14 +33,14 @@ import numpy as np
 import numba
 
 # internal imports
-from octavian.data_management import (
+from octavius.data_management import (
     write_catalogue,
     construct_membership_arrays,
     GroupStore,
     SimulationData,
     Internals,
-    OctavianConstants,
-    OctavianConfig,
+    OctaviusConstants,
+    OctaviusConfig,
     build_reader,
     build_galaxy_store,
     build_halo_store,
@@ -59,24 +59,24 @@ from octavian.data_management import (
     write_catalogue_headers,
     build_redistribution_map,
 )
-from octavian.external_halo_sources import (
+from octavius.external_halo_sources import (
     build_halo_source,
     HaloAssignments,
 )
-from octavian.log import configure_logger, get_logger, clean_logs
-from octavian.galaxy_finding import find_galaxies, FOF6DResult
-from octavian.aggregate_properties import (
+from octavius.log import configure_logger, get_logger, clean_logs
+from octavius.galaxy_finding import find_galaxies, FOF6DResult
+from octavius.aggregate_properties import (
     run_ptype_specific_properties,
     run_core_properties,
     run_local_environment,
     assign_membership,
 )
-from octavian.photometry import (
+from octavius.photometry import (
     resolve_band_names,
     read_filter_names,
     run_photometry,
 )
-from octavian.run_octavian import get_mpi_communicator
+from octavius.run_octavius import get_mpi_communicator
 from .output_validation import (
     validate_galaxy_mapping,
     validate_galaxy_membership,
@@ -92,7 +92,7 @@ RAW_PTYPES = ["PartType0", "PartType1", "PartType4", "PartType5"]  # all particl
 PTYPES = ["gas", "star", "bh", "dm"]
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config.yaml"
-INTERNALS_PATH = Path(__file__).parent.parent.parent / "octavian" / "internals.yaml"
+INTERNALS_PATH = Path(__file__).parent.parent.parent / "octavius" / "internals.yaml"
 
 timings = {}
 memories = {}
@@ -133,15 +133,15 @@ def test_rank_assignments(
 
 
 def _profiled_pipeline(
-    config: OctavianConfig,
+    config: OctaviusConfig,
     internals: Internals,
-    constants: OctavianConstants,
+    constants: OctaviusConstants,
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
 ) -> RankPackedData:
     """
-    Executes each stage of the Octavian pipeline with timing/memory.
+    Executes each stage of the Octavius pipeline with timing/memory.
     """
     with time_and_memory("Initialise particles"):
         sim = reader.simulation_attributes
@@ -360,7 +360,7 @@ def record_test_results(
 
     with open(filepath, "w") as f:
         # summary (what you care about)
-        f.write(f"Octavian Test Summary: Commit {COMMIT_HASH[:8]} // {timestamp} \n")
+        f.write(f"Octavius Test Summary: Commit {COMMIT_HASH[:8]} // {timestamp} \n")
         f.write(f"Snapshot: {args.snapshot} \n")
         f.write(f"{size} ranks // {cores_per_rank} cores per rank\n")
         f.write(f"Final Result: {'PASS' if passed else 'FAIL'}\n\n")
@@ -405,7 +405,7 @@ def record_test_results(
 
 def test_run(args: argparse.Namespace) -> None:
     """
-    Conduct a full (parallel/serial) run of Octavian.
+    Conduct a full (parallel/serial) run of Octavius.
     """
     comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0
@@ -418,7 +418,7 @@ def test_run(args: argparse.Namespace) -> None:
     memray_file.unlink(missing_ok=True)
 
     with memray.Tracker(memray_file, native_traces=True):
-        config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
+        config = OctaviusConfig.from_yaml(config_path=CONFIG_PATH)
         numba.set_num_threads(n=config.cores_per_rank)
 
         if config.stages.get("photometry", False):
@@ -428,8 +428,8 @@ def test_run(args: argparse.Namespace) -> None:
         internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
 
         if rank == 0:
-            logger.info(f"Testing Octavian with {size} ranks.")
-        oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
+            logger.info(f"Testing Octavius with {size} ranks.")
+        oc = OctaviusConstants(mu=config.MU, frad=config.FRAD)
         reader = build_reader(snapshot_path=args.snapshot, constants=oc, config=config)
         halo_source = build_halo_source(config=config, reader=reader)
 
@@ -608,7 +608,7 @@ def parse_args() -> argparse.Namespace:
     """
     For command line arguments (copied from my MVP code).
     """
-    parser = argparse.ArgumentParser(description="Octavian validation suite")
+    parser = argparse.ArgumentParser(description="Octavius validation suite")
     parser.add_argument("-s", "--snapshot", type=Path, required=True, help="Path to snapshot")
     parser.add_argument(
         "-r", "--reference", type=Path, required=True, help="Path to reference catalogue (run on same snapshot)"

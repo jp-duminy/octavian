@@ -17,7 +17,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
 
     Specify output_log_dir if you'd like a .txt file with more detailed information.
     """
-    logger = logging.getLogger(name="OCTAVIAN")
+    logger = logging.getLogger(name="OCTAVIUS")
 
     if logger.handlers:
         return logger
@@ -26,8 +26,8 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
     logger.propagate = False
 
     rank_tag = f"Rank {rank}"
-    terminal_format = f"OCTAVIAN [{rank_tag}] | %(levelname)s | %(message)s"
-    file_format = f"%(asctime)s | OCTAVIAN [{rank_tag}] | %(levelname)s | %(message)s"
+    terminal_format = f"OCTAVIUS [{rank_tag}] | %(levelname)s | %(message)s"
+    file_format = f"%(asctime)s | OCTAVIUS [{rank_tag}] | %(levelname)s | %(message)s"
 
     # if you have todohighlights on this block might look weird (it's the console text)
     console = logging.StreamHandler()
@@ -50,9 +50,9 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
 
 def get_logger() -> logging.Logger:
     """
-    Helper to retrieve the Octavian logger; please call configure_logger() if not already done so, as early in the pipeline as possible.
+    Helper to retrieve the Octavius logger; please call configure_logger() if not already done so, as early in the pipeline as possible.
     """
-    logger = logging.getLogger("OCTAVIAN")
+    logger = logging.getLogger("OCTAVIUS")
 
     return logger
 
@@ -81,7 +81,7 @@ def clean_logs(
     """
     logger = get_logger()
     if keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
-        merged_log = log_dir / "octavian.log"
+        merged_log = log_dir / "octavius.log"
         with open(merged_log, "w") as out:
             for i in range(n_ranks):
                 rank_log = intermediate_log_path(directory=log_dir, rank=i)

@@ -1,6 +1,6 @@
-from .data_management import OctavianConfig as OctavianConfig, OctavianConstants as OctavianConstants
+from .data_management import OctaviusConfig as OctaviusConfig, OctaviusConstants as OctaviusConstants
 from .photometry import generate_photometry_table, generate_photometry_table_from_sp
-from .run_octavian import (
+from .run_octavius import (
     analyse_snapshot as analyse_snapshot,
 )
 from .utils import (
@@ -12,8 +12,8 @@ from .utils import (
 )
 
 __all__ = [
-    "OctavianConfig",
-    "OctavianConstants",
+    "OctaviusConfig",
+    "OctaviusConstants",
     "analyse_snapshot",
     "load",
     "generate_test_catalogue",
