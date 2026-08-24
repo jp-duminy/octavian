@@ -32,6 +32,8 @@ def assign_membership(
     """
     results: dict[str, np.ndarray] = {}
     halos = simulation_data.groups["halos"]
+    if "galaxies" not in simulation_data.groups:  # early return in case FOF6D did not find galaxies
+        return
     galaxies = simulation_data.groups["galaxies"]
     particles = simulation_data.particles
     available_baryonic = [pt for pt, s in particles.items() if s.is_baryonic]

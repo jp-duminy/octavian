@@ -68,6 +68,15 @@ class FOF6DResult:
     ptype_codes: np.ndarray
     n_galaxies: int
 
+    @classmethod  # for early return guards
+    def empty(cls) -> FOF6DResult:
+        return cls(
+            write_keys=np.empty(0, dtype=np.int64),
+            galaxy_ids=np.empty(0, dtype=np.int64),
+            ptype_codes=np.empty(0, dtype=np.int8),
+            n_galaxies=0,
+        )
+
 
 def find_galaxies(
     particles: dict[str, ParticleStore],
@@ -87,12 +96,7 @@ def find_galaxies(
         for ptype in particles:  # this ensures the galaxies GroupStore is not built
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
 
-        return FOF6DResult(  # match what future code expects to receive
-            write_keys=np.empty(0, dtype=np.int64),
-            galaxy_ids=np.empty(0, dtype=np.int64),
-            ptype_codes=np.empty(0, dtype=np.int8),
-            n_galaxies=0,
-        )
+        return FOF6DResult.empty()
 
     work_data, params = prepare_fof6d_data(
         particles=particles, simulation=simulation, config=config, constants=constants
@@ -309,12 +313,7 @@ def extract_galaxies_from_parents(
         galaxy_id_offset += len(valid_parents)
 
     if galaxy_id_offset == 0:  # guard for an empty group, needs to match type check in signature
-        result = FOF6DResult(
-            write_keys=np.empty(0, dtype=np.int64),
-            galaxy_ids=np.empty(0, dtype=np.int64),
-            ptype_codes=np.empty(0, dtype=np.int8),
-            n_galaxies=0,
-        )
+        result = FOF6DResult.empty()
     else:
         result = FOF6DResult(
             write_keys=np.concatenate(all_keys),

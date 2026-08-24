@@ -42,7 +42,7 @@ from .external_halo_sources import (
     HaloAssignments,
     build_halo_source,
 )
-from .galaxy_finding import find_galaxies
+from .galaxy_finding import FOF6DResult, find_galaxies
 from .aggregate_properties import (
     run_ptype_specific_properties,
     run_core_properties,
@@ -128,13 +128,19 @@ def execute_pipeline(
         particles=particles, subhalo_info=global_subhalo_info
     )  # this is done locally and is safe, not worth optimising (though an elegant solution is always welcome)
 
-    for prop in ["rho", "sfr", "metallicity", "helium_fraction"]:
-        particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
+    if "gas" in particles:
+        for prop in ["rho", "sfr", "metallicity", "helium_fraction"]:
+            particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
-    fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
+    if config.stages.get("find_galaxies", True):
+        fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
+    else:
+        for ptype in particles:
+            particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
+        fof6d_result = FOF6DResult.empty()
 
     groups: dict[str, GroupStore] = {}
-    groups["halos"] = build_halo_store(
+    groups["halos"] = build_halo_store(  # must build halo store first
         particles=particles,
         halo_key=internals.group_types["halos"]["key"],
         subhalo_key="SubhaloID",
@@ -152,21 +158,24 @@ def execute_pipeline(
     for ptype in particles:
         particles[ptype]["potential"] = reader.read_dataset(ptype=ptype, dataset="potential")
 
-    for prop in [
-        "fHI",
-        "fH2",
-    ]:
-        particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
+    if "gas" in particles:
+        for prop in [
+            "fHI",
+            "fH2",
+            "smoothing_length",
+        ]:
+            particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
-    for prop in ["metallicity", "age"]:
-        particles["star"][prop] = reader.read_dataset(ptype="star", dataset=prop)
+        if reader.has_dataset("gas", "dust_mass"):
+            particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
 
-    particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
-    particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
-    particles["gas"]["smoothing_length"] = reader.read_dataset(ptype="gas", dataset="smoothing_length")
+    if "star" in particles:
+        for prop in ["metallicity", "age"]:
+            particles["star"][prop] = reader.read_dataset(ptype="star", dataset=prop)
 
-    if reader.has_dataset("gas", "dust_mass"):
-        particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
+    if "bh" in particles:
+        particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
+        particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
     assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)

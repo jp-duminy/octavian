@@ -29,6 +29,10 @@ def run_local_environment(simulation_data: SimulationData, config: OctavianConfi
     """
     Top-level executor for local environment properties.
     """
+    if "galaxies" not in simulation_data.groups:
+        logger.info("Skipping local environment properties: no galaxies found.")
+        return
+
     galaxies = simulation_data.groups["galaxies"]
     logger.info(f"Running local environment properties: {galaxies.n_groups} members")
     sim = simulation_data.simulation
