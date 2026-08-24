@@ -883,6 +883,7 @@ def build_halo_store(
     subhalo_key: str | None = None,
     group_kind: str = "halo",
     subhalo_info: SubhaloInformation | None = None,
+    original_halo_ids: np.ndarray | None = None,
 ) -> GroupStore:
     """
     Constructs a halo GroupStore.
@@ -943,6 +944,21 @@ def build_halo_store(
             n_halos, -1, dtype=np.int64
         )  # NOTE: I know this is inefficient but otherwise tests break (catalogue inconsistency)
         store["depth"] = np.zeros(n_halos, dtype=np.int64)
+
+    field_originals = (
+        original_halo_ids[unique_hids]
+        if original_halo_ids is not None
+        else np.full(shape=n_halos, fill_value=-1, dtype=np.int64)
+    )
+    if subhalo_info is not None:
+        sub_originals = (
+            subhalo_info.original_subhids
+            if subhalo_info.original_subhids is not None
+            else np.full(shape=n_subhalos, fill_value=-1, dtype=np.int64)
+        )
+        store["original_ids"] = np.concatenate([field_originals, sub_originals])
+    else:
+        store["original_ids"] = field_originals
 
     return store
 

@@ -486,6 +486,11 @@ membership_columns:
       description: "Most massive galaxy in halo (inclusive of substructure, -1 if no galaxy)."
       unit: ""
       a_exp:       0
+    original_ids:
+      dtype: int64
+      description: "Original finder IDs (-1 for snapshot-assigned haloes)."
+      unit: ""
+      a_exp: 0
 
   galaxies:
     field_halo_index: 

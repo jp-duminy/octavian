@@ -47,6 +47,8 @@ class AHFCatalogue(NamedTuple):  # for code readability
     field_lookup: np.ndarray
     sub_lookup: np.ndarray
     field_of: np.ndarray
+    original_field_ids: np.ndarray
+    original_sub_ids: np.ndarray
 
 
 class AHFHaloSource(HaloSource):
@@ -88,6 +90,15 @@ class AHFHaloSource(HaloSource):
         sub_lookup = np.full(len(raw_ahf_ids), fill_value=-1, dtype=np.int64)
         sub_lookup[~is_field] = np.arange((~is_field).sum(), dtype=np.int64)
 
+        # rediscover raw IDs for progenitor matching
+        field_mask = field_lookup != -1
+        original_field_ids = np.empty(shape=field_mask.sum(), dtype=np.int64)  # int64 is very important here
+        original_field_ids[field_lookup[field_mask]] = raw_ahf_ids[field_mask]
+
+        sub_mask = sub_lookup != -1
+        original_sub_ids = np.empty(shape=sub_mask.sum(), dtype=np.int64)  # int64 is very important here
+        original_sub_ids[sub_lookup[sub_mask]] = raw_ahf_ids[sub_mask]
+
         catalogue = AHFCatalogue(
             parent_indices=parent_indices,
             depths=depths,
@@ -95,6 +106,8 @@ class AHFHaloSource(HaloSource):
             field_lookup=field_lookup,
             sub_lookup=sub_lookup,
             field_of=field_of,
+            original_field_ids=original_field_ids,
+            original_sub_ids=original_sub_ids,
         )
 
         return catalogue
@@ -147,7 +160,12 @@ class AHFHaloSource(HaloSource):
                 f"{ptype}: particle HaloID disagrees with its subhalo's host tree."
             )
 
-        return HaloAssignments(halo_ids=halo_assignments, n_total_halos=n_total_halos, subhalo_ids=subhalo_assignments)
+        return HaloAssignments(
+            halo_ids=halo_assignments,
+            n_total_halos=n_total_halos,
+            subhalo_ids=subhalo_assignments,
+            original_hids=catalogue.original_field_ids,
+        )
 
     def read_subhalo_info(self) -> SubhaloInformation:
         """
@@ -172,6 +190,7 @@ class AHFHaloSource(HaloSource):
             global_index=np.arange(sub_mask.sum(), dtype=np.int64),
             depth=catalogue.depths[sub_mask],
             n_bound=catalogue.n_particles[sub_mask],
+            original_subhids=catalogue.original_sub_ids,
         )
 
     def distribute_raw_halo_ids(
