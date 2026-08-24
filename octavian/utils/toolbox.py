@@ -87,6 +87,8 @@ def generate_test_catalogue(
     config = OctavianConfig.from_yaml(config_path=config_path)
     config = replace(
         config,
+        snapshot_path=snapshot_path,
+        output_dir=output_dir,
         simulation_type=simulation_type,
         halo_id_source="SNAPSHOT",
         min_dm_per_halo=0,
@@ -97,7 +99,7 @@ def generate_test_catalogue(
         terminal_output_level="DEBUG",
     )
 
-    run_octavian(snapshot_path=snapshot_path, output_dir=output_dir, config=config)
+    run_octavian(config=config)
 
     intermediates_dir = output_dir / "Intermediates"
     snapshot_path.unlink()

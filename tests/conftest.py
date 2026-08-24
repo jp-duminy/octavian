@@ -59,7 +59,7 @@ def mock_catalogue(
     request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
 ) -> Generator[h5py.File, None, None]:
     """
-    Generates the mock catalogue for testing (uses a tiny test snapshot of size ~10MB).
+    Generates the mock catalogue for testing (uses a tiny test snapshot).
     """
     tmp_dir = tmp_path_factory.mktemp("pipeline")
     output_path = tmp_dir / "test_catalogue.hdf5"
@@ -75,7 +75,7 @@ def mock_catalogue(
         config,
         simulation_type=sim_type,
         halo_id_source="SNAPSHOT",
-        table_filepath=PHOTOMETRY_TABLE_PATH,
+        photometry_table_filepath=PHOTOMETRY_TABLE_PATH,
         bands=["v"],
         min_dm_per_halo=0,
         min_stars_per_galaxy=2,
@@ -83,7 +83,7 @@ def mock_catalogue(
         velocity_factor=5,
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
     if config.stages.get("photometry", False):
-        names, lambda_effs = read_filter_names(config.table_filepath)
+        names, lambda_effs = read_filter_names(config.photometry_table_filepath)
         config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
