@@ -149,7 +149,6 @@ def generate_rank_halo_assignments(
     - halo_to_rank: an (n_halos) array where halo_to_rank[i] = rank which halo i is assigned to.
     """
     logger.info(f"Constructing per-rank indices for {n_ranks} ranks.")
-    logger.debug(f"FOF6D weight: {config.fof6d_weight}, Aggregate Properties weight: {config.properties_weight}")
     ptype_counts = {}
 
     for ptype, halo_ids in halo_assignments.halo_ids.items():

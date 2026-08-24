@@ -89,8 +89,6 @@ class OctavianConfig:
     split_age: float
 
     cores_per_rank: int
-    fof6d_weight: float
-    properties_weight: float
 
     terminal_output_level: str
     keep_logs: bool

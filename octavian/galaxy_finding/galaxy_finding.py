@@ -18,7 +18,6 @@ from dataclasses import dataclass
 
 # other libraries
 import numpy as np
-import numba
 
 # internal imports
 from .fof6d_algorithm import dispatch_fof6d
@@ -54,7 +53,6 @@ class FOF6DParameters:
     velocity_factor: float
     boxsize: float
     minstars: int
-    cores_per_rank: int
 
 
 @dataclass(slots=True, frozen=True)
@@ -115,8 +113,6 @@ def find_galaxies(
         return empty_result
 
     logger.debug(f"Linking length: {params.linking_length}")
-
-    numba.set_num_threads(params.cores_per_rank)  # same as joblib nproc
 
     parents = np.full(len(work_data.pos), -1, dtype=np.int32)
     dispatch_fof6d(
@@ -218,7 +214,6 @@ def prepare_fof6d_data(
         velocity_factor=config.velocity_factor,
         boxsize=simulation.boxsize,
         minstars=config.min_stars_per_galaxy,
-        cores_per_rank=config.cores_per_rank,
     )
 
     # guard if no valid particles pass the mask
