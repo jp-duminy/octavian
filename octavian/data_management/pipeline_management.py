@@ -8,13 +8,18 @@ The circulatory system of Octavian, managing how user-configured stages are run 
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .conventions import OctavianConfig
+    from .conventions import OctavianConfig, SnapshotReader
+    from .data_structures import ParticleStore
 
 # default libraries
 from dataclasses import dataclass
 from yaml import safe_load
 from pathlib import Path
 from itertools import product
+
+from ..log import get_logger
+
+logger = get_logger()
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +32,8 @@ class PipelineStage:
     label: str
     requires: frozenset[str]
     applies_to: frozenset[str]
-    needs_particle_columns: frozenset[str]
+    needs_particle_columns: dict[str, frozenset[str]]
+    optional_particle_columns: dict[str, frozenset[str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,12 +98,19 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
     stages: dict[str, PipelineStage] = {}
 
     for stage_name, stage_config in internals["stages"].items():
+        raw_needed = stage_config.get("needs_particle_columns", {})
+        needed = {k: frozenset(v) for k, v in raw_needed.items()}
+
+        raw_optional = stage_config.get("optional_particle_columns", {})
+        optional = {k: frozenset(v) for k, v in raw_optional.items()}
+
         stages[stage_name] = PipelineStage(
             name=stage_name,
             label=stage_config["label"],
             requires=frozenset(stage_config.get("requires", [])),
             applies_to=frozenset(stage_config["applies_to"]),
-            needs_particle_columns=frozenset(stage_config.get("needs_particle_columns", [])),
+            needs_particle_columns=needed,
+            optional_particle_columns=optional,
         )
 
     all_stage_outputs: set[str] = set()
@@ -174,6 +187,101 @@ def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internal
         membership_columns=membership_columns,
         header_fields=header_fields,
     )
+
+
+def load_stage_columns(
+    particles: dict[str, ParticleStore],
+    reader: SnapshotReader,
+    stage: PipelineStage,
+) -> None:
+    """
+    Automatically loads data into the ParticleStores depending on what was declared for the stage in internals.yaml.
+    """
+    _load_columns(particles=particles, reader=reader, spec=stage.needs_particle_columns, optional=False)
+    _load_columns(particles=particles, reader=reader, spec=stage.optional_particle_columns, optional=True)
+
+
+def release_stage_columns(
+    particles: dict[str, ParticleStore],
+    current_idx: int,
+    ordered_stages: list[PipelineStage],
+) -> None:
+    """
+    Releases data from ParticleStores automatically depending on the resolution of the stage dependency graph to free up memory.
+    """
+    current_needs = ordered_stages[current_idx].needs_particle_columns
+    future_needs: dict[str, set[str]] = {}
+
+    # check the stages ahead of this one and determine what data they need
+    for stage in ordered_stages[current_idx + 1 :]:
+        for ptype, columns in stage.needs_particle_columns.items():
+            future_needs.setdefault(ptype, set()).update(columns)  # have to use update due to frozenset
+        for ptype, columns in stage.optional_particle_columns.items():
+            future_needs.setdefault(ptype, set()).update(columns)
+
+    # determine what can be released, then drop it
+    for ptype, columns in current_needs.items():
+        target_ptypes = list(particles.keys()) if ptype == "all" else [ptype]
+
+        for target in target_ptypes:
+            if target not in particles:
+                continue
+
+            future_all = future_needs.get("all", set()) | future_needs.get(
+                target, set()
+            )  # set notation simplifies this
+            releasable = columns - future_all
+
+            for col in releasable:
+                if col in particles[target]:
+                    particles[target].release(col)
+
+
+def validate_stage_requirements(
+    ordered_stages: list[PipelineStage],
+    available_ptypes: set[str],
+) -> None:
+    """
+    Validates the ptypes enabled in the config and the stages the user requested are self-consistent.
+    """
+    for stage in ordered_stages:
+        for ptype, columns in stage.needs_particle_columns.items():
+            if ptype == "all":  # this is handled by the particles dict which depends on what exists already so skip
+                continue
+            if ptype not in available_ptypes:
+                raise ValueError(
+                    f"{stage.name} requires {columns} on {ptype} particles, but {ptype} is disabled in the config."
+                )
+
+
+def _load_columns(
+    particles: dict[str, ParticleStore],
+    reader: SnapshotReader,
+    spec: dict[str, frozenset[str]],
+    optional: bool,
+) -> None:
+    """
+    Loads requested columns from the snapshot.
+    """
+    for ptype, columns in spec.items():  # what to load
+        target_ptypes = (
+            list(particles.keys()) if ptype == "all" else [ptype]
+        )  # particles.keys() only contains available ptypes
+
+        for target in target_ptypes:
+            if target not in particles:  # if users are disabling things in the config
+                continue
+
+            for column in sorted(
+                columns
+            ):  # sorted() is essential otherwise ranks desynchronise and crash (read different datasets)
+                if column in particles[target]:  # if already present on the ParticleStore
+                    continue
+                if optional and not reader.has_dataset(target, column):
+                    continue
+
+                logger.debug(f"Loading {column} for {ptype}")
+                particles[target][column] = reader.read_dataset(ptype=target, dataset=column)
 
 
 def resolve_over(over: dict[str, list | str], config: OctavianConfig) -> dict[str, list[str]]:

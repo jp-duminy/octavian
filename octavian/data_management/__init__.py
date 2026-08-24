@@ -26,6 +26,9 @@ from .pipeline_management import (
     load_internals as load_internals,
     get_releasable_columns as get_releasable_columns,
     resolve_dependencies as resolve_dependencies,
+    load_stage_columns as load_stage_columns,
+    release_stage_columns as release_stage_columns,
+    validate_stage_requirements as validate_stage_requirements,
 )
 from .conventions import (
     CODE_UNITS as CODE_UNITS,

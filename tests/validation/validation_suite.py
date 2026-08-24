@@ -46,7 +46,9 @@ from octavian.data_management import (
     build_particle_stores,
     load_internals,
     resolve_dependencies,
-    get_releasable_columns,
+    load_stage_columns,
+    release_stage_columns,
+    validate_stage_requirements,
     output_catalogue_path,
     assign_local_subhalos,
     generate_rank_halo_assignments,
@@ -147,18 +149,16 @@ def _profiled_pipeline(
         )
         subhalo_info = assign_local_subhalos(particles=particles, subhalo_info=global_subhalo_info)
 
-    with time_and_memory("Load FOF6D data"):
-        if "gas" in particles:
-            for prop in ["rho", "sfr", "metallicity", "helium_fraction"]:
-                particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
+    if config.stages.get("find_galaxies", True):
+        with time_and_memory("Load FOF6D data"):
+            load_stage_columns(particles=particles, reader=reader, stage=internals.stages["find_galaxies"])
 
-    with time_and_memory("Find Galaxies"):
-        if config.stages.get("find_galaxies", True):
+        with time_and_memory("Find Galaxies"):
             fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
-        else:
-            for ptype in particles:
-                particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
-            fof6d_result = FOF6DResult.empty()
+    else:
+        for ptype in particles:
+            particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
+        fof6d_result = FOF6DResult.empty()
 
     with time_and_memory("Build GroupStores"):
         groups: dict[str, GroupStore] = {}
@@ -178,34 +178,12 @@ def _profiled_pipeline(
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
 
-    with time_and_memory("Load Properties Data"):
-        for ptype in particles:
-            particles[ptype]["potential"] = reader.read_dataset(ptype=ptype, dataset="potential")
-
-        if "gas" in particles:
-            for prop in [
-                "fHI",
-                "fH2",
-                "smoothing_length",
-            ]:
-                particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
-
-            if reader.has_dataset("gas", "dust_mass"):
-                particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
-
-        if "star" in particles:
-            for prop in ["metallicity", "age"]:
-                particles["star"][prop] = reader.read_dataset(ptype="star", dataset=prop)
-
-        if "bh" in particles:
-            particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
-            particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
-
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
     assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
 
     requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
     ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
+    validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))
 
     stage_dispatch = {
         "properties_core": run_core_properties,
@@ -214,16 +192,12 @@ def _profiled_pipeline(
         "photometry": run_photometry,
     }
 
-    for stage_index, stage in enumerate(ordered_stages):
-        with time_and_memory(stage.name):
+    for stage_idx, stage in enumerate(ordered_stages):
+        with time_and_memory(f"Load data for {stage.name}"):
+            load_stage_columns(particles=particles, reader=reader, stage=stage)
+        with time_and_memory(f"Run {stage.name}"):
             stage_dispatch[stage.name](simulation_data=simulation_data, config=config)
-
-            releasable = get_releasable_columns(stage_index, ordered_stages)
-
-            for ptype in particles:
-                for col in releasable:
-                    if col in particles[ptype]:
-                        particles[ptype].release(col)
+        release_stage_columns(particles=particles, current_idx=stage_idx, ordered_stages=ordered_stages)
 
     with time_and_memory("Save data"):
         if reader.global_indices is not None:
