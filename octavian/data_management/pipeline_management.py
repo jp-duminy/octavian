@@ -334,19 +334,6 @@ def expand_column_templates(outputs: list[str], over: dict[str, list[str]]) -> l
     return expanded
 
 
-def get_releasable_columns(current_index: int, ordered_stages: list[PipelineStage]) -> frozenset[str]:
-    """
-    Returns a (frozen) set of which ParticleStore columns (the expensive ones) are no longer needed by any remaining stage and thus can be safely discarded.
-    """
-    current_needs = ordered_stages[current_index].needs_particle_columns
-    future_needs: set[str] = set()
-
-    for stage in ordered_stages[current_index + 1 :]:
-        future_needs |= stage.needs_particle_columns
-
-    return current_needs - future_needs
-
-
 def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str]) -> list[PipelineStage]:
     """
     Resolves user-requested stage dependencies.
