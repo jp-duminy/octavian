@@ -1,6 +1,6 @@
 """
 
-Octavian galaxy finding, calling the internal FOF6D algorithm in fof6d_algorith.py
+Octavius galaxy finding, calling the internal FOF6D algorithm in fof6d_algorith.py
 
 If this is very slow, numba may not be jitting on your cluster. Please check whether this is the case.
 
@@ -11,7 +11,7 @@ If this is very slow, numba may not be jitting on your cluster. Please check whe
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import ParticleStore, SimulationAttributes, OctavianConstants
+    from ..data_management import ParticleStore, SimulationAttributes, OctaviusConstants
 
 # defaults
 from dataclasses import dataclass
@@ -21,7 +21,7 @@ import numpy as np
 
 # internal imports
 from .fof6d_algorithm import dispatch_fof6d
-from ..data_management import DTYPES, OctavianConfig
+from ..data_management import DTYPES, OctaviusConfig
 from ..utils import unwrap_positions
 from ..log import get_logger
 
@@ -79,8 +79,8 @@ class FOF6DResult:
 def find_galaxies(
     particles: dict[str, ParticleStore],
     simulation: SimulationAttributes,
-    config: OctavianConfig,
-    constants: OctavianConstants,
+    config: OctaviusConfig,
+    constants: OctaviusConstants,
 ) -> FOF6DResult:
     """
     Handles the end-to-end galaxy-finding with FOF6D pipeline; writes back to ParticleStore.
@@ -140,8 +140,8 @@ def find_galaxies(
 def prepare_fof6d_data(
     particles: dict[str, ParticleStore],
     simulation: SimulationAttributes,
-    config: OctavianConfig,
-    constants: OctavianConstants,
+    config: OctaviusConfig,
+    constants: OctaviusConstants,
 ) -> tuple[FOF6DData, FOF6DParameters]:
     """
     Extracts relevant arrays from ParticleStores and FOF6D parameters from the SimulationAttributes & user config. Returns a tuple of:

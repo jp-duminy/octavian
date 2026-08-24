@@ -14,8 +14,8 @@ if TYPE_CHECKING:
         GroupStore,
         SimulationAttributes,
         SimulationData,
-        OctavianConstants,
-        OctavianConfig,
+        OctaviusConstants,
+        OctaviusConfig,
     )
 
 # others
@@ -51,7 +51,7 @@ from ..log import get_logger
 logger = get_logger()
 
 
-def run_core_properties(simulation_data: SimulationData, config: OctavianConfig) -> None:
+def run_core_properties(simulation_data: SimulationData, config: OctaviusConfig) -> None:
     """
     Top-level executor for the core aggregate properties.
     """
@@ -111,7 +111,7 @@ def run_core_ptype_pass(
     particles: dict[str, ParticleStore],
     store: GroupStore,
     sim: SimulationAttributes,
-    config: OctavianConfig,
+    config: OctaviusConfig,
 ) -> None:
     """
     Runs the core common quantities (counts & mass, com, kinematics, radials); writes to GroupStore. Loops over ptypes twice because global minpot/com need to be computed for reference positions.
@@ -243,8 +243,8 @@ def run_halo_stages(
     particles: dict[str, ParticleStore],
     halos: GroupStore,
     sim: SimulationAttributes,
-    constants: OctavianConstants,
-    config: OctavianConfig,
+    constants: OctaviusConstants,
+    config: OctaviusConfig,
 ) -> None:
     """
     Halo-specific virial/mass profile quantities.
@@ -415,7 +415,7 @@ def run_combined_radial_quantiles(
     available_ptypes: list[str],
     available_baryonic_ptypes: list[str],
     sim: SimulationAttributes,
-    config: OctavianConfig,
+    config: OctaviusConfig,
 ) -> None:
     """
     Computes radial quantiles for combined ptype sets (baryon, and total for halos).
@@ -650,7 +650,7 @@ def _compute_mass_profile_quantities(
     factors: np.ndarray,
     rhocrit_comoving: float,
     scale_factor: float,
-    constants: OctavianConstants,
+    constants: OctaviusConstants,
 ) -> dict[str, np.ndarray]:
     """
     Computes mass profile quantities (virial and vmax/rmax), (which as of 19/06/26 are only required for halos). Returns a dict of:
@@ -736,7 +736,7 @@ def _derive_halo_quantities(
     counts: np.ndarray,
     r200_factor: float,
     scale_factor: float,
-    constants: OctavianConstants,
+    constants: OctaviusConstants,
 ) -> dict[str, np.ndarray]:
     """
     Derived halo quantities, returning a dict of:

@@ -24,13 +24,13 @@ import pytest
 import h5py
 
 # internal imports
-from octavian import analyse_snapshot, OctavianConfig
+from octavius import analyse_snapshot, OctaviusConfig
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
-INTERNALS_PATH = Path(__file__).parent.parent / "octavian" / "internals.yaml"
+INTERNALS_PATH = Path(__file__).parent.parent / "octavius" / "internals.yaml"
 
 
 @pytest.fixture(scope="session", params=["GIZMO", "SWIFT"])
@@ -44,7 +44,7 @@ def mock_catalogue(
 
     sim_type = request.param
     snapshot_path = GIZMO_TEST_PATH if sim_type == "GIZMO" else SWIFT_TEST_PATH
-    config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
+    config = OctaviusConfig.from_yaml(config_path=CONFIG_PATH)
 
     config = replace(
         config,

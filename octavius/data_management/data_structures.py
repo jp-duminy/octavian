@@ -1,6 +1,6 @@
 """
 
-Octavian data structures (readers, stores, dataclasses).
+Octavius data structures (readers, stores, dataclasses).
 This is a modularised version of the old DataManager, its functionality divided amongst smaller objects.
 
 """
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .pipeline_management import Internals
-    from .conventions import OctavianConstants, OctavianConfig
+    from .conventions import OctaviusConstants, OctaviusConfig
     from ..external_halo_sources import HaloAssignments, SubhaloInformation
     from .parallel_reading import RedistributionMap
     from mpi4py.MPI import Comm
@@ -85,7 +85,7 @@ class GizmoReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_path: Path, constants: OctavianConstants, n_chunks: int):
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
@@ -189,7 +189,7 @@ class GizmoReader(SnapshotReader):
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
-        Reads a HDF5 dataset from the file. Returns an ndarray of the chosen dataset in Octavian code units with the correct dtype applied, masked to the rank's allocation.
+        Reads a HDF5 dataset from the file. Returns an ndarray of the chosen dataset in Octavius code units with the correct dtype applied, masked to the rank's allocation.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map[dataset]
@@ -263,7 +263,7 @@ class GizmoReader(SnapshotReader):
 
     def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
-        Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavian's -1.
+        Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavius's -1.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
 
@@ -285,7 +285,7 @@ class GizmoReader(SnapshotReader):
                 DTYPES.get("HaloID", np.int64), copy=False
             )  # change dtype here otherwise you get int overflow
 
-        raw_halo_ids -= 1  # shift IDs left to compensate with Octavian sentinel
+        raw_halo_ids -= 1  # shift IDs left to compensate with Octavius sentinel
 
         return raw_halo_ids
 
@@ -386,7 +386,7 @@ class SwiftReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_path: Path, constants: OctavianConstants, n_chunks: int):
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
@@ -436,7 +436,7 @@ class SwiftReader(SnapshotReader):
 
             boxsize_vec = header["BoxSize"]  # usually stored as (x, y, z) in Mpc comoving
             boxsize_raw = boxsize_vec[0]
-            assert np.allclose(boxsize_vec, boxsize_raw), "Octavian does not presently support non-cubic boxes."
+            assert np.allclose(boxsize_vec, boxsize_raw), "Octavius does not presently support non-cubic boxes."
 
             unit_length_cgs = f["Units"].attrs["Unit length in cgs (U_L)"].item()
             boxsize_cgs = boxsize_raw * unit_length_cgs
@@ -496,7 +496,7 @@ class SwiftReader(SnapshotReader):
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
-        Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision); auto-applies SWIFT attribute conversions to Octavian code units.
+        Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision); auto-applies SWIFT attribute conversions to Octavius code units.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map[dataset])
@@ -677,7 +677,7 @@ class SwiftReader(SnapshotReader):
         return temperature
 
 
-def build_reader(snapshot_path: Path, constants: OctavianConstants, config: OctavianConfig) -> SnapshotReader:
+def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: OctaviusConfig) -> SnapshotReader:
     """
     Builds a GIZMO/SWIFT reader class depending on what was specified in the config.
     """
@@ -974,20 +974,20 @@ class SimulationData:
     """
 
     simulation: SimulationAttributes
-    constants: OctavianConstants
+    constants: OctaviusConstants
     particles: dict[str, ParticleStore]
     groups: dict[str, GroupStore]
 
     @property
     def available_ptypes(self) -> list[str]:
         """
-        Returns a list of available particle types (total), in Octavian-internal convention.
+        Returns a list of available particle types (total), in Octavius-internal convention.
         """
         return list(self.particles.keys())
 
     @property
     def available_baryonic_ptypes(self) -> list[str]:
         """
-        Returns a list of available particle types (baryonic), in Octavian-internal convention.
+        Returns a list of available particle types (baryonic), in Octavius-internal convention.
         """
         return [pt for pt, store in self.particles.items() if store.is_baryonic]

@@ -6,7 +6,7 @@ Verifies whether the output catalogue is self-consistentn and does not contain d
 
 # internal imports
 from .validation_columns import NEVER_NAN, CONDITIONAL_NAN, ZERO_WHEN_EMPTY, SOFT_NAN
-from octavian.log import get_logger
+from octavius.log import get_logger
 
 # other packages
 import h5py

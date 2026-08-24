@@ -1,6 +1,6 @@
 """
 
-Functions to collate per-rank analysis data via MPI and create a final, globally-ordered Octavian catalogue; the global order does not change between seriial/parallel runs.
+Functions to collate per-rank analysis data via MPI and create a final, globally-ordered Octavius catalogue; the global order does not change between seriial/parallel runs.
 
 """
 
@@ -65,7 +65,7 @@ def write_catalogue(
     comm: Comm | None,
 ) -> None:
     """
-    Writes the Octavian output catalogue.
+    Writes the Octavius output catalogue.
 
     - Gathers group-length data to rank 0
     - Rank 0 creates catalogue and writes group data to it
@@ -76,7 +76,7 @@ def write_catalogue(
     """
     rank = (
         comm.Get_rank() if comm is not None else 0
-    )  # duplicates what's in run_octavian.py for conftest.py to work too
+    )  # duplicates what's in run_octavius.py for conftest.py to work too
     n_ranks = comm.Get_size() if comm is not None else 1
 
     lightweight_data = packed_data.without_indices()  # indices array is sizen n_particles (others are n_groups)

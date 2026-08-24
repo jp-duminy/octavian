@@ -5,12 +5,12 @@ Tests whether the slabs/local subhalos functions produce sensible masks.
 """
 
 import numpy as np
-from octavian.data_management.parallel_reading import (
+from octavius.data_management.parallel_reading import (
     generate_slabs,
     assign_local_subhalos,
 )
-from octavian.external_halo_sources import SubhaloInformation
-from octavian.data_management import ParticleStore
+from octavius.external_halo_sources import SubhaloInformation
+from octavius.data_management import ParticleStore
 
 store = ParticleStore(ptype="star", n_particles=6, is_baryonic=False)
 store["HaloID"] = np.array([0, 2, 3, 0, -1, 1], dtype=np.int64)

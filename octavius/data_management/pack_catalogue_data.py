@@ -25,7 +25,7 @@ import numpy as np
 # internal imports
 from .conventions import (
     DTYPES,
-    OctavianConfig,
+    OctaviusConfig,
 )
 from ..log import get_logger
 from ..version import __version__, CATALOGUE_VERSION
@@ -204,7 +204,7 @@ def pack_rank_data(
 def write_catalogue_headers(
     catalogue_path: Path,
     snapshot_path: Path,
-    config: OctavianConfig,
+    config: OctaviusConfig,
     internals: Internals,
     sim_attrs: SimulationAttributes,
     n_ranks: int,
@@ -214,7 +214,7 @@ def write_catalogue_headers(
     with h5py.File(catalogue_path, "a") as f:
         # basic snapshot metadata
         metadata = f.create_group("metadata")
-        metadata.attrs["octavian_version"] = __version__
+        metadata.attrs["octavius_version"] = __version__
         metadata.attrs["catalogue_format_version"] = CATALOGUE_VERSION
         metadata.attrs["timestamp"] = datetime.now(timezone.utc).isoformat()
         metadata.attrs["original_snapshot_path"] = str(snapshot_path.resolve())

@@ -4,7 +4,7 @@ Tests whether the functions which represent membership arrays in CSR format accu
 
 """
 
-from octavian.data_management import (
+from octavius.data_management import (
     build_group_csr,
     propagate_membership_csr,
 )

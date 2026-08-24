@@ -12,7 +12,7 @@ Particle type-specific aggregate properties. For example:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import SimulationData, OctavianConfig
+    from ..data_management import SimulationData, OctaviusConfig
 
 # other packages
 import numpy as np
@@ -28,7 +28,7 @@ from ..log import get_logger
 logger = get_logger()
 
 
-def run_ptype_specific_properties(simulation_data: SimulationData, config: OctavianConfig) -> None:
+def run_ptype_specific_properties(simulation_data: SimulationData, config: OctaviusConfig) -> None:
     """
     Top-level executor for the ptype-specific aggregate properties.
     """

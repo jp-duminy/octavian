@@ -10,7 +10,7 @@ Properties related to a structure's local environment (number densities, apertur
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import ParticleStore, GroupStore, SimulationData, OctavianConfig
+    from ..data_management import ParticleStore, GroupStore, SimulationData, OctaviusConfig
 
 # other packages
 import numpy as np
@@ -25,7 +25,7 @@ from ..data_management import build_group_csr
 logger = get_logger()
 
 
-def run_local_environment(simulation_data: SimulationData, config: OctavianConfig) -> None:
+def run_local_environment(simulation_data: SimulationData, config: OctaviusConfig) -> None:
     """
     Top-level executor for local environment properties.
     """

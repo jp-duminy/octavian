@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from astropy.cosmology import FLRW
-    from .conventions import OctavianConstants
+    from .conventions import OctaviusConstants
 
 # other packages
 import numpy as np
@@ -30,7 +30,7 @@ def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: F
     return time_gyr - cosmology.age(redshifts).to_value(u.Gyr)  # see astropy for integration details
 
 
-def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctavianConstants, XH: float) -> np.ndarray:
+def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctaviusConstants, XH: float) -> np.ndarray:
     """
     Calculates nH from the simulation parameters and user config.yaml.
     """
@@ -41,7 +41,7 @@ def calculate_temperature(
     internal_energy: np.ndarray,
     electron_abundance: np.ndarray,
     helium_fraction: np.ndarray,
-    constants: OctavianConstants,
+    constants: OctaviusConstants,
     gamma: float = 5 / 3,
 ) -> np.ndarray:
     """
@@ -85,7 +85,7 @@ def derive_simulation_attributes(
     boxsize: float,
     n_star: int,
     n_gas: int,
-    constants: OctavianConstants,
+    constants: OctaviusConstants,
 ) -> SimulationAttributes:
     """
     Derives cosmology and calculates mean interparticle separation.

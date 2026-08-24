@@ -1,6 +1,6 @@
 """
 
-Functions for generating and parsing a bespoke .hdf5 file containing all the data needed for Octavian's photometry pipeline.
+Functions for generating and parsing a bespoke .hdf5 file containing all the data needed for Octavius's photometry pipeline.
 
 """
 
@@ -71,7 +71,7 @@ def read_photometry_table(table_path: Path) -> PhotometryTable:
         logger.debug(f"Oversampling: {oversample}")
         logger.debug(f"Spectral Library: {spectral_library}")
 
-        table_version = tab.attrs["octavian_version"]
+        table_version = tab.attrs["octavius_version"]
         if table_version != __version__:
             logger.warning(
                 f"Photometry table was generated with version {table_version}; you are running version {__version__}"
@@ -129,7 +129,7 @@ def generate_photometry_table(
     oversample: tuple[int, int] = (2, 2),
 ) -> None:
     """
-    Generates a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavian photometry pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
+    Generates a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavius photometry pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
 
     Parameters
     ----------
@@ -167,7 +167,7 @@ def generate_photometry_table_from_sp(
     oversample: tuple[int, int] = (2, 2),
 ) -> None:
     """
-    Uses an existing python FSPS StellarPopulation (sp) object to generate a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavian photometry pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
+    Uses an existing python FSPS StellarPopulation (sp) object to generate a bespoke .hdf5 file containing all SSP and filter curve data needed for the Octavius photometry pipeline. The config field photometry_table should be pointed at this file to be parsed at runtime.
 
     Parameters
     ----------
@@ -245,7 +245,7 @@ def generate_photometry_table_from_sp(
 
         # add some metadata
         f.attrs["fsps_version"] = fsps.__version__
-        f.attrs["octavian_version"] = __version__
+        f.attrs["octavius_version"] = __version__
         f.attrs["spectral_library"] = sp.spec_library
         f.attrs["imf"] = sp.params["imf_type"]
         f.attrs["nebular_emission"] = bool(sp.params["add_neb_emission"])

@@ -1,6 +1,6 @@
 """
 
-Octavian units/dtype conventions and conversions.
+Octavius units/dtype conventions and conversions.
 Also contains backend dataclasses.
 
 """
@@ -35,9 +35,9 @@ FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_id_filepath", "photo
 
 
 @dataclass(frozen=True, slots=True)
-class OctavianConfig:
+class OctaviusConfig:
     """
-    Octavian config object containing user-configured physics/runtime parameters. This can either be directly parsed from a .yaml file with the class method (recommended), or created directly.
+    Octavius config object containing user-configured physics/runtime parameters. This can either be directly parsed from a .yaml file with the class method (recommended), or created directly.
 
     Methods
     -------
@@ -99,7 +99,7 @@ class OctavianConfig:
     photometry_table_filepath: Path | None = None
 
     @classmethod
-    def from_yaml(cls, config_path: Path) -> OctavianConfig:
+    def from_yaml(cls, config_path: Path) -> OctaviusConfig:
         """
         Parses a config .yaml parameter file into the dataclass used internally. Names of entries themselves and the file layout must not be changed.
 
@@ -143,9 +143,9 @@ def _flatten_config(raw: dict) -> dict:
 
 
 @dataclass(frozen=True, slots=True)
-class OctavianConstants:
+class OctaviusConstants:
     """
-    The internal constants and scaling relations used in the Octavian pipeline.
+    The internal constants and scaling relations used in the Octavius pipeline.
 
     Notes
     -----
@@ -376,13 +376,13 @@ class SnapshotReader:
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
-        Returns array in Octavian code units with the correct dtype.
+        Returns array in Octavius code units with the correct dtype.
         """
         raise NotImplementedError
 
     def available_ptypes(self) -> list[str]:
         """
-        List of available ptypes in Octavian convention (gas, star, etc.)
+        List of available ptypes in Octavius convention (gas, star, etc.)
         """
         raise NotImplementedError
 
@@ -409,4 +409,4 @@ def output_catalogue_path(snapshot_path: Path, output_dir: Path) -> Path:
     """
     Returns the Path object pointing to the final production output analysis catalogue filename.
     """
-    return output_dir / f"octavian_{snapshot_path.stem}.hdf5"
+    return output_dir / f"octavius_{snapshot_path.stem}.hdf5"

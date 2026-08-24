@@ -2,7 +2,7 @@
 
 Machinery for reading and parsing the SWIFT-native subhalo finder HBT-HERONS. This draws on similar methods to what you will find in their toolbox folder.
 
-HERONS outputs a number split of SubSnap files owing to MPI. In their source code, toolbox/catalogue_cleanup/SortCatalogues.py can combine these into the format Octavian supports. The reason we do not support both formats is because variable-length HDF5 reads caused painful nightmares in early Octavian development and HERONS is post-processing this for us.
+HERONS outputs a number split of SubSnap files owing to MPI. In their source code, toolbox/catalogue_cleanup/SortCatalogues.py can combine these into the format Octavius supports. The reason we do not support both formats is because variable-length HDF5 reads caused painful nightmares in early Octavius development and HERONS is post-processing this for us.
 
 HBT-HERONS website: https://hbt-herons.strw.leidenuniv.nl/
 HBT-HERONS source code: https://github.com/SWIFTSIM/HBT-HERONS
@@ -186,7 +186,7 @@ def read_subsnap_properties(catalogue_path: Path) -> tuple[np.ndarray, ...]:
 
 def resolve_subsnap_paths(catalogue_dir: Path, snap_nr: int) -> Path:
     """
-    Returns a Path object pointing to the sorted HERONS catalogue. To produce this catalogue you must please run HBT-HERONS/toolbox/catalogue_cleanup/SortCatalogues.py, and run it with the --with-particles flag for Octavian.
+    Returns a Path object pointing to the sorted HERONS catalogue. To produce this catalogue you must please run HBT-HERONS/toolbox/catalogue_cleanup/SortCatalogues.py, and run it with the --with-particles flag for Octavius.
     """
     pattern = f"**/OrderedSubSnap_{snap_nr}.hdf5"
     matches = sorted(catalogue_dir.glob(pattern))

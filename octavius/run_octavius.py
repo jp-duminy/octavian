@@ -1,6 +1,6 @@
 """
 
-Functions for executing the end-to-end Octavian analysis pipeline.
+Functions for executing the end-to-end Octavius analysis pipeline.
 
 """
 
@@ -18,8 +18,8 @@ from .data_management import (
     GroupStore,
     SimulationData,
     Internals,
-    OctavianConstants,
-    OctavianConfig,
+    OctaviusConstants,
+    OctaviusConfig,
     build_reader,
     build_galaxy_store,
     build_halo_store,
@@ -90,9 +90,9 @@ def parse_args() -> argparse.Namespace:
     Parses the command-line arguments; returns the corresponding Namespace object.
     """
     parser = argparse.ArgumentParser(
-        prog="OCTAVIAN",
-        description="Run the Octavian simulation analysis pipeline.",
-        epilog="Thank you for using Octavian!",
+        prog="OCTAVIUS",
+        description="Run the Octavius simulation analysis pipeline.",
+        epilog="Thank you for using Octavius!",
         suggest_on_error=True,
     )
     parser.add_argument(
@@ -130,15 +130,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def execute_pipeline(
-    config: OctavianConfig,
+    config: OctaviusConfig,
     internals: Internals,
-    constants: OctavianConstants,
+    constants: OctaviusConstants,
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
 ) -> RankPackedData:
     """
-    Executes each toggled stage of the Octavian pipeline.
+    Executes each toggled stage of the Octavius pipeline.
     """
     sim = reader.simulation_attributes
     particles = build_particle_stores(
@@ -207,15 +207,15 @@ def execute_pipeline(
 
 
 def analyse_snapshot(
-    config: OctavianConfig,
+    config: OctaviusConfig,
 ) -> Path:
     """
-    Runs the full Octavian analysis pipeline. This function will automatically discern whether it is being run in serial or parallel configuration. It is importable and can be run standalone in a Python script; for batch processing, it is recommended users instead use the Octavian command line functionality called on run_octavian.py instead.
+    Runs the full Octavius analysis pipeline. This function will automatically discern whether it is being run in serial or parallel configuration. It is importable and can be run standalone in a Python script; for batch processing, it is recommended users instead use the Octavius command line functionality called on run_octavius.py instead.
 
     Parameters
     ----------
-    config: OctavianConfig
-        OctavianConfig object. You can call the from_yaml(yaml_filepath) method on it to parse a config.yaml file, or type the parameters manually.
+    config: OctaviusConfig
+        OctaviusConfig object. You can call the from_yaml(yaml_filepath) method on it to parse a config.yaml file, or type the parameters manually.
 
     The snapshot filepath in the config can also be specified through command line arguments. Please run --help for more information.
 
@@ -242,7 +242,7 @@ def analyse_snapshot(
         names, lambda_effs = read_filter_names(config.photometry_table_filepath)
         config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
         internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
-    oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
+    oc = OctaviusConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
 
@@ -360,7 +360,7 @@ def main() -> None:
     args = parse_args()
 
     config_path = args.config if args.config else CONFIG_PATH
-    config = OctavianConfig.from_yaml(config_path=config_path)
+    config = OctaviusConfig.from_yaml(config_path=config_path)
 
     if args.snapshot is not None:
         config = replace(config, snapshot_path=args.snapshot)

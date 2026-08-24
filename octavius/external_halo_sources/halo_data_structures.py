@@ -8,7 +8,7 @@ Internal agnostic halo source infrastructure, for passing to the likewise-agnost
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import SnapshotReader, OctavianConfig
+    from ..data_management import SnapshotReader, OctaviusConfig
     from mpi4py.MPI import Comm
 
 # default libraries
@@ -56,7 +56,7 @@ class SubhaloInformation:
     original_subhids: np.ndarray | None = None
 
 
-def build_halo_source(config: OctavianConfig, reader: SnapshotReader) -> HaloSource:
+def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSource:
     """
     Construct the (Sub)HaloID parser based on what was requested in the config. Returns:
 

@@ -8,8 +8,8 @@ Tests whether the photometry functions correctly recover known values.
 import numpy as np
 
 # internal imports
-from octavian.photometry.photometry_helpers import extinct_madau
-from octavian.photometry.dust_curves import (
+from octavius.photometry.photometry_helpers import extinct_madau
+from octavius.photometry.dust_curves import (
     atten_calzetti,
     atten_conroy,
     atten_power_law,
@@ -18,14 +18,14 @@ from octavian.photometry.dust_curves import (
     extinct_smc,
     NORMALISATION,
 )
-from octavian.photometry.photometry_helpers import (
+from octavius.photometry.photometry_helpers import (
     build_interpolation_table,
     interpolate_ssp,
     _cubic_kernel,
     _quintic_kernel,
     DUST_CURVE_IDX,
 )
-from octavian.photometry.photometry_computations import compute_metal_column_densities, apply_extinction_law
+from octavius.photometry.photometry_computations import compute_metal_column_densities, apply_extinction_law
 
 WAVELENGTHS = np.linspace(900, 30000, 500)
 

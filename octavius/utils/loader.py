@@ -1,6 +1,6 @@
 """
 
-Catalogue loader for interfacing with Octavian catalogues in a user-friendly, object-oriented manner.
+Catalogue loader for interfacing with Octavius catalogues in a user-friendly, object-oriented manner.
 
 NOTE: for devs, please give user-facing APIs the classic numpy docstring style.
 
@@ -20,18 +20,18 @@ from ..version import CATALOGUE_VERSION
 
 def load(
     catalogue_path: Path,
-) -> "OctavianCatalogue":  # in case users are behind on their python version, TODO: remove strings
+) -> "OctaviusCatalogue":  # in case users are behind on their python version, TODO: remove strings
     """
-    Load an Octavian catalogue, returning an OctavianCatalogue object which contains an object-oriented interface for working with Octavian catalogues.
+    Load an Octavius catalogue, returning an OctaviusCatalogue object which contains an object-oriented interface for working with Octavius catalogues.
 
     Parameters
     ----------
     catalogue_path: Path
-        pathlib.Path object pointing to an Octavian catalogue.
+        pathlib.Path object pointing to an Octavius catalogue.
 
     Returns
     -------
-    catalogue: OctavianCatalogue
+    catalogue: OctaviusCatalogue
         The loaded catalogue interface.
     """
     with h5py.File(catalogue_path, "r") as f:
@@ -41,12 +41,12 @@ def load(
                 f"Catalogue version {file_version} is new and not supported by the version of Octavius currently installed, which can read up to version {CATALOGUE_VERSION}; please update."
             )
 
-    return OctavianCatalogue(catalogue_path=catalogue_path)
+    return OctaviusCatalogue(catalogue_path=catalogue_path)
 
 
-class OctavianCatalogue:
+class OctaviusCatalogue:
     """
-    An object-oriented interface for an Octavian catalogue.
+    An object-oriented interface for an Octavius catalogue.
 
     Attributes
     ----------
@@ -62,8 +62,8 @@ class OctavianCatalogue:
         The type of simulation which the catalogue was generated from.
     halo_id_source: str
         Which external source the HaloIDs were derived from.
-    octavian_version: str
-        The version of Octavian which generated the catalogue.
+    octavius_version: str
+        The version of Octavius which generated the catalogue.
     timestamp: str
         When (UTC) the catalogue was generated.
     redshift: float
@@ -110,7 +110,7 @@ class OctavianCatalogue:
         # metadata
         metadata = self._file["metadata"]
         self.simulation_type: str = metadata.attrs["simulation_type"]
-        self.octavian_version: str = metadata.attrs["octavian_version"]
+        self.octavius_version: str = metadata.attrs["octavius_version"]
         self.timestamp: str = metadata.attrs["timestamp"]
         self.halo_id_source: str = metadata["config_parameters"].attrs["halo_id_source"]
 
@@ -120,7 +120,7 @@ class OctavianCatalogue:
         """
         self._file.close()
 
-    def __enter__(self) -> "OctavianCatalogue":  # just in case users are behind on their version, TODO: remove strings
+    def __enter__(self) -> "OctaviusCatalogue":  # just in case users are behind on their version, TODO: remove strings
         """
         Controls behaviour of "with load(catalogue.hdf5) as cat:" (opens the catalogue).
         """
@@ -136,7 +136,7 @@ class OctavianCatalogue:
         """
         Controls what you see when you print a catalogue interface.
         """
-        return f'OctavianCatalogue "{self._cat.name}" | z = {self.redshift:.3f} | {self.halo_id_source} | boxsize = {self.boxsize_comoving}kpc | {self.n_haloes} haloes | {self.n_galaxies} galaxies'
+        return f'OctaviusCatalogue "{self._cat.name}" | z = {self.redshift:.3f} | {self.halo_id_source} | boxsize = {self.boxsize_comoving}kpc | {self.n_haloes} haloes | {self.n_galaxies} galaxies'
 
 
 class GroupCollection:
@@ -162,7 +162,7 @@ class GroupCollection:
         Lists available aggregate property dataset names.
     """
 
-    def __init__(self, data: h5py.Group, parent: OctavianCatalogue, scale_factor: float) -> None:
+    def __init__(self, data: h5py.Group, parent: OctaviusCatalogue, scale_factor: float) -> None:
 
         self._data = data
         self._parent = parent
@@ -401,7 +401,7 @@ class GroupCollection:
         ----------
 
         ptype: str
-            The particle type to retrieve snapshot indices for. Keyed by Octavian ptype names: star, gas, dm, bh
+            The particle type to retrieve snapshot indices for. Keyed by Octavius ptype names: star, gas, dm, bh
         group_index: int
             The GroupID (positional index) to retrieve particles for.
 

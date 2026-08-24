@@ -1,6 +1,6 @@
 """
 
-The circulatory system of Octavian, managing how user-configured stages are run and determining what raw data can be safely dropped between analysis stages.
+The circulatory system of Octavius, managing how user-configured stages are run and determining what raw data can be safely dropped between analysis stages.
 
 """
 
@@ -8,7 +8,7 @@ The circulatory system of Octavian, managing how user-configured stages are run 
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .conventions import OctavianConfig, SnapshotReader
+    from .conventions import OctaviusConfig, SnapshotReader
     from .data_structures import ParticleStore
 
 # default libraries
@@ -25,7 +25,7 @@ logger = get_logger()
 @dataclass(frozen=True, slots=True)
 class PipelineStage:
     """
-    Object containing metadata about an Octavian analysis stage.
+    Object containing metadata about an Octavius analysis stage.
     """
 
     name: str
@@ -63,7 +63,7 @@ class OutputColumnMetadata:
     label: str
 
 
-def load_internals(internals_filepath: Path, config: OctavianConfig) -> Internals:
+def load_internals(internals_filepath: Path, config: OctaviusConfig) -> Internals:
     """
     Loads stage definitions from internals.yaml, validates output columns, and returns the Internals dataclass which contains resolved metadata/ordering from internals.yaml
     """
@@ -284,7 +284,7 @@ def _load_columns(
                 particles[target][column] = reader.read_dataset(ptype=target, dataset=column)
 
 
-def resolve_over(over: dict[str, list | str], config: OctavianConfig) -> dict[str, list[str]]:
+def resolve_over(over: dict[str, list | str], config: OctaviusConfig) -> dict[str, list[str]]:
     """
     Expands the "over:" field in internals.yaml.
     """
@@ -353,7 +353,7 @@ def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str])
         needed.add(stage_name)
         stack.extend(stages[stage_name].requires)  # see PipelineStage dataclass
 
-    # NOTE: this second part is Kahn's algorithm, which for a pipeline with a few stages is definitely overengineering; however, it is inexpensive and provides flexibility for future modules to be extended to Octavian, hence I'd argue in favour of using it
+    # NOTE: this second part is Kahn's algorithm, which for a pipeline with a few stages is definitely overengineering; however, it is inexpensive and provides flexibility for future modules to be extended to Octavius, hence I'd argue in favour of using it
     depth = {n: 0 for n in needed}
     dependents = {n: [] for n in needed}
 
