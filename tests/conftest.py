@@ -50,6 +50,7 @@ from octavian.photometry import (
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavian" / "internals.yaml"
 
 
@@ -74,6 +75,8 @@ def mock_catalogue(
         config,
         simulation_type=sim_type,
         halo_id_source="SNAPSHOT",
+        table_filepath=PHOTOMETRY_TABLE_PATH,
+        bands=["v"],
         min_dm_per_halo=0,
         min_stars_per_galaxy=2,
         b=1.5,
