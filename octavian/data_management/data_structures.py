@@ -764,7 +764,9 @@ def build_particle_stores(
         for dataset in ["mass", "pos", "vel"]:
             store[dataset] = reader.read_dataset(ptype, dataset)
 
-        if ptype == "gas":
+        if (
+            ptype == "gas"
+        ):  # temperature is always relevant to gas properties and has a bespoke read method so load it here
             store["temperature"] = reader.read_temperature(ptype=ptype)
 
         particles[ptype] = store

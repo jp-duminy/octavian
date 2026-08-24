@@ -21,11 +21,19 @@ group_types:
 
 stages:
 
+  find_galaxies:  # only declared so galaxy finding can use the autoloader (doesn't write outputs)
+    label: fof6d
+    applies_to: []
+    requires: []
+    needs_particle_columns:
+      gas: [rho, sfr, metallicity, helium_fraction]
+
   properties_core:
     label: core
     applies_to: [halos, galaxies]
     requires: []
-    needs_particle_columns: [pos, vel, mass, potential]
+    needs_particle_columns:
+      all: [pos, vel, mass, potential]
     outputs:
       - columns: ["n_{ptype}", "mass_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
@@ -57,7 +65,11 @@ stages:
     label: particle_specific
     applies_to: [halos, galaxies]
     requires: [properties_core]
-    needs_particle_columns: [mass, temperature, metallicity, sfr, age, bhmass, bhmdot, rho]
+    needs_particle_columns:
+      all: [mass]
+      gas: [metallicity, sfr, rho, fHI, fH2, helium_fraction]
+      star: [metallicity, age]
+      bh: [bhmass, bhmdot]
     outputs:
       - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_mass_weighted", "metallicity_sfr_weighted", "temp_mass_weighted", "mass_cold", "mass_hot"]
       - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
@@ -69,7 +81,8 @@ stages:
     label: environment
     applies_to: [galaxies]
     requires: [properties_ptype_specific]
-    needs_particle_columns: [pos, mass]
+    needs_particle_columns: 
+      all: [pos, mass]
     outputs:
       - columns: ["local_mass_density_{radius}kpc", "local_number_density_{radius}kpc"]
         over: {radius: from_config:density_radii}
@@ -82,7 +95,11 @@ stages:
     label: photometry
     applies_to: [galaxies]
     requires: [properties_ptype_specific]  # needs the sfr and metallicity
-    needs_particle_columns: [pos, vel, mass, age, metallicity, smoothing_length, dust_mass]
+    needs_particle_columns: 
+      star: [pos, vel, mass, age, metallicity]
+      gas: [pos, mass, metallicity, smoothing_length]
+    optional_particle_columns:
+      gas: [dust_mass]
     outputs:
       - columns: ["mag_abs_{band}", "mag_abs_nodust_{band}", "mag_app_{band}", "mag_app_nodust_{band}"]
         over: {band: from_config:bands}  # helper methods exist to make this work (see photometry_tables.py)
