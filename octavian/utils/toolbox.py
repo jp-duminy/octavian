@@ -72,7 +72,7 @@ def generate_test_catalogue(
     test_catalogue: pathlib.Path
         A path object pointing to the test catalogue.
     """
-    from ..run_octavian import run_octavian  # avoid circular import
+    from ..run_octavian import analyse_snapshot  # avoid circular import
 
     snapshot_path = output_dir / "test_snap.hdf5"
     output_path = output_catalogue_path(snapshot_path=snapshot_path, output_dir=output_dir)
@@ -99,7 +99,7 @@ def generate_test_catalogue(
         terminal_output_level="DEBUG",
     )
 
-    run_octavian(config=config)
+    analyse_snapshot(config=config)
 
     intermediates_dir = output_dir / "Intermediates"
     snapshot_path.unlink()

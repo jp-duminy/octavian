@@ -206,7 +206,7 @@ def execute_pipeline(
     return packed_data
 
 
-def run_octavian(
+def analyse_snapshot(
     config: OctavianConfig,
 ) -> Path:
     """
@@ -378,7 +378,7 @@ def main() -> None:
             "The requested halo ID source also requires a file containing ID assignments to be specified in halo_id_filepath."
         )
 
-    run_octavian(config=config)
+    analyse_snapshot(config=config)
 
 
 if __name__ == "__main__":
