@@ -101,6 +101,11 @@ def write_catalogue(
         per_rank_write_positions: dict[tuple[str, str], list[np.ndarray]] = {}
 
         for group_type in internals.group_types:
+            if (
+                group_type not in sort_orders
+            ):  # guard against absent groups (using sort_orders here works since it is built on what exists)
+                continue
+
             group_params = internals.group_types[group_type]
             hdf5_name = group_params["hdf5_group"]
 
@@ -168,9 +173,15 @@ def write_catalogue(
 
     rank_write_positions: dict[tuple[str, str], np.ndarray] = {}
     rank_membership_data: dict[tuple[str, str], MembershipArrays] = {}
+    present_groups = set(sort_orders.keys()) if rank == 0 else set()  # for guarding against absent groups
+    if comm is not None:
+        present_groups = comm.bcast(present_groups, root=0)
 
     # each rank is given its HDF5 file displacements so it knows where to write the indices array to
     for group_type in internals.group_types:
+        if group_type not in present_groups:  # guard
+            continue
+
         group_params = internals.group_types[group_type]
         hdf5_name = group_params["hdf5_group"]
 
@@ -351,6 +362,10 @@ def resolve_global_ordering(
     # determine global ordering
     sort_orders: dict[str, np.ndarray] = {}
     for group_type in unpacked.sort_arrays:
+        # continue if the group doesn't exist (galaxy finding disabled, or found no galaxies)
+        if not unpacked.sort_arrays[group_type]:
+            continue
+
         merged = np.concatenate(
             unpacked.sort_arrays[group_type]
         )  # sort_arrays is needed because galaxies/halos use baryonic/total mass

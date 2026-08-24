@@ -61,7 +61,7 @@ from octavian.external_halo_sources import (
     HaloAssignments,
 )
 from octavian.log import configure_logger, get_logger, clean_logs
-from octavian.galaxy_finding import find_galaxies
+from octavian.galaxy_finding import find_galaxies, FOF6DResult
 from octavian.aggregate_properties import (
     run_ptype_specific_properties,
     run_core_properties,
@@ -153,7 +153,12 @@ def _profiled_pipeline(
                 particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
     with time_and_memory("Find Galaxies"):
-        fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
+        if config.stages.get("find_galaxies", True):
+            fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
+        else:
+            for ptype in particles:
+                particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
+            fof6d_result = FOF6DResult.empty()
 
     with time_and_memory("Build GroupStores"):
         groups: dict[str, GroupStore] = {}
