@@ -1,6 +1,12 @@
 """
 
-Core aggregate properties. These include simple computations (per-ptype number counts, masses, angular momenta, etc.); quantities derived from the basics (baryon/total quantities); then group-specific derived quantities (e.g. virial quantities for halos or morphology indicators for galaxies).
+Core aggregate properties. These include simple computations (per-ptype number counts, masses,
+angular momenta, etc.); quantities derived from the basics (baryon/total quantities);
+then group-specific derived quantities (e.g. virial quantities for haloes or morphology
+indicators for galaxies).
+
+All physical quantities are computed with numba. Please refer to aggregate_computations.py
+and aggregate_helpers.py for the backend of this file.
 
 """
 
@@ -57,7 +63,7 @@ def run_core_properties(simulation_data: SimulationData, config: OctaviusConfig)
     """
     constants = simulation_data.constants
 
-    for group_type in simulation_data.groups:  # halos must run first (halo groupstore is built first)
+    for group_type in simulation_data.groups:  # haloes must run first (halo groupstore is built first)
         logger.info(f"Running core properties for {group_type}: {simulation_data.groups[group_type].n_groups} members")
 
         group_store = simulation_data.groups[group_type]
@@ -94,7 +100,7 @@ def run_core_properties(simulation_data: SimulationData, config: OctaviusConfig)
         )
 
         if kind == "halo":
-            run_halo_stages(particles=particles, halos=group_store, sim=sim, constants=constants, config=config)
+            run_halo_stages(particles=particles, haloes=group_store, sim=sim, constants=constants, config=config)
 
         elif kind == "galaxy":
             run_galaxy_stages(
@@ -241,7 +247,7 @@ def run_combine(
 
 def run_halo_stages(
     particles: dict[str, ParticleStore],
-    halos: GroupStore,
+    haloes: GroupStore,
     sim: SimulationAttributes,
     constants: OctaviusConstants,
     config: OctaviusConfig,
@@ -249,25 +255,25 @@ def run_halo_stages(
     """
     Halo-specific virial/mass profile quantities.
     """
-    n_groups = halos.n_groups
-    ref_pos = halos["minpot_pos"]
+    n_groups = haloes.n_groups
+    ref_pos = haloes["minpot_pos"]
 
     all_radii_list, all_masses_list, all_group_idx_list = [], [], []  # ghastly concatenation
 
     for ptype in particles:
         data = particles[ptype]
-        offsets, idx_sorted = halos.get_particle_csr(ptype=ptype)
+        offsets, idx_sorted = haloes.get_particle_csr(ptype=ptype)
 
         radii = compute_radii(
             positions=data["pos"],
             ref_pos=ref_pos,
             offsets=offsets,
             idx_sorted=idx_sorted,
-            n_groups=halos.n_groups,
+            n_groups=haloes.n_groups,
             boxsize=sim.boxsize,
         )
         masses = data["mass"][idx_sorted]
-        group_idx = np.repeat(np.arange(halos.n_groups, dtype=np.int64), np.diff(offsets))
+        group_idx = np.repeat(np.arange(haloes.n_groups, dtype=np.int64), np.diff(offsets))
         all_radii_list.append(radii)
         all_masses_list.append(masses)
         all_group_idx_list.append(group_idx)
@@ -289,17 +295,17 @@ def run_halo_stages(
         scale_factor=sim.scale_factor,
         constants=constants,
     )
-    halos.write_batch(results=mass_profile)
+    haloes.write_batch(results=mass_profile)
 
     derived = _derive_halo_quantities(
-        group_mass=halos["mass_total"],
-        L_mag=halos["_L_mag_total"],
-        counts=halos["_n_total"],
+        group_mass=haloes["mass_total"],
+        L_mag=haloes["_L_mag_total"],
+        counts=haloes["_n_total"],
         r200_factor=sim.r200_factor,
         scale_factor=sim.scale_factor,
         constants=constants,
     )
-    halos.write_batch(results=derived)
+    haloes.write_batch(results=derived)
 
 
 def run_galaxy_stages(
@@ -418,7 +424,7 @@ def run_combined_radial_quantiles(
     config: OctaviusConfig,
 ) -> None:
     """
-    Computes radial quantiles for combined ptype sets (baryon, and total for halos).
+    Computes radial quantiles for combined ptype sets (baryon, and total for haloes).
     """
     quantile_names = list(config.radial_quantiles)
     quantiles = np.array(list(config.radial_quantiles.values()), dtype=np.float64)
@@ -572,7 +578,7 @@ def _compute_ptype_kinematics(
     boxsize: float,
 ) -> dict[str, np.ndarray]:
     """
-    Computes kinematic quantities, where ref_pos/vel is wrt the group centre (com for galaxies, minpot for halos), returning a dict of:
+    Computes kinematic quantities, where ref_pos/vel is wrt the group centre (com for galaxies, minpot for haloes), returning a dict of:
 
     - L
     - _dispersion_sum
@@ -653,7 +659,7 @@ def _compute_mass_profile_quantities(
     constants: OctaviusConstants,
 ) -> dict[str, np.ndarray]:
     """
-    Computes mass profile quantities (virial and vmax/rmax), (which as of 19/06/26 are only required for halos). Returns a dict of:
+    Computes mass profile quantities (virial and vmax/rmax), (which as of 19/06/26 are only required for haloes). Returns a dict of:
 
     - radius_{f}c for f in {factors}
     - mass_{f}c
@@ -756,7 +762,7 @@ def _derive_halo_quantities(
     spin_param = guarded_divide(numerator=L_mag, denominator=(np.sqrt(2) * group_mass * v_circ * r200))
 
     empty = counts == 0
-    logger.debug(f"{empty.sum()} halos are empty (NaN for their halo quantities).")
+    logger.debug(f"{empty.sum()} haloes are empty (NaN for their halo quantities).")
 
     for arr in [r200, v_circ, virial_temperature, spin_param]:
         arr[empty] = np.nan

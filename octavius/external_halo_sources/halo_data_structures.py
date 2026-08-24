@@ -27,11 +27,16 @@ logger = get_logger()
 @dataclass(slots=True, frozen=True)
 class HaloAssignments:
     """
-    Dictionaries of per-ptype HaloID/SubhaloID assignments aligned with the original snapshot. These use the internal -1 sentinel.
+    Dictionaries of per-ptype HaloID/SubhaloID assignments aligned with the original snapshot. These use the internal -1 sentinel. Contains:
+
+    - halo_ids: field halo IDs
+    - n_total_haloes: the total number of haloes (and subhaloes) present
+    - subhalo_ids: subhalo IDs
+    - original_hids: original field halo IDs (from external finder)
     """
 
     halo_ids: dict[str, np.ndarray]
-    n_total_halos: int
+    n_total_haloes: int
     subhalo_ids: dict[str, np.ndarray] | None = None
     original_hids: np.ndarray | None = None
 
@@ -43,7 +48,7 @@ class SubhaloInformation:
 
     - host_halo_ids: top-level HaloID
     - parent_index: immediate parent subhalo index
-    - depth: the level of nestage, always >=1
+    - depth: the level of nesting, always >=1
     - n_bound: the number of bound particles (inclusive)
     - original_subhids: the original finder IDs
     """
@@ -72,7 +77,7 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
         logger.info("Using AHF-assigned HaloIDs.")
         logger.info(f"Finding AHF catalogues at {prefix}")
         return AHFHaloSource(
-            halos_path=prefix.with_suffix(".AHF_halos"),
+            haloes_path=prefix.with_suffix(".AHF_halos"),
             particles_path=prefix.with_suffix(".AHF_particles"),
             reader=reader,
         )
@@ -146,11 +151,11 @@ class SnapshotHaloSource(HaloSource):
             halo_ids[pt] = self.reader.read_halo_ids(ptype=pt)  # these are already contiguous
 
         max_id = max(int(ids.max()) for ids in halo_ids.values() if len(ids) > 0)
-        n_total_halos = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
+        n_total_haloes = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
 
         return HaloAssignments(
             halo_ids=halo_ids,
-            n_total_halos=n_total_halos,
+            n_total_haloes=n_total_haloes,
             subhalo_ids=None,
             original_hids=None,
         )  # on-the-fly currently does not do subhaloes
@@ -178,10 +183,10 @@ def compute_depths(parent_ids: np.ndarray, max_allowed_depth: int = 15) -> np.nd
     """
     Uses the parent_id array to return a corresponding depths array where depth=1 means its immediate parent is the field halo.
     """
-    n_subhalos = len(parent_ids)
-    depths = np.empty(n_subhalos, dtype=np.int64)
+    n_subhaloes = len(parent_ids)
+    depths = np.empty(n_subhaloes, dtype=np.int64)
 
-    for idx in range(n_subhalos):
+    for idx in range(n_subhaloes):
         current = idx
         depth = 0
 

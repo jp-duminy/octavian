@@ -891,13 +891,13 @@ def build_halo_store(
     all_halo_ids = [particles[ptype][halo_key] for ptype in particles]
     unique_hids = np.unique(np.concatenate(all_halo_ids))
     unique_hids = unique_hids[unique_hids != -1]
-    n_halos = len(unique_hids)
+    n_haloes = len(unique_hids)
 
     if subhalo_info is not None:
-        n_subhalos = len(subhalo_info.depth)
+        n_subhaloes = len(subhalo_info.depth)
 
         field_to_row = np.full(shape=(unique_hids.max() + 1), fill_value=-1, dtype=np.int64)
-        field_to_row[unique_hids] = np.arange(n_halos)
+        field_to_row[unique_hids] = np.arange(n_haloes)
 
         combined_ids = np.concatenate([unique_hids, subhalo_info.global_index], dtype=np.int64)
         store = GroupStore(group_ids=combined_ids, group_key=halo_key, kind=group_kind)
@@ -908,16 +908,16 @@ def build_halo_store(
             group_idx = np.where(halo_ids == -1, -1, field_to_row[halo_ids])
 
             mask = sub_ids != -1
-            group_idx[mask] = sub_ids[mask] + n_halos
+            group_idx[mask] = sub_ids[mask] + n_haloes
 
             offsets, sorted_indices = build_group_csr(group_idx=group_idx, n_groups=store.n_groups)
             store.csr_membership[ptype] = (offsets, sorted_indices)
 
-        parent_rows = np.full(n_halos + n_subhalos, -1, dtype=np.int64)
+        parent_rows = np.full(n_haloes + n_subhaloes, -1, dtype=np.int64)
         depth_1_mask = subhalo_info.depth == 1
         deeper_mask = subhalo_info.depth > 1
-        parent_rows[n_halos:][depth_1_mask] = field_to_row[subhalo_info.host_halo_ids[depth_1_mask]]
-        parent_rows[n_halos:][deeper_mask] = subhalo_info.parent_index[deeper_mask] + n_halos
+        parent_rows[n_haloes:][depth_1_mask] = field_to_row[subhalo_info.host_halo_ids[depth_1_mask]]
+        parent_rows[n_haloes:][deeper_mask] = subhalo_info.parent_index[deeper_mask] + n_haloes
 
         for ptype in particles:
             exclusive_offsets, exclusive_sorted = store.csr_membership[ptype]
@@ -930,7 +930,7 @@ def build_halo_store(
             store.csr_membership[ptype] = (inclusive_offsets, inclusive_sorted)
 
         store["parent"] = parent_rows
-        store["depth"] = np.concatenate([np.zeros(n_halos, dtype=np.int64), subhalo_info.depth])
+        store["depth"] = np.concatenate([np.zeros(n_haloes, dtype=np.int64), subhalo_info.depth])
 
     else:
         store = GroupStore(group_ids=unique_hids, group_key=halo_key, kind=group_kind)
@@ -941,20 +941,20 @@ def build_halo_store(
             store.csr_membership[ptype] = (offsets, sorted_indices)
 
         store["parent"] = np.full(
-            n_halos, -1, dtype=np.int64
+            n_haloes, -1, dtype=np.int64
         )  # NOTE: I know this is inefficient but otherwise tests break (catalogue inconsistency)
-        store["depth"] = np.zeros(n_halos, dtype=np.int64)
+        store["depth"] = np.zeros(n_haloes, dtype=np.int64)
 
     field_originals = (
         original_halo_ids[unique_hids]
         if original_halo_ids is not None
-        else np.full(shape=n_halos, fill_value=-1, dtype=np.int64)
+        else np.full(shape=n_haloes, fill_value=-1, dtype=np.int64)
     )
     if subhalo_info is not None:
         sub_originals = (
             subhalo_info.original_subhids
             if subhalo_info.original_subhids is not None
-            else np.full(shape=n_subhalos, fill_value=-1, dtype=np.int64)
+            else np.full(shape=n_subhaloes, fill_value=-1, dtype=np.int64)
         )
         store["original_ids"] = np.concatenate([field_originals, sub_originals])
     else:

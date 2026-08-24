@@ -25,7 +25,8 @@ def repack_catalogue(
     compression_level: int = 4,  #  https://en.wikipedia.org/wiki/Gzip fastest is 4
 ) -> None:
     """
-    Calls h5repack with with subprocess to apply gzip compression to a catalogue. The compressed catalogue is named the same as the original.
+    Calls h5repack with with subprocess to apply gzip compression to a catalogue. The compressed
+    catalogue is named the same as the original.
 
     Parameters
     ----------

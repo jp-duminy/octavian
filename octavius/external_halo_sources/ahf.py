@@ -4,7 +4,14 @@ Parser for AHF: Amiga's Halo Finder.
 
 AHF paper: https://iopscience.iop.org/article/10.1088/0067-0049/182/2/608
 
-NOTE: the AHF parser uses np.loadtxt with a numba parser on the resulting array. The call to loadtxt is hard-coded to the structure of an AHF catalogue, and the structure of these catalogues is somewhat finicky/not too user-friendly. Therefore the parser is quite exposed to any changes AHF makes to how they store their information. If catalogues take a long time to parse, a better parsing method would perhaps be welcome.
+A common problem encountered when parsing AHF is its unique catalogue storage format (not .hdf5),
+and the fact its IDs are enormous and approach the int overflow boundary.
+
+NOTE: the AHF parser uses np.loadtxt with a numba parser on the resulting array. The call to
+loadtxt is hard-coded to the structure of an AHF catalogue, and the structure of these catalogues
+ is somewhat finicky/not too user-friendly. Therefore the parser is quite exposed to any changes
+ AHF makes to how they store their information. If catalogues take a long time to parse, a better
+ parsing method would perhaps be welcome.
 
 """
 
@@ -61,18 +68,18 @@ class AHFHaloSource(HaloSource):
     - distribute_raw_subhalo_ids: distributes slab-based SubhaloID info from rank 0 to other ranks
     """
 
-    def __init__(self, halos_path: Path, particles_path: Path, reader: SnapshotReader) -> None:
+    def __init__(self, haloes_path: Path, particles_path: Path, reader: SnapshotReader) -> None:
 
-        self.halos_path = halos_path
+        self.haloes_path = haloes_path
         self.particles_path = particles_path
         self.reader = reader
 
     @cached_property  # cached_property allows AHFHaloSource to parse catalogues once while meeting the inheritance requirements of a HaloSource class
-    def _halos_catalogue(self) -> AHFCatalogue:
+    def _haloes_catalogue(self) -> AHFCatalogue:
         """
         Parses and stores AHF_halos file information, deriving raw ahf ids, parent indices, subhalo depths, and lookup arrays.
         """
-        raw_ahf_ids, raw_host_ids, n_particles = parse_ahf_halos(self.halos_path)
+        raw_ahf_ids, raw_host_ids, n_particles = parse_ahf_haloes(self.haloes_path)
 
         # you now need to remap the comically-large AHF ids (use indices instead)
         parent_indices = remap_ahf_ids(
@@ -119,9 +126,9 @@ class AHFHaloSource(HaloSource):
         Returns (unique_pids, field_halo_indices, deepest_halo_indices), sorted by unique_pids.
         """
         particles_array = np.loadtxt(self.particles_path, skiprows=1, dtype=np.int64)
-        depths = self._halos_catalogue.depths
+        depths = self._haloes_catalogue.depths
 
-        pids, halo_indices = parse_ahf_particles(ahf_particle_array=particles_array, n_halos=len(depths))
+        pids, halo_indices = parse_ahf_particles(ahf_particle_array=particles_array, n_haloes=len(depths))
 
         return deduplicate_ahf_particles(pids=pids, halo_indices=halo_indices, depths=depths)
 
@@ -131,7 +138,7 @@ class AHFHaloSource(HaloSource):
 
         - HaloAssignments dataclass.
         """
-        catalogue = self._halos_catalogue
+        catalogue = self._haloes_catalogue
         unique_pids, deepest_halo_indices = self._particles
 
         halo_assignments: dict[str, np.ndarray] = {}
@@ -151,7 +158,7 @@ class AHFHaloSource(HaloSource):
             halo_assignments[ptype] = apply_lookup(ids=positional_hids, lookup=catalogue.field_lookup)
             subhalo_assignments[ptype] = apply_lookup(ids=positional_subhids, lookup=catalogue.sub_lookup)
 
-        n_total_halos = int((catalogue.depths == 0).sum())
+        n_total_haloes = int((catalogue.depths == 0).sum())
 
         sub_info = self.read_subhalo_info()
         for ptype, sub_ids in subhalo_assignments.items():
@@ -162,7 +169,7 @@ class AHFHaloSource(HaloSource):
 
         return HaloAssignments(
             halo_ids=halo_assignments,
-            n_total_halos=n_total_halos,
+            n_total_haloes=n_total_haloes,
             subhalo_ids=subhalo_assignments,
             original_hids=catalogue.original_field_ids,
         )
@@ -173,11 +180,11 @@ class AHFHaloSource(HaloSource):
 
         - SubhaloInformation dataclass
         """
-        catalogue = self._halos_catalogue
+        catalogue = self._haloes_catalogue
 
         sub_mask = catalogue.depths > 0
 
-        # parents may be field halos (depth-1 subs) or other subhalos (deeper): remap each namespace
+        # parents may be field haloes (depth-1 subs) or other subhaloes (deeper): remap each namespace
         sub_parents = catalogue.parent_indices[sub_mask]
         parent_is_field = catalogue.depths[sub_parents] == 0
 
@@ -244,31 +251,31 @@ class AHFHaloSource(HaloSource):
         global_subhalo_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Wrapper around distribute_raw_halo_ids, but for subhalos (made so SnapshotHaloSource and AHFHaloSource can match). Returns:
+        Wrapper around distribute_raw_halo_ids, but for subhaloes (made so SnapshotHaloSource and AHFHaloSource can match). Returns:
 
         - local_subhalo_ids: dict keyed per-ptype containing the rank's SubhaloID arrays
         """
         return self.distribute_raw_halo_ids(slabs=slabs, comm=comm, global_ids=global_subhalo_ids)
 
 
-def parse_ahf_halos(ahf_halos_path: Path) -> tuple[np.ndarray, ...]:
+def parse_ahf_haloes(ahf_haloes_path: Path) -> tuple[np.ndarray, ...]:
     """
-    Parses a .AHF_halos file, returning a tuple of (ahf_ids, raw_host_ids, n_particles) (all raw AHF data).
+    Parses a .AHF_haloes file, returning a tuple of (ahf_ids, raw_host_ids, n_particles) (all raw AHF data).
     """
     #  col0=ID, col1=hostHalo, col4=n_particles; includes a header; tab-delimited
     ahf_ids, raw_host_ids, n_particles = np.loadtxt(
-        fname=ahf_halos_path, dtype=np.int64, usecols=[0, 1, 4], skiprows=1, delimiter="\t", unpack=True
+        fname=ahf_haloes_path, dtype=np.int64, usecols=[0, 1, 4], skiprows=1, delimiter="\t", unpack=True
     )
 
     return ahf_ids, raw_host_ids, n_particles
 
 
 @njit
-def parse_ahf_particles(ahf_particle_array: np.ndarray, n_halos: int) -> tuple[np.ndarray, ...]:
+def parse_ahf_particles(ahf_particle_array: np.ndarray, n_haloes: int) -> tuple[np.ndarray, ...]:
     """
     Iterates on an .AHF_particles file which has been converted into an (n, 2) array by np.loadtxt, returning a tuple of (pids, halo_ids).
     """
-    n_particles = len(ahf_particle_array) - n_halos
+    n_particles = len(ahf_particle_array) - n_haloes
 
     pids = np.empty(n_particles, dtype=np.int64)
     halo_indices = np.empty(n_particles, dtype=np.int64)
@@ -281,7 +288,7 @@ def parse_ahf_particles(ahf_particle_array: np.ndarray, n_halos: int) -> tuple[n
         if (
             ahf_particle_array[row_idx, 1] > 5
         ):  # maximum ptype is 5 (GIZMO convention), so assuming this doesn't change we know we hit a halo
-            current_halo += 1  # NOTE: AHF halos also have comically large IDs (6 quintillion or so)
+            current_halo += 1  # NOTE: AHF haloes also have comically large IDs (6 quintillion or so)
 
         else:
             pids[write_idx] = ahf_particle_array[row_idx, 0]
@@ -297,7 +304,7 @@ def deduplicate_ahf_particles(
     depths: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Resolves the duplicate appearances of particles in AHF halos by assigning them to their deepest membership, which follows the convention of then propagating child subhalo membership into parents; returns a tuple of unique particle ids, field halo indices, and (deepest) subhalo indices.
+    Resolves the duplicate appearances of particles in AHF haloes by assigning them to their deepest membership, which follows the convention of then propagating child subhalo membership into parents; returns a tuple of unique particle ids, field halo indices, and (deepest) subhalo indices.
     """
     particle_depths = depths[halo_indices]
 
@@ -365,10 +372,10 @@ def compute_field_index(parent_ids: np.ndarray) -> np.ndarray:
     """
     Follows the same logic as compute_depths but instead returns the index of the field halo.
     """
-    n_halos = len(parent_ids)
-    field_index = np.empty(n_halos, dtype=np.int64)
+    n_haloes = len(parent_ids)
+    field_index = np.empty(n_haloes, dtype=np.int64)
 
-    for halo_idx in range(n_halos):
+    for halo_idx in range(n_haloes):
         current = halo_idx
         while parent_ids[current] != -1:
             current = parent_ids[current]

@@ -51,7 +51,7 @@ from octavius.data_management import (
     release_stage_columns,
     validate_stage_requirements,
     output_catalogue_path,
-    assign_local_subhalos,
+    assign_local_subhaloes,
     generate_rank_halo_assignments,
     redistribute_data,
     generate_slabs,
@@ -148,7 +148,7 @@ def _profiled_pipeline(
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
-        subhalo_info = assign_local_subhalos(particles=particles, subhalo_info=global_subhalo_info)
+        subhalo_info = assign_local_subhaloes(particles=particles, subhalo_info=global_subhalo_info)
 
     if config.stages.get("find_galaxies", True):
         with time_and_memory("Load FOF6D data"):
@@ -164,11 +164,11 @@ def _profiled_pipeline(
     with time_and_memory("Build GroupStores"):
         groups: dict[str, GroupStore] = {}
 
-        groups["halos"] = build_halo_store(
+        groups["haloes"] = build_halo_store(
             particles=particles,
-            halo_key=internals.group_types["halos"]["key"],
+            halo_key=internals.group_types["haloes"]["key"],
             subhalo_key="SubhaloID",
-            group_kind=internals.group_types["halos"]["kind"],
+            group_kind=internals.group_types["haloes"]["kind"],
             subhalo_info=subhalo_info,
             original_halo_ids=halo_assignments.original_hids,
         )
@@ -460,7 +460,7 @@ def test_run(args: argparse.Namespace) -> None:
             comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
             subhalo_info = (
                 comm.bcast(subhalo_info, root=0) if comm else subhalo_info
-            )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
+            )  # lowercase b broadcast for the subhalo dataclass (subset of haloes so smaller)
             original_halo_ids = comm.bcast(original_halo_ids, root=0) if comm else original_halo_ids
 
             slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
@@ -490,7 +490,7 @@ def test_run(args: argparse.Namespace) -> None:
 
         rank_halo_assignments = HaloAssignments(
             halo_ids=local_halo_ids,
-            n_total_halos=len(halo_to_rank),
+            n_total_haloes=len(halo_to_rank),
             subhalo_ids=local_subhalo_ids,
             original_hids=original_halo_ids,
         )

@@ -1,6 +1,6 @@
 """
 
-Functions for executing the end-to-end Octavius analysis pipeline.
+Contains the main() function, and the layout of the end-to-end Octavius analysis pipeline.
 
 """
 
@@ -33,7 +33,7 @@ from .data_management import (
     generate_rank_halo_assignments,
     generate_slabs,
     redistribute_data,
-    assign_local_subhalos,
+    assign_local_subhaloes,
     construct_membership_arrays,
     pack_rank_data,
     output_catalogue_path,
@@ -144,7 +144,7 @@ def execute_pipeline(
     particles = build_particle_stores(
         reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
     )
-    subhalo_info = assign_local_subhalos(
+    subhalo_info = assign_local_subhaloes(
         particles=particles, subhalo_info=global_subhalo_info
     )  # this is done locally and is safe, not worth optimising (though an elegant solution is always welcome)
 
@@ -158,11 +158,11 @@ def execute_pipeline(
         fof6d_result = FOF6DResult.empty()
 
     groups: dict[str, GroupStore] = {}
-    groups["halos"] = build_halo_store(  # must build halo store first
+    groups["haloes"] = build_halo_store(  # must build halo store first
         particles=particles,
-        halo_key=internals.group_types["halos"]["key"],
+        halo_key=internals.group_types["haloes"]["key"],
         subhalo_key="SubhaloID",
-        group_kind=internals.group_types["halos"]["kind"],
+        group_kind=internals.group_types["haloes"]["kind"],
         subhalo_info=subhalo_info,
         original_halo_ids=halo_assignments.original_hids,
     )
@@ -210,7 +210,10 @@ def analyse_snapshot(
     config: OctaviusConfig,
 ) -> Path:
     """
-    Runs the full Octavius analysis pipeline. This function will automatically discern whether it is being run in serial or parallel configuration. It is importable and can be run standalone in a Python script; for batch processing, it is recommended users instead use the Octavius command line functionality called on run_octavius.py instead.
+    Runs the full Octavius analysis pipeline. This function will automatically discern whether it is being
+    run in serial or parallel configuration. It is importable and can be run standalone in a Python script;
+    for batch processing, it is recommended users instead use the Octavius command line functionality called
+    on run_octavius.py instead.
 
     Parameters
     ----------
@@ -246,7 +249,7 @@ def analyse_snapshot(
     reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
 
-    # parallelism: rank 0 determines which halos need to go to which rank
+    # parallelism: rank 0 determines which haloes need to go to which rank
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
         all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
         subhalo_info = halo_source.read_subhalo_info()
@@ -274,7 +277,7 @@ def analyse_snapshot(
         comm.Bcast(halo_to_rank, root=0)  # capital B broadcast for halo_to_rank
         subhalo_info = (
             comm.bcast(subhalo_info, root=0) if comm else subhalo_info
-        )  # lowercase b broadcast for the subhalo dataclass (subset of halos so smaller)
+        )  # lowercase b broadcast for the subhalo dataclass (subset of haloes so smaller)
         original_halo_ids = comm.bcast(original_halo_ids, root=0) if comm else original_halo_ids
 
         # ranks determine which slab of each dataset they will read
@@ -307,7 +310,7 @@ def analyse_snapshot(
 
     rank_halo_assignments = HaloAssignments(
         halo_ids=local_halo_ids,
-        n_total_halos=len(halo_to_rank),
+        n_total_haloes=len(halo_to_rank),
         subhalo_ids=local_subhalo_ids,
         original_hids=original_halo_ids,
     )

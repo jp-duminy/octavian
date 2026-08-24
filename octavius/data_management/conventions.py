@@ -1,7 +1,7 @@
 """
 
-Octavius units/dtype conventions and conversions.
-Also contains backend dataclasses.
+This file can be thought of as a backend warehouse. It contains code units, dtypes,
+snapshot unit conversions and physical constants. Also defines the snapshot reader.
 
 """
 

@@ -1,10 +1,21 @@
 """
 
-Utility functions for working with compressed sparse-row format (CSR) representations of data.
+Particle-group mapping is represented throughout the codebase in compressed sparse-row (CSR)
+format, i.e. you store a list of sorted indices into a ParticleStore, and a corresponding lists
+of offsets where offsets[g] is the start of a group, meaning slicing the sorted idx with offsets[g]:offsets[g+1]
+will recover the indices of the particles in group g in the ParticleStore.
+
+This is runtime and memory efficient, but also a little tricky to build and get the hang of working with because
+you need to keep careful track of your indices.
+
+This file contains the utility functions for working with our membership format.
+
+# NOTE: assumes child groups appear after their parents, please ensure this is the case when adding
+new external halo finders.
 
 """
 
-# workhorses
+# other packages
 import numpy as np
 from numba import njit
 
@@ -25,9 +36,7 @@ def build_group_csr(group_idx: np.ndarray, n_groups: int) -> tuple[np.ndarray, n
     global_indices = in_group.nonzero()[
         0
     ]  # reindexing needs to happen on the original group_idx order / .nonzero() returns a tuple
-    sorted_indices = global_indices[
-        np.argsort(masked_idx, kind="stable")  # TODO: stable=True, not kind="stable"
-    ]  # .nonzero() returns a tuple (array is first)
+    sorted_indices = global_indices[np.argsort(masked_idx, stable=True)]  # .nonzero() returns a tuple (array is first)
 
     return offsets, sorted_indices
 

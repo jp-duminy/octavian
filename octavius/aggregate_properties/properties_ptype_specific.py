@@ -6,6 +6,9 @@ Particle type-specific aggregate properties. For example:
 - Star formation histories (stars)
 - Eddington fractions (black holes)
 
+In practice this file exists more for modularity purposes; it is by far the lightest stage
+of the pipeline at present.
+
 """
 
 # type checking (semantic)
@@ -209,7 +212,7 @@ def compute_cgm_properties(
     nHlim: float,
 ) -> dict[str, np.ndarray]:
     """
-    Computes gas CGM-specific quantities (which are only well-defined for halos), returning a dict of:
+    Computes gas CGM-specific quantities (which are only well-defined for haloes), returning a dict of:
 
     - mass_cgm
     - temp_{mass/metal}_weighted_cgm

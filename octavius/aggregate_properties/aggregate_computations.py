@@ -2,7 +2,12 @@
 
 The Octavius aggregate properties engine room.
 
-Vectorisation means intermediate array allocations are made by numpy. JIT-compiled numba functions avoid creating these intermediates; a good example is the centre-of-mass computations, which need intermediate position and velocity Nx3 arrays. Sometimes numba also makes inherently more sense, for example on something like angular momentum which is a cross product which would require 3 bincount calls. Over time I have moved away from pure numpy to numba where possible, numpy for simple vectorised operations.
+All physics computations are written in numba for JIT compilation. Numba provides an inherent raw speed
+advantage (the compilation is cached on the machine, per cache=True), but more importantly, avoids materialising
+intermediate arrays where numpy otherwise would.
+
+The engine room functions are designed to collect a bunch of properties in one go, compute_kinematics() at the top
+being a good example of such.
 
 Conventions:
 
