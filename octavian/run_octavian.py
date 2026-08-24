@@ -65,6 +65,7 @@ from dataclasses import replace
 
 # others
 import numpy as np
+import numba
 
 # internal filepaths
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"  # development config
@@ -226,6 +227,7 @@ def run_octavian(
     comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0
     size = comm.Get_size() if comm else 1
+    numba.set_num_threads(n=config.cores_per_rank)  # intra-rank parallelism
 
     intermediate_dir = config.output_dir / "Intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)

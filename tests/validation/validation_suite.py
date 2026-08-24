@@ -30,6 +30,7 @@ import memray
 import psutil
 import h5py
 import numpy as np
+import numba
 
 # internal imports
 from octavian.data_management import (
@@ -418,6 +419,7 @@ def test_run(args: argparse.Namespace) -> None:
 
     with memray.Tracker(memray_file, native_traces=True):
         config = OctavianConfig.from_yaml(config_path=CONFIG_PATH)
+        numba.set_num_threads(n=config.cores_per_rank)
 
         if config.stages.get("photometry", False):
             names, lambda_effs = read_filter_names(config.photometry_table_filepath)
