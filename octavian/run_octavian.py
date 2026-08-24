@@ -95,10 +95,20 @@ def parse_args() -> argparse.Namespace:
         suggest_on_error=True,
     )
     parser.add_argument(
-        "-s", "--snapshot", type=Path, required=True, help="The filepath to the snapshot you would like to analyse."
+        "-s",
+        "--snapshot",
+        type=Path,
+        required=False,
+        default=None,
+        help="The filepath to the snapshot you would like to analyse.",
     )
     parser.add_argument(
-        "-o", "--output", type=Path, required=True, help="Directory to which you would like the outputs to be routed."
+        "-o",
+        "--output",
+        type=Path,
+        required=False,
+        default=None,
+        help="Directory to which you would like the outputs to be routed.",
     )
     parser.add_argument(
         "-c",
@@ -106,6 +116,13 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         required=False,
         help="The filepath to your config; if not provided, the default config.yaml from the repository is parsed, which can be edited directly.",
+    )
+    parser.add_argument(
+        "--halo-ids",
+        type=Path,
+        required=False,
+        default=None,
+        help="Path to an external catalogue of halo IDs (if not using the snapshot haloes).",
     )
 
     return parser.parse_args()
@@ -189,8 +206,6 @@ def execute_pipeline(
 
 
 def run_octavian(
-    snapshot_path: Path,
-    output_dir: Path,
     config: OctavianConfig,
 ) -> Path:
     """
@@ -198,14 +213,10 @@ def run_octavian(
 
     Parameters
     ----------
-    snapshot_path: pathlib.Path
-        Path object pointing to the snapshot you would like to analyse.
-    output_dir: pathlib.Path
-        Path object pointing to the directory to which you would like the catalogue delivered to.
     config: OctavianConfig
         OctavianConfig object. You can call the from_yaml(yaml_filepath) method on it to parse a config.yaml file, or type the parameters manually.
 
-    If run from the command line, these parameters are filled in from the command line arguments. Please run --help for more information.
+    The snapshot filepath in the config can also be specified through command line arguments. Please run --help for more information.
 
     Returns
     -------
@@ -216,13 +227,13 @@ def run_octavian(
     rank = comm.Get_rank() if comm else 0
     size = comm.Get_size() if comm else 1
 
-    intermediate_dir = output_dir / "Intermediates"
+    intermediate_dir = config.output_dir / "Intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)
 
     # initialise logger for console output
     configure_logger(rank=rank, output_level=config.terminal_output_level, log_dir=intermediate_dir)
     logger = get_logger()
-    logger.info(f"Analysing {snapshot_path} with {size} ranks.")
+    logger.info(f"Analysing {config.snapshot_path} with {size} ranks.")
 
     # initialise snapshot/halo readers, constants, internal metadata
     if config.stages.get("photometry", False):
@@ -230,7 +241,7 @@ def run_octavian(
         config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
         internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
-    reader = build_reader(snapshot_path=snapshot_path, constants=oc, config=config)
+    reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
 
     # parallelism: rank 0 determines which halos need to go to which rank
@@ -318,7 +329,7 @@ def run_octavian(
         global_subhalo_info=subhalo_info,
     )
 
-    catalogue_path = output_catalogue_path(snapshot_path=snapshot_path, output_dir=output_dir)
+    catalogue_path = output_catalogue_path(snapshot_path=config.snapshot_path, output_dir=config.output_dir)
 
     write_catalogue(
         packed_data=packed_data,
@@ -329,7 +340,7 @@ def run_octavian(
     if rank == 0:
         write_catalogue_headers(
             catalogue_path=catalogue_path,
-            snapshot_path=snapshot_path,
+            snapshot_path=config.snapshot_path,
             config=config,
             internals=internals,
             sim_attrs=reader.simulation_attributes,
@@ -340,9 +351,33 @@ def run_octavian(
     return catalogue_path
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """
+    main() function
+    """
     args = parse_args()
+
     config_path = args.config if args.config else CONFIG_PATH
     config = OctavianConfig.from_yaml(config_path=config_path)
 
-    catalogue = run_octavian(snapshot_path=args.snapshot, output_dir=args.output, config=config)
+    if args.snapshot is not None:
+        config = replace(config, snapshot_path=args.snapshot)
+    if args.output is not None:
+        config = replace(config, output_dir=args.output)
+    if args.halo_ids is not None:
+        config = replace(config, halo_id_filepath=args.halo_ids)
+
+    if config.snapshot_path is None:
+        raise ValueError("Please provide a snapshot path.")
+    if config.output_dir is None:
+        raise ValueError("Please provide an output directory path.")
+    if config.halo_id_source != "SNAPSHOT" and config.halo_id_filepath is None:
+        raise ValueError(
+            "The requested halo ID source also requires a file containing ID assignments to be specified in halo_id_filepath."
+        )
+
+    run_octavian(config=config)
+
+
+if __name__ == "__main__":
+    main()

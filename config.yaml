@@ -1,12 +1,11 @@
-# SNAPSHOT FORMAT
-
 simulation_type:  GIZMO       # SWIFT/GIZMO
+halo_id_source:   AHF         # AHF/SNAPSHOT
 
-# HALO SOURCE
-halo_id_source:     AHF    # AHF/SNAPSHOT
-halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003.
 
-# STAGES TO EXECUTE
+snapshot_path:      ~/Octavian/test_snapshot_small.hdf5
+output_dir:         ~/Octavian/Intermediates
+halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003..
+
 
 stages:
   find_galaxies:                  true
@@ -15,69 +14,62 @@ stages:
   properties_local_environment:   true
   photometry:                     true
 
-# CHUNKED I/O READS
 
-n_chunks:   10
-
-# PTYPES TO PROCESS
-
-# WARNING: this removes the ptype entirely, for example, star: false will stop FOF6D from running
-process_ptypes:
+process_ptypes:  # WARNING: removes ptype entirely, e.g. star: false prevents galaxy finding
   gas:    true
   star:   true
   dm:     true
   bh:     true
 
-# GROUP THRESHOLDS
 
-MINIMUM_STARS_PER_GALAXY:   16
-MINIMUM_DM_PER_HALO:        0
-
-# PHYSICS CRITERIA
-
-nH_lim:  0.13     # density above which gas is considered dense
-T_lim:   1.0e+5   # temperature below which gas is considered cold
-FRAD:   0.1       # radiative efficiency of accretion (epsilon)
-MU:     0.6       # mean mass per-particle (gas); computed directly, if not available in snapshot, uses this
-
-# FOF6D ALGORITHM
-
-b:                0.02  # position-space linking length = b * mean_interparticle_separation
-velocity_factor:  1     # velocity-space linking length = velocity_factor * local_velocity_dispersion
-
-# AGGREGATE PROPERTIES
-
-radial_quantiles: # name: fraction of enclosed mass
-  r20:        0.2
-  half_mass:  0.5
-  r80:        0.8
-# NOTE: these need to be lists for the unpacker
-aperture_size:    [30]                # kpc
-virial_factors:   [200, 500, 2500]    # factor * critical density
-density_radii:    [300, 1000, 3000]   # kpc
+thresholds:
+  min_stars_per_galaxy:   16
+  min_dm_per_halo:        0       # haloes below this threshold will not appear in the catalogue
+  nH_lim:                 0.13    # density above which gas is considered dense
+  T_lim:                  1.0e+5  # temperature below which gas is considered cold
 
 
-# PHOTOMETRY
-
-bands: ["sdss", "all", "v"]
-table_filepath: ~/Octavian/phot_table.hdf5
-extinction_law: composite
-viewing_direction: z
-use_dust: true
-use_cosmic_extinction: true
-interpolation_bins: 5000
-kernel_type: cubic
-power_law_alpha: 1.0
-split_age: 0.01  # Gyr
+physics:
+  FRAD:   0.1  # radiative efficiency of accretion (epsilon)
+  MU:     0.6  # mean mass per-particle (gas)
 
 
-# PARALLELISM
+fof6d:
+  b:                0.02  # position-space linking length = b * mean_interparticle_separation
+  velocity_factor:  1     # velocity-space linking length = velocity_factor * local_velocity_dispersion
 
-cores_per_rank:     4 # number of VPU cores assigned to each MPI rank
-fof6d_weight:       0.6 # fraction of computational cost fof6d counts for when balancing computational load
-properties_weight:  0.4 # fraction of computational cost aggregate properties counts for when balancing computational load
 
-# LOGGING
+properties:
+  radial_quantiles: # name: fraction of enclosed mass
+    r20:        0.2
+    half_mass:  0.5
+    r80:        0.8
+  # NOTE: please pass these as lists, even if single-valued
+  aperture_size:    [30]                # kpc
+  virial_factors:   [200, 500, 2500]    # factor * critical density
+  density_radii:    [300, 1000, 3000]   # kpc
 
-terminal_output_level:  "INFO" # how chatty do you want Octavian to be (set to WARNING for runtime-critical notifications)
-keep_logs:              False  # keep log .txt files (useful for debugging), per-rank logs are merged into one file
+
+photometry:
+  bands:                      ["sdss", "all", "v"]  # auto expands filters (e.g. "sdss" will give sdss_u, sdss_g etc)
+  photometry_table_filepath:  ~/Octavian/phot_table.hdf5
+  extinction_law:             composite
+  viewing_axis:               z
+  use_dust:                   true
+  use_cosmic_extinction:      true
+  interpolation_bins:         5000  # for the approximated kernel integral
+  kernel_type:                cubic
+  power_law_alpha:            1.0
+  split_age:                  0.01  # Gyr
+
+
+parallelism:
+  n_chunks:   10
+  cores_per_rank:     4     # number of CPU cores assigned to each MPI rank
+  fof6d_weight:       0.6   # fraction of computational cost fof6d counts for when balancing computational load
+  properties_weight:  0.4   # fraction of computational cost aggregate properties counts for when balancing computational load
+
+
+logging:
+  terminal_output_level:  "INFO"  # set to DEBUG to see everything, WARNING for only critical notifications
+  keep_logs:              False   

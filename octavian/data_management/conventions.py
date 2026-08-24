@@ -29,6 +29,10 @@ from ..log import get_logger
 
 logger = get_logger()
 
+# for config parsing
+CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "properties", "photometry", "parallelism", "logging"})
+FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_id_filepath", "photometry_table_filepath"})
+
 
 @dataclass(frozen=True, slots=True)
 class OctavianConfig:
@@ -75,11 +79,10 @@ class OctavianConfig:
     density_radii: list[int]
 
     bands: list[str]
-    table_filepath: str
     extinction_law: str
-    viewing_dir: str
-    dust: bool
-    cosmic_extinction: bool
+    viewing_axis: str
+    use_dust: bool
+    use_cosmic_extinction: bool
     interpolation_bins: int
     kernel_type: str
     power_law_alpha: float
@@ -92,51 +95,53 @@ class OctavianConfig:
     terminal_output_level: str
     keep_logs: bool
 
-    halo_id_filepath: Path | None = None  # because of Python syntax this has to go at the bottom (it has default arg)
+    snapshot_path: Path | None = None
+    output_dir: Path | None = None
+    halo_id_filepath: Path | None = None
+    photometry_table_filepath: Path | None = None
 
     @classmethod
     def from_yaml(cls, config_path: Path) -> OctavianConfig:
         """
-        Parses a config.yaml file into the dataclass.
+        Parses a config .yaml parameter file into the dataclass used internally. Names of entries themselves and the file layout must not be changed.
+
+        Parameters
+        ----------
+        config_path: pathlib.Path
+            Path object pointing to the config file.
+
+        Returns
+        -------
+        config: OctaviusConfig
+            The config dataclass.
         """
         with open(config_path, "r") as f:
             raw = safe_load(f)
 
-        return cls(
-            simulation_type=raw["simulation_type"],
-            halo_id_source=raw["halo_id_source"],
-            halo_id_filepath=Path(raw["halo_id_filepath"]).expanduser() if "halo_id_filepath" in raw else None,
-            stages=raw["stages"],
-            process_ptypes=raw["process_ptypes"],
-            n_chunks=raw["n_chunks"],
-            min_stars_per_galaxy=raw["MINIMUM_STARS_PER_GALAXY"],
-            min_dm_per_halo=raw["MINIMUM_DM_PER_HALO"],
-            nH_lim=raw["nH_lim"],
-            T_lim=raw["T_lim"],
-            FRAD=raw["FRAD"],
-            MU=raw["MU"],
-            b=raw["b"],
-            velocity_factor=raw["velocity_factor"],
-            radial_quantiles=raw["radial_quantiles"],
-            aperture_size=raw["aperture_size"],
-            virial_factors=raw["virial_factors"],
-            density_radii=raw["density_radii"],
-            bands=raw["bands"],
-            table_filepath=Path(raw["table_filepath"]).expanduser() if "table_filepath" in raw else None,
-            extinction_law=raw["extinction_law"],
-            viewing_dir=raw["viewing_direction"],
-            dust=raw["use_dust"],
-            cosmic_extinction=raw["use_cosmic_extinction"],
-            interpolation_bins=raw["interpolation_bins"],
-            kernel_type=raw["kernel_type"],
-            power_law_alpha=raw["power_law_alpha"],
-            split_age=raw["split_age"],
-            cores_per_rank=raw["cores_per_rank"],
-            fof6d_weight=raw["fof6d_weight"],
-            properties_weight=raw["properties_weight"],
-            terminal_output_level=raw["terminal_output_level"],
-            keep_logs=raw["keep_logs"],
-        )
+        flat = _flatten_config(raw)
+
+        for key in FILEPATHS:
+            if key in flat and flat[key] is not None:
+                flat[key] = Path(flat[key]).expanduser()
+
+        return cls(**flat)  # keyword unpacking saves us from a 35 argument instantiation
+
+
+def _flatten_config(raw: dict) -> dict:
+    """
+    Flattens the raw config (in dict form, parsed with yaml) from its nested structure into flat fields (obeying old behaviour so you can just key off config).
+    """
+    flat: dict = {}
+    for key, value in raw.items():
+        if isinstance(value, dict) and key in CONFIG_FIELDS:
+            for inner_key in value:
+                if inner_key in flat:
+                    raise ValueError(f"{inner_key} is duplicated in the config.")
+            flat.update(value)
+        else:
+            flat[key] = value
+
+    return flat
 
 
 @dataclass(frozen=True, slots=True)

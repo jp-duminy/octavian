@@ -52,11 +52,11 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     if "galaxies" not in simulation_data.groups:
         logger.info("Skipping photometry: no galaxies found.")
         return
-    photometry_table = read_photometry_table(table_path=config.table_filepath)
+    photometry_table = read_photometry_table(table_path=config.photometry_table_filepath)
     constants = simulation_data.constants
     sim = simulation_data.simulation
     kernel_table = build_interpolation_table(n_bins=config.interpolation_bins, kernel_type=config.kernel_type)
-    los_axis = LOS_AXIS_MAP[config.viewing_dir]
+    los_axis = LOS_AXIS_MAP[config.viewing_axis]
 
     # construct dust curves
     wavelengths = photometry_table.wavelengths
@@ -137,7 +137,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
 
     # ascertain whether to include dust
     gas = simulation_data.particles["gas"]
-    use_dust = config.dust and ("dust_mass" in gas.columns)  # both flags have to pass
+    use_dust = config.use_dust and ("dust_mass" in gas.columns)  # both flags have to pass
 
     if use_dust:
         dust_mass = gas["dust_mass"]
@@ -173,7 +173,7 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
         mw_dust_to_metal=constants.MW_DUST_TO_METAL,
         Z_sun=constants.Z_SUN_ASPLUND,  # 0.0134
         Z_col_to_A_v=Z_col_to_A_v,
-        use_cosmic_ext=config.cosmic_extinction,
+        use_cosmic_ext=config.use_cosmic_extinction,
         use_dust=use_dust,
     )
 
