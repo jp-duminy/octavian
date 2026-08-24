@@ -80,9 +80,35 @@ def find_galaxies(
     """
     logger.info("Locating galaxies with FOF6D algorithm.")
 
+    # early return if there are no stars and therefore no galaxies
+    if "star" not in particles or particles["star"].n_particles == 0:
+        logger.warning("No stars found: skipping galaxy finding.")
+
+        for ptype in particles:  # this ensures the galaxies GroupStore is not built
+            particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
+
+        return FOF6DResult(  # match what future code expects to receive
+            write_keys=np.empty(0, dtype=np.int64),
+            galaxy_ids=np.empty(0, dtype=np.int64),
+            ptype_codes=np.empty(0, dtype=np.int8),
+            n_galaxies=0,
+        )
+
     work_data, params = prepare_fof6d_data(
         particles=particles, simulation=simulation, config=config, constants=constants
     )
+
+    # guard in case the concatenated position arrays are all empty
+    if len(work_data.pos) == 0:
+        empty_result = FOF6DResult(
+            write_keys=np.empty(0, dtype=np.int64),
+            galaxy_ids=np.empty(0, dtype=np.int64),
+            ptype_codes=np.empty(0, dtype=np.int8),
+            n_galaxies=0,
+        )
+        store_fof6d_results(particles=particles, result=empty_result)
+        logger.warning("No particles pass the FOF6D criteria; no galaxies found.")
+        return empty_result
 
     logger.debug(f"Linking length: {params.linking_length}")
 
@@ -125,7 +151,11 @@ def prepare_fof6d_data(
     """
     star_halo_ids = particles["star"]["HaloID"]
     max_halo_id = max(
-        (int(particles[pt]["HaloID"].max()) for pt in ("star", "gas", "bh") if pt in particles),
+        (
+            int(particles[pt]["HaloID"].max())
+            for pt in ("star", "gas", "bh")
+            if pt in particles and particles[pt].n_particles > 0
+        ),
         default=-1,
     )
     n_halos = max_halo_id + 1  # this is now the number of field halos (since that's what we operate on)
@@ -186,6 +216,19 @@ def prepare_fof6d_data(
         minstars=config.min_stars_per_galaxy,
         cores_per_rank=config.cores_per_rank,
     )
+
+    # guard if no valid particles pass the mask
+    if len(pos_list) == 0:
+        logger.warning("No valid particles found: skipping galaxy finding.")
+        empty_data = FOF6DData(
+            pos=np.empty((0, 3), dtype=DTYPES["pos"]),
+            vel=np.empty((0, 3), dtype=DTYPES["vel"]),
+            ptype_codes=np.empty(0, dtype=np.int8),
+            write_keys=np.empty(0, dtype=np.int64),
+            starts=np.empty(0, dtype=np.int64),
+            ends=np.empty(0, dtype=np.int64),
+        )
+        return empty_data, params
 
     # NOTE: in-halo concatenation, could be expensive
     all_pos, all_vel = np.concatenate(pos_list, dtype=DTYPES["pos"]), np.concatenate(vel_list, dtype=DTYPES["vel"])

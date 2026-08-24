@@ -49,6 +49,9 @@ def run_photometry(simulation_data: SimulationData, config: OctavianConfig) -> N
     Top-level executor for photometry.
     """
     logger.info("Preparing photometry data.")
+    if "galaxies" not in simulation_data.groups:
+        logger.info("Skipping photometry: no galaxies found.")
+        return
     photometry_table = read_photometry_table(table_path=config.table_filepath)
     constants = simulation_data.constants
     sim = simulation_data.simulation
