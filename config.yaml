@@ -1,10 +1,10 @@
 simulation_type:  GIZMO       # SWIFT/GIZMO
-halo_id_source:   AHF         # AHF/SNAPSHOT
+halo_id_source:   SNAPSHOT         # AHF/SNAPSHOT
 
 
 snapshot_path:      ~/Octavian/test_snapshot_small.hdf5
 output_dir:         ~/Octavian/Intermediates
-halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003..
+halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003.
 
 
 stages:
@@ -64,10 +64,8 @@ photometry:
 
 
 parallelism:
-  n_chunks:   10
+  n_chunks:           10    # for IO reads on datasets, not chunking the pipeline
   cores_per_rank:     4     # number of CPU cores assigned to each MPI rank
-  fof6d_weight:       0.6   # fraction of computational cost fof6d counts for when balancing computational load
-  properties_weight:  0.4   # fraction of computational cost aggregate properties counts for when balancing computational load
 
 
 logging:

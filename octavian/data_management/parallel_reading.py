@@ -171,14 +171,12 @@ def generate_rank_halo_assignments(
     n_valid_halos = halo_assignments.n_total_halos  # at this point the reader has remapped HaloIDs to 0-indexed
 
     halo_to_rank = np.full(shape=n_valid_halos, fill_value=-1, dtype=np.int64)
-    zeros = np.zeros(n_valid_halos, dtype=np.int64)
-    star_counts = ptype_counts.get("star", zeros)
-    gas_counts = ptype_counts.get("gas", zeros)
-    dm_counts = ptype_counts.get("dm", zeros)
 
-    fof6d_cost = star_counts[all_valid_hids] ** 1.2 + gas_counts[all_valid_hids]  # NOTE: this power law is empirical
-    aggregates_cost = star_counts[all_valid_hids] + gas_counts[all_valid_hids] + dm_counts[all_valid_hids]
-    halo_weights = config.fof6d_weight * fof6d_cost + config.properties_weight * aggregates_cost
+    halo_weights = compute_halo_weights(
+        ptype_counts=ptype_counts,
+        valid_halo_indices=all_valid_hids,
+        stages=config.stages,
+    )
 
     # bin according to computational weight: sort halos by size descending then sequentially assign to rank with lightest load
     weight_order = np.argsort(halo_weights)[::-1]  # TODO: move to argsort(descending=True) in numpy 2.5.0
@@ -193,6 +191,38 @@ def generate_rank_halo_assignments(
         rank_loads[lightest] += halo_weights[idx]
 
     return halo_to_rank
+
+
+def compute_halo_weights(
+    ptype_counts: dict[str, np.ndarray],
+    valid_halo_indices: np.ndarray,
+    stages: dict[str, bool],
+) -> np.ndarray:
+    """
+    Computes the per-halo computational weight for the binning algorithm according to the empirical formula, depending on which stages are enabled.
+    """
+    zeros = np.zeros(len(valid_halo_indices), dtype=np.float64)  # to avoid the boilerplate
+    star_counts = ptype_counts.get("star", zeros)[valid_halo_indices]
+    gas_counts = ptype_counts.get("gas", zeros)[valid_halo_indices]
+    dm_counts = ptype_counts.get("dm", zeros)[valid_halo_indices]
+
+    weights = np.zeros(
+        len(valid_halo_indices), dtype=np.float64
+    )  # weights are equally zero if these stages were not to run somehow, which works
+
+    # NOTE: these power laws are all empirical, I tuned them for my dissertation
+    if stages.get("find_galaxies", False):
+        weights += star_counts**1.2 + gas_counts
+
+    if any(
+        stages.get(s, False) for s in ("properties_core", "properties_ptype_specific", "properties_local_environment")
+    ):
+        weights += star_counts + gas_counts + dm_counts
+
+    if stages.get("photometry", False):
+        weights += star_counts**1.5
+
+    return weights
 
 
 def generate_slabs(
