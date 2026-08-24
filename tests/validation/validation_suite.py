@@ -140,17 +140,19 @@ def _profiled_pipeline(
     """
     Executes each stage of the Octavian pipeline with timing/memory.
     """
-    with time_and_memory("Read-in Data"):
+    with time_and_memory("Initialise particles"):
         sim = reader.simulation_attributes
         particles = build_particle_stores(
             reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
         )
         subhalo_info = assign_local_subhalos(particles=particles, subhalo_info=global_subhalo_info)
 
-    with time_and_memory("FOF6D"):
-        for prop in ["rho", "sfr", "metallicity", "helium_fraction"]:
-            particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
+    with time_and_memory("Load FOF6D data"):
+        if "gas" in particles:
+            for prop in ["rho", "sfr", "metallicity", "helium_fraction"]:
+                particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
+    with time_and_memory("Find Galaxies"):
         fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     with time_and_memory("Build GroupStores"):
@@ -171,25 +173,28 @@ def _profiled_pipeline(
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
 
-    with time_and_memory("Load Aggregate Columns"):
+    with time_and_memory("Load Properties Data"):
         for ptype in particles:
             particles[ptype]["potential"] = reader.read_dataset(ptype=ptype, dataset="potential")
 
-        for prop in [
-            "fHI",
-            "fH2",
-        ]:
-            particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
+        if "gas" in particles:
+            for prop in [
+                "fHI",
+                "fH2",
+                "smoothing_length",
+            ]:
+                particles["gas"][prop] = reader.read_dataset(ptype="gas", dataset=prop)
 
-        for prop in ["metallicity", "age"]:
-            particles["star"][prop] = reader.read_dataset(ptype="star", dataset=prop)
+            if reader.has_dataset("gas", "dust_mass"):
+                particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
 
-        particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
-        particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
-        particles["gas"]["smoothing_length"] = reader.read_dataset(ptype="gas", dataset="smoothing_length")
+        if "star" in particles:
+            for prop in ["metallicity", "age"]:
+                particles["star"][prop] = reader.read_dataset(ptype="star", dataset=prop)
 
-        if reader.has_dataset("gas", "dust_mass"):
-            particles["gas"]["dust_mass"] = reader.read_dataset(ptype="gas", dataset="dust_mass")
+        if "bh" in particles:
+            particles["bh"]["bhmdot"] = reader.read_dataset(ptype="bh", dataset="bhmdot")
+            particles["bh"]["bhmass"] = reader.read_dataset(ptype="bh", dataset="bhmass")
 
     simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
     assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
