@@ -24,7 +24,7 @@ import pytest
 import h5py
 
 # internal imports
-from octavian import run_octavian, OctavianConfig
+from octavian import analyse_snapshot, OctavianConfig
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
@@ -60,7 +60,7 @@ def mock_catalogue(
         velocity_factor=5,
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
 
-    output_path = run_octavian(config=config)
+    output_path = analyse_snapshot(config=config)
     assert output_path.exists()
 
     catalogue = h5py.File(output_path, "r")
