@@ -24,7 +24,6 @@ from .pipeline_management import (
     PipelineStage as PipelineStage,
     Internals as Internals,
     load_internals as load_internals,
-    get_releasable_columns as get_releasable_columns,
     resolve_dependencies as resolve_dependencies,
     load_stage_columns as load_stage_columns,
     release_stage_columns as release_stage_columns,
