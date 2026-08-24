@@ -37,6 +37,7 @@ from .aggregate_helpers import (
     count_per_group,
     min_idx_per_group,
     first_idx_per_group,
+    max_value_per_group,
 )
 
 from ..utils import guarded_divide, guarded_arcsin
@@ -630,9 +631,12 @@ def _compute_radial_quantities(
     radial_results = compute_enclosed_mass_radii(
         radii=radii, masses=masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups, quantiles=quantiles
     )
+    max_radii = max_value_per_group(values=radii, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    max_radii[max_radii == -np.inf] = 0.0  # the engine room function instantiates with -np.inf
 
     for q, col_name in enumerate(quantile_names):
         results[f"radius_{col_name}"] = radial_results[:, q]
+    results["radius_max"] = max_radii
 
     return results
 

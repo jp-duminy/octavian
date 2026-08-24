@@ -37,12 +37,12 @@ stages:
     outputs:
       - columns: ["n_{ptype}", "mass_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
-      - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "L_azimuth_{ptype}", "L_elevation_{ptype}", "inertia_tensor_{ptype}"]
+      - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "L_azimuth_{ptype}", "L_elevation_{ptype}", "inertia_tensor_{ptype}", "radius_max_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
       - columns: ["BoverT_{ptype}", "kappa_rot_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
         applies_to: [galaxies]
-      - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "L_azimuth_{combined}", "L_elevation_{combined}", "inertia_tensor_{combined}"]
+      - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "L_azimuth_{combined}", "L_elevation_{combined}", "inertia_tensor_{combined}", "radius_max_{combined}"]
         over: {combined: [total, baryon]}
       - columns: ["com_pos_{combined}", "com_vel_{combined}"]
         over: {combined: [total, baryon]}
@@ -218,6 +218,13 @@ output_columns:
     unit:        "kpc"
     a_exp:       1
     description: "Radius which encloses the fraction (in the quantile) of the (ptype) mass."
+
+  "radius_max_{ptype}":
+    over:        {ptype: [gas, star, dm, bh, total, baryon]}
+    dtype:       float64
+    unit:        "kpc"
+    a_exp:       1
+    description: "Maximum radius a particle lives at from the centre."
 
   # only halos
   vmax:
