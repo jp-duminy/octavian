@@ -9,6 +9,12 @@ and there is functionality for concatenating per-rank logs at the end of a run.
 import logging
 from pathlib import Path
 
+BANNER = """
+░█▀█░█▀▀░▀█▀░█▀█░█░█░▀█▀░█░█░█▀▀
+░█░█░█░░░░█░░█▀█░▀▄▀░░█░░█░█░▀▀█
+░▀▀▀░▀▀▀░░▀░░▀░▀░░▀░░▀▀▀░▀▀▀░▀▀▀
+"""
+
 
 def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | None = None) -> logging.Logger:
     """
