@@ -237,7 +237,7 @@ def run_octavian(
 
     # initialise snapshot/halo readers, constants, internal metadata
     if config.stages.get("photometry", False):
-        names, lambda_effs = read_filter_names(config.table_filepath)
+        names, lambda_effs = read_filter_names(config.photometry_table_filepath)
         config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
         internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctavianConstants(mu=config.MU, frad=config.FRAD)
