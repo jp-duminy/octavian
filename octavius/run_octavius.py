@@ -6,12 +6,23 @@ Contains the main() function, and the layout of the end-to-end Octavius analysis
 
 # type checking (semantic, do not worry about this)
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 if TYPE_CHECKING:
     from mpi4py import MPI
     from .data_management import SnapshotReader, RankPackedData, RedistributionMap
     from .external_halo_sources import SubhaloInformation
+
+# default libraries
+from pathlib import Path
+import argparse
+from dataclasses import replace
+from contextlib import contextmanager
+from time import perf_counter
+
+# other packages
+import numpy as np
+import numba
 
 # internal package imports
 from .data_management import (
@@ -56,17 +67,9 @@ from .photometry import (
     read_filter_names,
     run_photometry,
 )
-from .log import configure_logger, get_logger, clean_logs
+from .log import configure_logger, get_logger, clean_logs, instantiation_message, output_summary, BANNER
 from .utils import repack_catalogue
-
-# default libraries
-from pathlib import Path
-import argparse
-from dataclasses import replace
-
-# others
-import numpy as np
-import numba
+from .version import __version__
 
 # internal filepaths
 CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"  # development config
@@ -137,50 +140,56 @@ def execute_pipeline(
     reader: SnapshotReader,
     halo_assignments: HaloAssignments,
     global_subhalo_info: SubhaloInformation,
+    timings: dict[str, float],
 ) -> RankPackedData:
     """
     Executes each toggled stage of the Octavius pipeline.
     """
     sim = reader.simulation_attributes
-    particles = build_particle_stores(
-        reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
-    )
+    with timer("Load particles", timings=timings):
+        particles = build_particle_stores(
+            reader=reader, internals=internals, halo_assignments=halo_assignments, process_ptypes=config.process_ptypes
+        )
     subhalo_info = assign_local_subhaloes(
         particles=particles, subhalo_info=global_subhalo_info
     )  # this is done locally and is safe, not worth optimising (though an elegant solution is always welcome)
 
     if config.stages.get("find_galaxies", True):
-        load_stage_columns(particles=particles, reader=reader, stage=internals.stages["find_galaxies"])
-        fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
+        with timer("Load FOF6D columns", timings=timings):
+            load_stage_columns(particles=particles, reader=reader, stage=internals.stages["find_galaxies"])
+        with timer("Find Galaxies", timings=timings):
+            fof6d_result = find_galaxies(particles=particles, simulation=sim, config=config, constants=constants)
 
     else:  # other functions have guards built for no galaxies so we set IDs equal to the sentinel value
         for ptype in particles:
             particles[ptype]["GalID"] = np.full(particles[ptype].n_particles, -1, dtype=np.int64)
         fof6d_result = FOF6DResult.empty()
 
-    groups: dict[str, GroupStore] = {}
-    groups["haloes"] = build_halo_store(  # must build halo store first
-        particles=particles,
-        halo_key=internals.group_types["haloes"]["key"],
-        subhalo_key="SubhaloID",
-        group_kind=internals.group_types["haloes"]["kind"],
-        subhalo_info=subhalo_info,
-        original_halo_ids=halo_assignments.original_hids,
-    )
-
-    if fof6d_result.n_galaxies > 0:
-        groups["galaxies"] = build_galaxy_store(
+    with timer("Build GroupStores", timings=timings):
+        groups: dict[str, GroupStore] = {}
+        groups["haloes"] = build_halo_store(  # must build halo store first
             particles=particles,
-            galaxy_key=internals.group_types["galaxies"]["key"],
-            group_kind=internals.group_types["galaxies"]["kind"],
+            halo_key=internals.group_types["haloes"]["key"],
+            subhalo_key="SubhaloID",
+            group_kind=internals.group_types["haloes"]["kind"],
+            subhalo_info=subhalo_info,
+            original_halo_ids=halo_assignments.original_hids,
         )
 
-    simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
-    assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
+        if fof6d_result.n_galaxies > 0:
+            groups["galaxies"] = build_galaxy_store(
+                particles=particles,
+                galaxy_key=internals.group_types["galaxies"]["key"],
+                group_kind=internals.group_types["galaxies"]["kind"],
+            )
 
-    requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
-    ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
-    validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))
+    with timer("Prepare pipeline", timings=timings):
+        simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
+        assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
+
+        requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
+        ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)
+        validate_stage_requirements(ordered_stages=ordered_stages, available_ptypes=set(particles.keys()))
 
     stage_dispatch = {
         "properties_core": run_core_properties,
@@ -190,8 +199,10 @@ def execute_pipeline(
     }
 
     for stage_idx, stage in enumerate(ordered_stages):
-        load_stage_columns(particles=particles, reader=reader, stage=stage)
-        stage_dispatch[stage.name](simulation_data=simulation_data, config=config)
+        with timer(f"Load {stage.name} data", timings=timings):
+            load_stage_columns(particles=particles, reader=reader, stage=stage)
+        with timer(f"Run {stage.name}", timings=timings):
+            stage_dispatch[stage.name](simulation_data=simulation_data, config=config)
         release_stage_columns(particles=particles, current_idx=stage_idx, ordered_stages=ordered_stages)
 
     if reader.global_indices is not None:
@@ -199,10 +210,13 @@ def execute_pipeline(
     else:
         particle_indices = {ptype: np.arange(len(particles[ptype]), dtype=np.int64) for ptype in particles}
 
-    membership_arrays = construct_membership_arrays(data=simulation_data, internals=internals, indices=particle_indices)
-    packed_data = pack_rank_data(
-        data=simulation_data, particle_membership_arrays=membership_arrays, internals=internals
-    )
+    with timer("Save data", timings=timings):
+        membership_arrays = construct_membership_arrays(
+            data=simulation_data, internals=internals, indices=particle_indices
+        )
+        packed_data = pack_rank_data(
+            data=simulation_data, particle_membership_arrays=membership_arrays, internals=internals
+        )
 
     return packed_data
 
@@ -229,17 +243,28 @@ def analyse_snapshot(
         Path object pointing towards the analysis catalogue.
     """
     comm = get_mpi_communicator()
-    rank = comm.Get_rank() if comm else 0
+    rank = comm.Get_rank() if comm else 0  # top-level rank parallelism
     size = comm.Get_size() if comm else 1
     numba.set_num_threads(n=config.cores_per_rank)  # intra-rank parallelism
 
-    intermediate_dir = config.output_dir / "Intermediates"
+    print(BANNER)
+
+    intermediate_dir = config.output_dir / "octavius_intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)
 
     # initialise logger for console output
     configure_logger(rank=rank, output_level=config.terminal_output_level, log_dir=intermediate_dir)
     logger = get_logger()
-    logger.info(f"Analysing {config.snapshot_path} with {size} ranks.")
+    instantiation_message(
+        snapshot_name=config.snapshot_path,
+        simulation_type=config.simulation_type,
+        halo_source=config.halo_id_source,
+        version=__version__,
+        n_ranks=size,
+        cores_per_rank=config.cores_per_rank,
+        stages=[name for name, enabled in config.stages.items() if enabled],
+    )
+    logger.info("Instantiating analysis data structures.")
 
     # initialise snapshot/halo readers, constants, internal metadata
     if config.stages.get("photometry", False):
@@ -271,6 +296,7 @@ def analyse_snapshot(
 
     if comm is not None:
         halo_to_rank_length = comm.bcast(halo_to_rank_length, root=0)  # this is just an int so bcast
+        logger.info("Rank halo allocations broadcast successfully.")
 
         if rank != 0:
             halo_to_rank = np.empty(halo_to_rank_length, dtype=np.int64)  # malloc
@@ -325,7 +351,8 @@ def analyse_snapshot(
     raw_halo_ids = None
     raw_subhalo_ids = None
 
-    # analysis pipeline (FOF6D, properties)
+    # analysis pipeline
+    timings: dict[str, float] = {}
     packed_data = execute_pipeline(
         config=config,
         internals=internals,
@@ -333,6 +360,7 @@ def analyse_snapshot(
         reader=reader,
         halo_assignments=rank_halo_assignments,
         global_subhalo_info=subhalo_info,
+        timings=timings,
     )
 
     catalogue_path = output_catalogue_path(snapshot_path=config.snapshot_path, output_dir=config.output_dir)
@@ -343,6 +371,13 @@ def analyse_snapshot(
         internals=internals,
         comm=comm,
     )
+
+    # diagnostics
+    if comm is not None:
+        all_timings = comm.gather(timings, root=0)
+    else:
+        all_timings = [timings]
+
     if rank == 0:
         write_catalogue_headers(
             catalogue_path=catalogue_path,
@@ -352,15 +387,35 @@ def analyse_snapshot(
             sim_attrs=reader.simulation_attributes,
             n_ranks=size,
         )
-        clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
 
-        if config.compress_catalogue:
-            try:
-                repack_catalogue(catalogue_path)
-            except FileNotFoundError:
-                logger.warning("h5repack not available; indices in catalogue are uncompressed.")
+        if rank == 0:
+            if config.compress_catalogue:
+                try:
+                    repack_catalogue(catalogue_path)
+                except FileNotFoundError:
+                    logger.warning("h5repack not available; indices in catalogue are uncompressed.")
+
+            output_summary(
+                all_timings=all_timings,
+                catalogue_path=catalogue_path,
+                n_ranks=size,
+            )
+            clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
 
     return catalogue_path
+
+
+@contextmanager
+def timer(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
+    """
+    Logs the time taken for a stage (reduced version of validation suite time_and_memory)
+    """
+    logger = get_logger()
+    t0 = perf_counter()
+    yield
+    elapsed = perf_counter() - t0
+    timings[label] = elapsed
+    logger.info(f"{label} completed in {elapsed:.1f}s.")
 
 
 def main() -> None:

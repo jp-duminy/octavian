@@ -353,7 +353,7 @@ def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str])
         needed.add(stage_name)
         stack.extend(stages[stage_name].requires)  # see PipelineStage dataclass
 
-    # NOTE: this second part is Kahn's algorithm, which for a pipeline with a few stages is definitely overengineering; however, it is inexpensive and provides flexibility for future modules to be extended to Octavius, hence I'd argue in favour of using it
+    # NOTE: Kahn's algorithm for rigorous dependency resolution
     depth = {n: 0 for n in needed}
     dependents = {n: [] for n in needed}
 

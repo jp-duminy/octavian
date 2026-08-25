@@ -53,6 +53,8 @@ def repack_catalogue(
         temp_path.unlink(missing_ok=True)
         raise
 
+    logger.info("Successfully compressed catalogue.")
+
 
 def generate_test_catalogue(
     output_dir: Path,

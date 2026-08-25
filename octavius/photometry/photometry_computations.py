@@ -560,7 +560,7 @@ def compute_metal_column_densities(
 
 
 @njit(cache=True)
-def build_dust_cell_list(
+def build_dust_cell_list(  # TODO: this per-halo structure is currently constructed for each galaxy, precompute and key by field_halo_idx
     gas_pos: np.ndarray,
     smoothing_lengths: np.ndarray,
     ax0: int,

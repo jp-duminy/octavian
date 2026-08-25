@@ -38,8 +38,6 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
     particles = simulation_data.particles
     constants = simulation_data.constants
 
-    logger.info("Hydrogen fractions prepared.")
-
     for group_type in simulation_data.groups:
         logger.info(
             f"Running ptype-specific properties for {group_type}: {simulation_data.groups[group_type].n_groups} members"
