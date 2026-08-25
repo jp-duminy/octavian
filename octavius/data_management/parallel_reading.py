@@ -234,7 +234,7 @@ def compute_halo_weights(
         weights += star_counts + gas_counts + dm_counts
 
     if stages.get("photometry", False):
-        weights += star_counts**1.5
+        weights += (star_counts + gas_counts) ** 1.1
 
     return weights
 
