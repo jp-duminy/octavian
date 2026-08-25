@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 # default libraries
 from pathlib import Path
 import argparse
+import shutil
 from dataclasses import replace
 from contextlib import contextmanager
 from time import perf_counter
@@ -94,12 +95,15 @@ def parse_args() -> argparse.Namespace:
     Parses the command-line arguments; returns the corresponding Namespace object.
     """
     parser = argparse.ArgumentParser(
-        prog="OCTAVIUS",
-        description="Run the Octavius simulation analysis pipeline.",
+        prog="octavius",
+        description="The next generation simulation analysis toolkit.",
         epilog="Thank you for using Octavius!",
         suggest_on_error=True,
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser("analyse", help="Analyses a snapshot.")
+    run_parser.add_argument(
         "-s",
         "--snapshot",
         type=Path,
@@ -107,7 +111,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="The filepath to the snapshot you would like to analyse.",
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "-o",
         "--output",
         type=Path,
@@ -115,19 +119,26 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Directory to which you would like the outputs to be routed.",
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "-c",
         "--config",
         type=Path,
         required=False,
         help="The filepath to your config; if not provided, the default config.yaml from the repository is parsed, which can be edited directly.",
     )
-    parser.add_argument(
+    run_parser.add_argument(
         "--halo-ids",
         type=Path,
         required=False,
         default=None,
         help="Path to an external catalogue of halo IDs (if not using the snapshot haloes).",
+    )
+
+    init_parser = subparsers.add_parser(
+        "init", help="Generate a default config .yaml file to the current working directory."
+    )
+    init_parser.add_argument(
+        "-o", "--output", type=Path, default=Path("."), help="Directory where you would like the config file placed."
     )
 
     return parser.parse_args()
@@ -247,7 +258,11 @@ def analyse_snapshot(
     size = comm.Get_size() if comm else 1
     numba.set_num_threads(n=config.cores_per_rank)  # intra-rank parallelism
 
-    print(BANNER)
+    if rank == 0:
+        print(BANNER, flush=True)
+
+    if comm:
+        comm.Barrier()  # so the banner doesn't print after the analysis
 
     intermediate_dir = config.output_dir / "octavius_intermediates"
     intermediate_dir.mkdir(parents=True, exist_ok=True)
@@ -405,6 +420,31 @@ def analyse_snapshot(
     return catalogue_path
 
 
+def generate_config(output_dir: Path = Path(".")) -> None:
+    """
+    Generates a default config.yaml file in the requested output directory.
+
+    Parameters
+    ----------
+    output_dir: pathlib.Path
+        Path object pointing to the output directory where the config.yaml file should be generated.
+        Default: the current working directory.
+    filename: str
+        The desired filename. Default: octavius_config.
+
+    Notes
+    -----
+    The file will be named octavius_config.yaml by default.
+    """
+    default = CONFIG_PATH
+    target = output_dir / "octavius_config.yaml"
+
+    if target.exists():
+        raise FileExistsError(f"{target} already exists.")
+
+    shutil.copy(default, target)
+
+
 @contextmanager
 def timer(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
     """
@@ -420,30 +460,35 @@ def timer(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
 
 def main() -> None:
     """
-    main() function
+    main() function; currently branches on the init (config generation) and analyse
+    (analyse snapshot) paths from the command line.
     """
     args = parse_args()
 
-    config_path = args.config if args.config else CONFIG_PATH
-    config = OctaviusConfig.from_yaml(config_path=config_path)
+    if args.command == "init":
+        generate_config(output_dir=args.output)
 
-    if args.snapshot is not None:
-        config = replace(config, snapshot_path=args.snapshot)
-    if args.output is not None:
-        config = replace(config, output_dir=args.output)
-    if args.halo_ids is not None:
-        config = replace(config, halo_id_filepath=args.halo_ids)
+    elif args.command == "analyse":
+        config_path = args.config if args.config else CONFIG_PATH
+        config = OctaviusConfig.from_yaml(config_path=config_path)
 
-    if config.snapshot_path is None:
-        raise ValueError("Please provide a snapshot path.")
-    if config.output_dir is None:
-        raise ValueError("Please provide an output directory path.")
-    if config.halo_id_source != "SNAPSHOT" and config.halo_id_filepath is None:
-        raise ValueError(
-            "The requested halo ID source also requires a file containing ID assignments to be specified in halo_id_filepath."
-        )
+        if args.snapshot is not None:
+            config = replace(config, snapshot_path=args.snapshot)
+        if args.output is not None:
+            config = replace(config, output_dir=args.output)
+        if args.halo_ids is not None:
+            config = replace(config, halo_id_filepath=args.halo_ids)
 
-    analyse_snapshot(config=config)
+        if config.snapshot_path is None:
+            raise ValueError("Please provide a snapshot path.")
+        if config.output_dir is None:
+            raise ValueError("Please provide an output directory path.")
+        if config.halo_id_source != "SNAPSHOT" and config.halo_id_filepath is None:
+            raise ValueError(
+                "The requested halo ID source also requires a file containing ID assignments to be specified in halo_id_filepath."
+            )
+
+        analyse_snapshot(config=config)
 
 
 if __name__ == "__main__":
