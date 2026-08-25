@@ -105,3 +105,61 @@ def clean_logs(
         for i in range(n_ranks):
             (intermediate_log_path(directory=log_dir, rank=i)).unlink(missing_ok=True)  # just remove intermediate logs
         logger.info(f"Removed {n_ranks} log files.")
+
+
+def instantiation_message(
+    snapshot_name: str,
+    simulation_type: str,
+    halo_source: str,
+    version: str,
+    n_ranks: int,
+    cores_per_rank: int,
+    stages: list[str],
+) -> None:
+    """
+    Logs the startup information (snapshot path, parallelism info, enabled stages, simulation type,
+    halo ID source) in a block.
+    """
+    logger = get_logger()
+
+    lines = [
+        f"  Snapshot: {snapshot_name}",
+        f"  Type: {simulation_type} | Halo Source: {halo_source}",
+        f"  Ranks: {n_ranks} | Threads: {cores_per_rank}",
+        f"  Stages: {', '.join(stages)}",  # unpack list
+        f"  Version: {version}",
+    ]
+    width = max(len(line) for line in lines) + 4
+    logger.info("=" * max(width, 50))
+    for line in lines:
+        logger.info(line)
+    logger.info("=" * max(width, 50))
+
+
+def output_summary(
+    all_timings: list[dict[str, float]],
+    catalogue_path: Path,
+    n_ranks: int,
+) -> None:
+    """
+    Logs the analysis summary.
+    """
+    logger = get_logger()
+    catalogue_size = catalogue_path.stat().st_size / (1024**2)
+
+    title = f"  Catalogue: {catalogue_path.name} ({catalogue_size:.1f} MB)"
+    width = max(len(title), 50) + 4
+    logger.info("=" * width)
+    logger.info(title)
+
+    stages = all_timings[0].keys()
+    for stage in stages:
+        times = [t[stage] for t in all_timings if stage in t]
+        if n_ranks == 1:
+            logger.info(f"  {stage}: {times[0]:.1f}s")
+        else:
+            logger.info(f"  {stage}: {max(times):.1f}s (spread of {max(times) - min(times):.1f}s)")
+
+    total = max(sum(t.values()) for t in all_timings)
+    logger.info(f"  Total runtime: {total:.1f}s")
+    logger.info("=" * width)

@@ -163,7 +163,7 @@ def generate_rank_halo_assignments(
 
     - halo_to_rank: an (n_haloes) array where halo_to_rank[i] = rank which halo i is assigned to.
     """
-    logger.info(f"Constructing per-rank indices for {n_ranks} ranks.")
+    logger.info(f"Computing halo assignments for {n_ranks} ranks.")
     ptype_counts = {}
 
     for ptype, halo_ids in halo_assignments.halo_ids.items():

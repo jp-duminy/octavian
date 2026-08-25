@@ -271,7 +271,7 @@ class GroupCollection:
             print(f"{name}: {dataset.attrs['description']} | dtype: {data.dtype} | {len(data)} entries.")
 
             if to_units is not None:
-                print(f"Applied conversion factor of {conversion_factor} ({dataset.attrs['unit']} -> {to_units}).")
+                print(f"Applied conversion factor of {conversion_factor:.3e} ({dataset.attrs['unit']} -> {to_units}).")
 
         return data
 

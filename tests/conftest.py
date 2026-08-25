@@ -58,6 +58,7 @@ def mock_catalogue(
         min_stars_per_galaxy=2,  # these parameter choices are just so it runs
         b=1.5,
         velocity_factor=5,
+        compress_catalogue=False,
     )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
 
     output_path = analyse_snapshot(config=config)
