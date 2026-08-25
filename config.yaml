@@ -1,10 +1,9 @@
-simulation_type:  GIZMO       # SWIFT/GIZMO
-halo_id_source:   SNAPSHOT         # AHF/SNAPSHOT
-
-
+simulation_type:    GIZMO       # SWIFT/GIZMO
+halo_id_source:     SNAPSHOT         # AHF/SNAPSHOT
 snapshot_path:      ~/Octavian/test_snapshot_small.hdf5
 output_dir:         ~/Octavian/Intermediates
 halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003.
+compress_catalogue: true
 
 
 stages:

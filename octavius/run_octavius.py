@@ -57,6 +57,7 @@ from .photometry import (
     run_photometry,
 )
 from .log import configure_logger, get_logger, clean_logs
+from .utils import repack_catalogue
 
 # default libraries
 from pathlib import Path
@@ -352,6 +353,12 @@ def analyse_snapshot(
             n_ranks=size,
         )
         clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
+
+        if config.compress_catalogue:
+            try:
+                repack_catalogue(catalogue_path)
+            except FileNotFoundError:
+                logger.warning("h5repack not available; indices in catalogue are uncompressed.")
 
     return catalogue_path
 
