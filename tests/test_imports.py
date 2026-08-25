@@ -30,4 +30,4 @@ def test_package_imports() -> None:
     """
     import octavius
 
-    assert hasattr(octavius, "load")  # this will fail if the load function gets renamed
+    assert hasattr(octavius, "load_catalogue")  # this will fail if the load function gets renamed
