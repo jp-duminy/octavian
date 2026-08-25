@@ -84,7 +84,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     # prefactor for apparent magnitude flux (luminosity distance)
     if sim.redshift < 1e-10:
         flux_factor_app = flux_factor_abs
-        logger.info(
+        logger.debug(
             "Snapshot is at z = 0; apparent magnitudes are equal to absolute magnitudes as luminosity distance is zero."
         )
     else:

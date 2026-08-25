@@ -1,6 +1,7 @@
 """
 
-The circulatory system of Octavius, managing how user-configured stages are run and determining what raw data can be safely dropped between analysis stages.
+The circulatory system of Octavius, managing how user-configured stages are run and determining what
+raw data can be safely dropped between analysis stages.
 
 """
 
