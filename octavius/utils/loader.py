@@ -18,7 +18,7 @@ import astropy.units as u
 from ..version import CATALOGUE_VERSION
 
 
-def load(
+def load_catalogue(
     catalogue_path: Path,
 ) -> OctaviusCatalogue:
     """

@@ -1,5 +1,5 @@
 from .loader import (
-    load as load,
+    load_catalogue as load_catalogue,
 )
 from .generate_snapshots import (
     generate_gizmo_snapshot as generate_gizmo_snapshot,
