@@ -1,8 +1,8 @@
 simulation_type:    GIZMO       # SWIFT/GIZMO
 halo_id_source:     SNAPSHOT         # AHF/SNAPSHOT
-snapshot_path:      ~/Octavian/test_snapshot_small.hdf5
-output_dir:         ~/Octavian/Intermediates
-halo_id_filepath:   ~/Octavian/AHF_C200_m12.5n128.0000.z3.003.
+snapshot_path:      /path/to/config.yaml
+output_dir:         /path/to/output_directory
+halo_id_filepath:   /path/to/catalogue_file  # use stem for AHF
 compress_catalogue: true
 
 
@@ -51,7 +51,7 @@ properties:
 
 photometry:
   bands:                      ["sdss", "all", "v"]  # auto expands filters (e.g. "sdss" will give sdss_u, sdss_g etc)
-  photometry_table_filepath:  ~/Octavian/phot_table.hdf5
+  photometry_table_filepath:  /path/to/photometry_table.hdf5
   extinction_law:             composite
   viewing_axis:               z
   use_dust:                   true
