@@ -14,6 +14,9 @@ authors = [
 maintainers = [
     {name = "JP Duminy", email = "jp@duminy.org"},
 ]
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENCE"]
 
 dependencies = [
     "numpy>=2.4",
@@ -23,8 +26,6 @@ dependencies = [
     "numba>=0.65",
     "mpi4py>=4.1.2"
 ]
-license = "BSD-3-Clause"
-license-files = ["LICENCE"]
 
 keywords = ["astrophysics", "cosmology", "simulation", 
             "galaxy", "halo", "sph", 
