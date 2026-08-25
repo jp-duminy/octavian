@@ -55,8 +55,8 @@ class OctaviusConfig:
     """
 
     simulation_type: str
-
     halo_id_source: str  # filepath is at the bottom
+    compress_catalogue: bool
 
     stages: dict[str, bool]
     n_chunks: int
