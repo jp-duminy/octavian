@@ -1,4 +1,4 @@
-<div>
+<div align="center">
 <pre>
 ████████████████████████████████████
 ▄                                  ▄
@@ -8,15 +8,14 @@
 ▄                                  ▄
 ████████████████████████████████████
 </pre>
-</div>
 
 [![PyPI](https://img.shields.io/pypi/v/octavius)](https://pypi.org/project/octavius/)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENCE)
 [![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
 [![Python](https://img.shields.io/pypi/pyversions/octavius)](https://pypi.org/project/octavius/)
+</div>
 
-
-# Octavius: a Next-Generation Simulation Analysis Toolkit
+# Octavius: The Next-Generation Analysis Toolkit
 
 Octavius is a high-performance, fully-parallelised code designed to produce analysis catalogues of SPH simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it slots cleanly into analysis workflows. 
 
