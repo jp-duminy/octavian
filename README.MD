@@ -134,5 +134,9 @@ Octavius is licenced under the BSD 3-Clause licence.
 
 Contributions and bug reports are warmly encouraged. The package is currently pinned to relatively recent versions of its dependencies, and any investigation as to whether these can be relaxed would be most welcome; otherwise, please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for more detailed information.
 
+## Contributors
+
+- JP Duminy, University of Edinburgh
+- Jakub Szpila, Nicolaus Copernicus Astronomical Center
 
 <small>Last updated by JP Duminy, 25/08/2026.</small>
