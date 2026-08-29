@@ -14,7 +14,7 @@ redistribute_data() uses comm.Alltoallv to reshuffle the particles: ranks go fro
 to their owned particles. Since haloes are self-contained units of work, the rest of the pipeline then also
 becomes embarrassingly parallel (no MPI in the computations).
 
-The existence of the n_chunks in the config is because when I wrote this my cluster was on death's doorstep
+The existence of the n_io_chunks in the config is because when I wrote this my cluster was on death's doorstep
 and struggling on simultaneous big snapshot reads; moving it to a Python loop fixed things.
 
 """
@@ -264,14 +264,14 @@ def generate_slabs(
     return slabs
 
 
-def split_slab(slab: slice, n_chunks: int) -> list[slice]:
+def split_slab(slab: slice, n_io_chunks: int) -> list[slice]:
     """
     Splits a dataset slab into smaller chunks. Returns:
 
-    - split_slabs: list of equally-divided slices according to n_chunks
+    - split_slabs: list of equally-divided slices according to n_io_chunks
     """
-    starts = np.linspace(start=slab.start, stop=slab.stop, num=(n_chunks + 1), dtype=np.int64)
-    split_slabs = [slice(int(starts[i]), int(starts[i + 1])) for i in range(n_chunks)]
+    starts = np.linspace(start=slab.start, stop=slab.stop, num=(n_io_chunks + 1), dtype=np.int64)
+    split_slabs = [slice(int(starts[i]), int(starts[i + 1])) for i in range(n_io_chunks)]
 
     return split_slabs
 

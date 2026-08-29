@@ -23,7 +23,7 @@ process_ptypes:  # WARNING: removes ptype entirely, e.g. star: false prevents ga
 
 thresholds:
   min_stars_per_galaxy:   16
-  min_dm_per_halo:        0       # haloes below this threshold will not appear in the catalogue
+  min_dm_per_halo:        24       # haloes below this threshold will not appear in the catalogue
   nH_lim:                 0.13    # density above which gas is considered dense
   T_lim:                  1.0e+5  # temperature below which gas is considered cold
 
@@ -63,7 +63,7 @@ photometry:
 
 
 parallelism:
-  n_chunks:           10    # for IO reads on datasets, not chunking the pipeline
+  n_io_chunks:        10    # for IO reads on datasets, not chunking the pipeline
   cores_per_rank:     4     # number of CPU cores assigned to each MPI rank
 
 

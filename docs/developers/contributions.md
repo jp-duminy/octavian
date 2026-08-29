@@ -279,11 +279,11 @@ class GilgameshReader(SnapshotReader):  # inherit SnapshotReader
         ...
     }
 
-    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_chunks: int):
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
-        self.n_chunks = n_chunks  # from config.n_chunks
+        self.n_io_chunks = n_io_chunks  # from config.n_io_chunks
         self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, RedistributionMap] | None = None
 
@@ -367,7 +367,7 @@ def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: Octa
     ...
     elif config.simulation_type == "GILGAMESH":
         logger.info("Using GILGAMESH reader.")
-        return GilgameshReader(snapshot_path=snapshot_path, constants=constants, n_chunks=config.n_chunks)
+        return GilgameshReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
     ...
 ```
 
