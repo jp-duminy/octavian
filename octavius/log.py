@@ -25,7 +25,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
     """
     Creates a logger object for use throughout stages.
 
-    Specify output_log_dir if you'd like a .txt file with more detailed information.
+    Specify output_log_dir if you'd like a .log file with more detailed information.
     """
     logger = logging.getLogger(name="OCTAVIUS")
 
@@ -67,22 +67,23 @@ def get_logger() -> logging.Logger:
     return logger
 
 
-def intermediate_log_path(directory: Path, rank: int) -> Path:
+def intermediate_log_path(snapshot_path: Path, directory: Path, rank: int) -> Path:
     """
     Returns the Path object pointing to the intermediate log filename for a rank.
     """
-    return directory / f"rank_{rank}_log.log"
+    return directory / f"octavius_{snapshot_path.stem}_rank_{rank}.log"
 
 
-def merged_log_path(directory: Path) -> Path:
+def merged_log_path(snapshot_path: Path, output_dir: Path) -> Path:
     """
     Returns the Path object pointing to the merged log filename.
     """
-    return directory / "output_log.log"
+    return output_dir / f"octavius_{snapshot_path.stem}.log"
 
 
 def clean_logs(
-    log_dir: Path,
+    output_dir: Path,
+    snapshot_path: Path,
     n_ranks: int,
     keep_logs: bool,
 ) -> None:
@@ -91,10 +92,10 @@ def clean_logs(
     """
     logger = get_logger()
     if keep_logs:  # concatenates the per-rank logs rather than time-based zipper merging
-        merged_log = log_dir / "octavius.log"
+        merged_log = merged_log_path(snapshot_path=snapshot_path, output_dir=output_dir)
         with open(merged_log, "w") as out:
             for i in range(n_ranks):
-                rank_log = intermediate_log_path(directory=log_dir, rank=i)
+                rank_log = intermediate_log_path(snapshot_path=snapshot_path, directory=output_dir, rank=i)
                 if rank_log.exists():
                     out.write(
                         rank_log.read_text()
@@ -103,7 +104,9 @@ def clean_logs(
             logger.info(f"Merged then cleaned up {n_ranks} log files.")
     else:
         for i in range(n_ranks):
-            (intermediate_log_path(directory=log_dir, rank=i)).unlink(missing_ok=True)  # just remove intermediate logs
+            (intermediate_log_path(snapshot_path=snapshot_path, directory=output_dir, rank=i)).unlink(
+                missing_ok=True
+            )  # just remove intermediate logs
         logger.info(f"Removed {n_ranks} log files.")
 
 

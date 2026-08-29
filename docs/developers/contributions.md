@@ -68,14 +68,13 @@ The unit tests can capture bugs and breakages, but not subtle regressions in the
 - Catalogue validation to the floating-point level
 - Detailed test summaries
 
-To run the validation test, it is recommended you first use a stable version of Octavius to create a reference catalogue. The validation suite can then be run with the following command:
+To run the validation test, it is recommended you first use a stable version of Octavius to create a reference catalogue. The validation suite can then be quickly run from the command line:
 
 ```bash
-python -m tests.validation.validation_suite \
-    -s /path/to/snapshot.hdf5 \
-    -r /path/to/reference_catalogue.hdf5 \
-    -o /path/to/output_directory
+python -m tests.validation.validation_suite -c /path/to/config.yaml -r /path/to/reference_catalogue.hdf5 
 ```
+
+You can specify the tolerances for regression testing and override the configuration fields from the command line too; please run `--help` for more.
 
 It is strongly recommended to run the validation suite under MPI, as this is the primary usage mode for users and invariance under parallelism is essential. It is best practice to run the validation suite before submitting pull requests, and to document any changes expected between catalogues.
 

@@ -264,11 +264,8 @@ def analyse_snapshot(
     if comm:
         comm.Barrier()  # so the banner doesn't print after the analysis
 
-    intermediate_dir = config.output_dir / "octavius_intermediates"
-    intermediate_dir.mkdir(parents=True, exist_ok=True)
-
     # initialise logger for console output
-    configure_logger(rank=rank, output_level=config.terminal_output_level, log_dir=intermediate_dir)
+    configure_logger(rank=rank, output_level=config.terminal_output_level, log_dir=config.output_dir)
     logger = get_logger()
     instantiation_message(
         snapshot_name=config.snapshot_path,
@@ -415,7 +412,12 @@ def analyse_snapshot(
                 catalogue_path=catalogue_path,
                 n_ranks=size,
             )
-            clean_logs(log_dir=intermediate_dir, n_ranks=size, keep_logs=config.keep_logs)
+            clean_logs(
+                output_dir=config.output_dir,
+                snapshot_path=config.snapshot_path,
+                n_ranks=size,
+                keep_logs=config.keep_logs,
+            )
 
     return catalogue_path
 
