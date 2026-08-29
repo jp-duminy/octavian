@@ -38,7 +38,7 @@ body {
 }
 
 /* decrease font size of landing page title so it fits on one line */
-h1 {
+.content h1 {
     font-size: 2em;
 }
 
@@ -78,6 +78,6 @@ body {
 }
 
 .content:has(~ .toc-drawer.no-toc) h1 {
-    font-size: 2.5em;
+    font-size: 3.0em;
     margin-top: 2rem;
 }

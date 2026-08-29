@@ -4,14 +4,15 @@ hide-toc: true  # remove RHS sidebar
 
 <div style="text-align: center;">
 
-# octavius: The Next Generation Analysis Toolkit
+# octavius: The Next Generation Simulation Analysis Toolkit
 
 <div style="margin-bottom: 1.5em;"></div>
 
 [![PyPI](https://img.shields.io/pypi/v/octavius)](https://pypi.org/project/octavius/)
-[![Licence](https://img.shields.io/badge/licence-BSD--3--Clause-blue)](https://github.com/jp-duminy/octavius/blob/main/LICENCE)
 [![Python](https://img.shields.io/pypi/pyversions/octavius)](https://pypi.org/project/octavius/)
 [![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
+[![Licence](https://img.shields.io/badge/licence-BSD--3--Clause-blue)](https://github.com/jp-duminy/octavius/blob/main/LICENCE)
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 
 </div>
 
@@ -20,7 +21,7 @@ hide-toc: true  # remove RHS sidebar
 ```{image} _static/banner.webp
 :alt: Octavius
 :align: center
-:width: 600px
+:width: 700px
 ```
 
 <div style="margin-bottom: 3.0em;"></div>

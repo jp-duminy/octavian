@@ -2,9 +2,9 @@
 
 This section contains example scripts of running Octavius and working with its catalogues.
 
-[Analysing Snapshots](analysing_snapshots.md): running the analysis
+[Analysing Snapshots](analysing_snapshots.md): examples of running the analysis on snapshots from both the command line and Python scripts.
 
-[Loading Catalogues](loading_catalogues.md): loading datasets from the HDF5 catalogue
+[Loading Catalogues](loading_catalogues.md): loading Octavius catalogues and accessing their data with the provided methods.
 
 ```{toctree}
 :hidden:
