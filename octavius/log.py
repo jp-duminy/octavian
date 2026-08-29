@@ -21,7 +21,9 @@ The next-generation simulation analysis toolkit.
 """
 
 
-def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | None = None) -> logging.Logger:
+def configure_logger(
+    snapshot_path: Path, rank: int = 0, output_level: str = "INFO", log_dir: Path | None = None
+) -> logging.Logger:
     """
     Creates a logger object for use throughout stages.
 
@@ -49,7 +51,7 @@ def configure_logger(rank: int = 0, output_level: str = "INFO", log_dir: Path | 
 
     if log_dir is not None:
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = intermediate_log_path(directory=log_dir, rank=rank)
+        log_path = intermediate_log_path(snapshot_path=snapshot_path, directory=log_dir, rank=rank)
         file_handler = logging.FileHandler(log_path, mode="w")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(logging.Formatter(file_format))

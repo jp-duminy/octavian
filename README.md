@@ -15,6 +15,7 @@
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENCE)
 [![Docs](https://readthedocs.org/projects/octavius/badge/?version=latest)](https://octavius.readthedocs.io/)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![Dependencies](https://img.shields.io/librariesio/release/pypi/octavius)](https://libraries.io/pypi/octavius)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
