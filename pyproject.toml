@@ -54,7 +54,7 @@ dev = [
 ]
 docs = [
     "sphinx",
-    "pydata-sphinx-theme",
+    "furo",
     "myst-parser",
     "sphinx-copybutton",
 ]
