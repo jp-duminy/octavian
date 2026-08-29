@@ -4,13 +4,20 @@ Tests whether the slabs/local subhaloes functions produce sensible masks.
 
 """
 
+# default libraries
+from pathlib import Path
+
+# other packages
 import numpy as np
+
+# internal imports
 from octavius.data_management.parallel_reading import (
     generate_slabs,
     assign_local_subhaloes,
+    generate_rank_halo_assignments,
 )
-from octavius.external_halo_sources import SubhaloInformation
-from octavius.data_management import ParticleStore
+from octavius.external_halo_sources import SubhaloInformation, HaloAssignments
+from octavius.data_management import ParticleStore, OctaviusConfig
 
 store = ParticleStore(ptype="star", n_particles=6, is_baryonic=False)
 store["HaloID"] = np.array([0, 2, 3, 0, -1, 1], dtype=np.int64)
@@ -115,3 +122,52 @@ def test_slabs() -> None:
         assert expected_rank_2[ptype] == result_rank_2[ptype], (
             "test_slabs failed: rank 2 result does not match expected"
         )
+
+
+def test_rank_halo_assignments() -> None:
+    """
+    Tests parallel_reads.py function compute_rank_halo_assignments().
+    """
+    n_haloes = 100
+    n_ranks = 4
+
+    halo_ids = {
+        "gas": np.random.randint(0, n_haloes, size=5000, dtype=np.int64),
+        "star": np.random.randint(0, n_haloes, size=3000, dtype=np.int64),
+        "dm": np.random.randint(0, n_haloes, size=10000, dtype=np.int64),
+        "bh": np.random.randint(0, n_haloes, size=5, dtype=np.int64),
+    }
+
+    halo_assignments = HaloAssignments(
+        halo_ids=halo_ids,
+        n_total_haloes=n_haloes,
+        subhalo_ids=None,
+        original_hids=np.arange(n_haloes, dtype=np.int64),
+    )
+
+    # fill a config with some random defaults
+    test_config = OctaviusConfig(
+        snapshot_path=Path("null"),
+        output_dir=Path("null"),
+        simulation_type="GIZMO",
+        halo_id_source="SNAPSHOT",
+        cores_per_rank=1,
+    )
+
+    halo_to_rank = generate_rank_halo_assignments(
+        halo_assignments=halo_assignments, config=test_config, n_ranks=n_ranks
+    )
+
+    # assert all particles are assigned to valid ranks (or unassigned)
+    assert np.all((halo_to_rank == -1) | ((halo_to_rank >= 0) & (halo_to_rank < n_ranks)))
+
+    # particle count balance check
+    per_halo_weight = np.zeros(n_haloes, dtype=np.int64)
+    for ptype in halo_ids:
+        per_halo_weight += np.bincount(halo_ids[ptype], minlength=n_haloes)
+
+    # check the assignments are heuristically close
+    assigned = halo_to_rank != -1
+    rank_weights = np.bincount(halo_to_rank[assigned], weights=per_halo_weight[assigned], minlength=n_ranks)
+    mean_weight = rank_weights.sum() / n_ranks
+    assert np.all(rank_weights <= 1.5 * mean_weight)
