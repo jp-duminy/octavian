@@ -21,7 +21,7 @@
 
 </div>
 
-# Octavius: The Next-Generation Analysis Toolkit
+# Octavius: The Next-Generation Simulation Analysis Toolkit
 
 Octavius is a high-performance, fully-parallelised code designed to produce analysis catalogues of SPH simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it slots cleanly into analysis workflows. 
 
