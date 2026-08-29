@@ -178,6 +178,7 @@ There is a general convention of using keyword arguments where possible. This is
 
 This section provides help with common scenarios in which you might want to extend the functionality of Octavius.
 
+(adding-a-new-stage)=
 ### Adding a new stage
 
 Let's work through adding a new stage named `new_stage` to the pipeline, which outputs `new_quantity` for both haloes and galaxies, and `gal_quantity` for galaxies only.
@@ -255,9 +256,10 @@ In practice, function signatures can sometimes get long. This is because `numba`
 s
 `run_new_stage()` can then be exported to `run_octavius.py`, where it should be inserted into the `stage_dispatch` dictionary defined before the stages run. You should insert the function followed by its stage name. If done successfully, the stage should now run and appear in the catalogues.
 
+(adding-a-new-snapshot-reader)=
 ### Adding a new snapshot reader
 
-If you want Octavius to support a new type of simulation, adding this is simple. You will need to implement a `SnapshotReader` class. The idea is these classes contain all the snapshot-specific terminology and parse it into the agnostic codebase language. This process should be relatively straightforward, as you can use the existing readers as a template; it is more tedious than complex. You may wish to consult the [parallelism documentation](./features/parallelism.md) to understand how the read-in works.
+If you want Octavius to support a new type of simulation, adding this is simple. You will need to implement a `SnapshotReader` class. The idea is these classes contain all the snapshot-specific terminology and parse it into the agnostic codebase language. This process should be relatively straightforward, as you can use the existing readers as a template; it is more tedious than complex. You may wish to consult the [parallelism documentation](../features/parallelism.md) to understand how the read-in works.
 
 Let's work through a reader which reads the esoteric Gilgamesh snapshots.
 
@@ -375,6 +377,7 @@ If you have implemented the generics successfully, Octavius will now support you
 The codebase uses SPH conventions such as kernels and smoothing lengths entirely. Please [open an issue](https://github.com/jp-duminy/octavius/issues) if this does not work for your simulation.
 :::
 
+(adding-a-new-halo-catalogue-source)=
 ### Adding a new halo catalogue source
 
 External halo catalogues are supported by Octavius through a few abstractions which let the pipeline support them in the agnostic format. As with snapshot readers, it is recommended to refer to the existing code as a reference for implementing a new source. Octavius supports both catalogues which only contain field haloes, and catalogues with subhalo information: the properties computed for haloes will always be fully-inclusive. 
