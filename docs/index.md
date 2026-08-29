@@ -9,6 +9,7 @@ hide-toc: true  # remove RHS sidebar
 <div style="margin-bottom: 1.5em;"></div>
 
 [![PyPI](https://img.shields.io/pypi/v/octavius)](https://pypi.org/project/octavius/)
+[![DOI](https://zenodo.org/badge/1136349333.svg)](https://doi.org/10.5281/zenodo.22166418)
 [![Python](https://img.shields.io/pypi/pyversions/octavius)](https://pypi.org/project/octavius/)
 [![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
 [![Licence](https://img.shields.io/badge/licence-BSD--3--Clause-blue)](https://github.com/jp-duminy/octavius/blob/main/LICENCE)

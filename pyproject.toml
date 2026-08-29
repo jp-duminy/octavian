@@ -64,6 +64,7 @@ octavius = "octavius.run_octavius:main"
 
 [project.urls]
 Repository = "https://github.com/jp-duminy/octavius"
+Documentation = "https://octavius.readthedocs.io/"
 
 [tool.setuptools.packages.find]
 include = ["octavius*"]

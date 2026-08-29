@@ -10,6 +10,7 @@
 </pre>
 
 [![PyPI](https://img.shields.io/pypi/v/octavius)](https://pypi.org/project/octavius/)
+[![DOI](https://zenodo.org/badge/1136349333.svg)](https://doi.org/10.5281/zenodo.22166418)
 [![Python](https://img.shields.io/pypi/pyversions/octavius)](https://pypi.org/project/octavius/)
 [![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENCE)
@@ -26,6 +27,8 @@
 Octavius is a high-performance, fully-parallelised code designed to produce analysis catalogues of SPH simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it slots cleanly into analysis workflows. 
 
 Catalogues are stored as HDF5 files containing physical properties and membership mapping for both haloes and galaxies, along with cosmological information from the snapshot.
+
+Please refer to the [documentation](https://octavius.readthedocs.io/) for more information.
 
 ## Install
 
@@ -107,8 +110,6 @@ Photometry requires a bespoke data file which requires [FSPS](https://github.com
 
 Octavius is written mostly in [numba](https://numba.readthedocs.io/en/stable/), which relies on JIT compilation; this can add a minute or two of overhead when first run, but thereafter, the compiled functions are cached.
 
-Please refer to the docs (_under construction..._) for more information.
-
 ## Dependencies
 
 - [numba](https://numba.readthedocs.io/en/stable/)
@@ -123,7 +124,7 @@ Optional:
 
 ## Citing
 
-(_under construction..._)
+Octavius can be cited with [Zenodo](https://doi.org/10.5281/zenodo.22166418).
 
 ## Beta
 
@@ -131,7 +132,7 @@ The package is currently in beta pre-release; please keep this in mind if using 
 
 ## Caesar
 
-Octavius is the spiritual successor to [Caesar](https://caesar.readthedocs.io/) ([source code](https://github.com/dnarayanan/caesar)). For a thorough guide on differences to the API and bug fixes, please refer to the docs (_under construction..._)
+Octavius is the spiritual successor to [Caesar](https://caesar.readthedocs.io/) ([source code](https://github.com/dnarayanan/caesar)). There is a short guide for `caesar` users in the [documentation](https://octavius.readthedocs.io/en/latest/guide/caesar_users_guide.html).
 
 ## Licence
 
@@ -146,4 +147,4 @@ Contributions and bug reports are warmly encouraged. The package is currently pi
 - JP Duminy, University of Edinburgh
 - Jakub Szpila, Nicolaus Copernicus Astronomical Center
 
-<small>Last updated by JP Duminy, 25/08/2026.</small>
+<small>Last updated by JP Duminy, 29/08/2026.</small>

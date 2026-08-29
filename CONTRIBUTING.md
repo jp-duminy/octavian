@@ -4,6 +4,8 @@ Thank you for taking the time to contribute! Octavius warmly welcomes all contri
 
 [I want a quick example](#quick-example)
 
+[Full developer manual](https://octavius.readthedocs.io/en/latest/developers/index.html)
+
 ## Where to Begin?
 
 The most important place to begin is the [`internals.yaml`](octavius/internals.yaml) file. This file is authoritative, containing crucial information such as pipeline stages, the data they require, the outputs they produce, and metadata for the catalogue. This file is automatically parsed by [`pipeline_management.py`](octavius/data_management/pipeline_management.py) to resolve stage dependencies, verify the code will produce the intended outputs, ensure data arrives in the right place, and write the analysis to the output catalogue with correct metadata. It is also important to consult [`conventions.py`](octavius/data_management/conventions.py), where units, datatypes, constants, and config parameters are defined.
