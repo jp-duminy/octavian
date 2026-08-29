@@ -131,7 +131,7 @@ def _prepare_hydrogen_fractions(
     Enforces hydrogen fraction conservation and computes and hydrogen abundance, returning a tuple of:
 
     - nH: hydrogen abundance
-    - fHI: fraction of ionised hydrogen
+    - fHI: fraction of neutral hydrogen
     - fH2: fraction of molecular hydrogen
 
     Necessary for (cgm) gas properties.

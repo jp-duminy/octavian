@@ -50,7 +50,7 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 
 - `radius_{quantile}_{ptype}`: the enclosed-mass radii, where the quantiles are controllable from the configuration file.
 
-- `radius_max_{ptype}`: the maximmum member particle radius.
+- `radius_max_{ptype}`: the maximum member particle radius.
 
 ### Halo outputs
 
