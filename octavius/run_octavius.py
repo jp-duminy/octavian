@@ -73,7 +73,7 @@ from .utils import repack_catalogue
 from .version import __version__
 
 # internal filepaths
-CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"  # development config
+CONFIG_PATH = Path(__file__).parent / "config.yaml"  # development config
 INTERNALS_PATH = Path(__file__).parent / "internals.yaml"
 
 
