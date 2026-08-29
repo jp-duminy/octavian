@@ -10,9 +10,14 @@
 </pre>
 
 [![PyPI](https://img.shields.io/pypi/v/octavius)](https://pypi.org/project/octavius/)
-[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENCE)
-[![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
 [![Python](https://img.shields.io/pypi/pyversions/octavius)](https://pypi.org/project/octavius/)
+[![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
+[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENCE)
+[![Docs](https://readthedocs.org/projects/octavius/badge/?version=latest)](https://octavius.readthedocs.io/)
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 </div>
 
 # Octavius: The Next-Generation Analysis Toolkit
