@@ -32,7 +32,7 @@ Photometry includes the most user-configured parameters of the other stages in t
 - Increase the granularity of the interpolated approximation of the kernel LOS integral
 - Control the type of kernel used
 
-Please see the [configuration documentation](../configuration.md) for more information.
+Please see the [configuration documentation](../guide/configuration.md) for more information.
 
 ## Note on Performance
 

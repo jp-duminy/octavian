@@ -246,12 +246,14 @@ def analyse_snapshot(
     config: OctaviusConfig
         OctaviusConfig object. You can call the from_yaml(yaml_filepath) method on it to parse a config.yaml file, or type the parameters manually.
 
-    The snapshot filepath in the config can also be specified through command line arguments. Please run --help for more information.
-
     Returns
     -------
     catalogue_path: pathlib.Path
         Path object pointing towards the analysis catalogue.
+
+    Notes
+    -----
+    The snapshot filepath in the config can also be specified through command line arguments. Please run --help for more information.
     """
     comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0  # top-level rank parallelism

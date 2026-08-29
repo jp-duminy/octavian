@@ -27,7 +27,7 @@ def load_catalogue(
 
     Parameters
     ----------
-    catalogue_path: Path
+    catalogue_path: pathlib.Path
         pathlib.Path object pointing to an Octavius catalogue.
 
     Returns

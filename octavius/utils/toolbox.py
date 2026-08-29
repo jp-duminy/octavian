@@ -30,7 +30,7 @@ def repack_catalogue(
 
     Parameters
     ----------
-    catalogue_path : Path
+    catalogue_path : pathlib.Path
         Path to the catalogue you would like to compress.
     compression_level : int
         Desired gzip compression level (1-9)
@@ -67,8 +67,8 @@ def generate_test_catalogue(
     ----------
     output_dir: pathlib.Path
         Where you would like to output the test catalogue.
-    simulation_type: str ["GIZMO"/"SWIFT"]
-        Which simulation type you would like the test catalogue to be generated from. In practice this does not affect the output catalogue, which is agnostic to the simulation type.
+    simulation_type: str
+        Which simulation type you would like the test catalogue to be generated from. In practice this does not affect the output catalogue, which is agnostic to the simulation type. Must be ``"GIZMO"`` or ``"SWIFT"``.
 
     Returns
     -------
