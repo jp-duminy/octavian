@@ -34,7 +34,6 @@ keywords = ["astrophysics", "cosmology", "simulation",
 ]
 classifiers = [
     "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Development Status :: 4 - Beta",
 ]
