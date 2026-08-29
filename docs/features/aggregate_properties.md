@@ -1,0 +1,166 @@
+# Aggregate Properties
+
+Octavius computes a wide range of aggregate properties for haloes and galaxies. These come from the pipeline stages `properties_core`, `properties_ptype_specific`, and `properties_local_environment`. Properties are always inclusive, meaning a field halo will have its properties computed from all its constituent particles which can also contribute to the properties of its subhaloes.
+
+:::{note}
+Properties are computed for each particle type individually, as well as baryonic (and, for haloes, total). The particle type or aggregation which a quantity is computed for is in its suffix: `{ptype}` refers to `gas`, `star`, `bh`, `baryon`, in addition to `dm` and `total` for haloes.
+:::
+
+:::{tip}
+When a stage is enabled, all of its outputs will appear in the output catalogue; it is not possible to control the outputs of a stage. Furthermore, the dependency resolution at runtime will re-enable stages which produce outputs required by the user-requested stages if disabled.
+:::
+
+:::{tip}
+The datasets which are present in a catalogue for either group can be listed through the `describe()` method on an `OctaviusCatalogue` on `haloes` or `galaxies`.
+:::
+
+## Core Properties
+
+This stage is the most heavy of the three. The 'core' properties are an assortment of familiar astronomical properties such as kinematic, rotational, radial, virial, and morphological quantities.
+
+### Configurable Parameters
+
+- `radial_quantiles`: the enclosed-mass radius quantiles and their names.
+
+- `virial_factors`: the factors of the critical density for which halo virial quantities are computed.
+
+### Per-group outputs
+
+- `n_{ptype}`: the number of particles.
+
+- `mass_{ptype}`: the mass.
+
+- `mass_HI`: the neutral hydrogen mass.
+
+- `mass_H2`: the molecular hydrogen mass.
+
+- `com_pos_{ptype}`: the centre-of-mass position vector.
+
+- `com_vel_{ptype}`: the centre-of-mass velocity vector.
+
+- `L_{ptype}`: the angular momentum vector $\hat{L}$.
+
+- `L_azimuth_{ptype}`: the azimuthal angle $\phi$ of $\hat{L}$.
+
+- `L_elevation_{ptype}`: the elevation angle $\theta$ of $\hat{L}$.
+
+- `velocity_dispersion_{ptype}`: the mass-weighted velocity dispersion vector $\sigma$.
+
+- `inertia_tensor_{ptype}`: the inertia tensor $\boldsymbol{I}$.
+
+- `radius_{quantile}_{ptype}`: the enclosed-mass radii, where the quantiles are controllable from the configuration file.
+
+- `radius_max_{ptype}`: the maximmum member particle radius.
+
+### Halo outputs
+
+- `minpot_pos_{ptype}`: the position vector of the particle at the minimum potential.
+
+- `minpot_vel_{ptype}`: the velocity vector of the particle at the minimum potential.
+
+- `r200`: the radius which enclosed 200x the mean matter density $r_{200m}$.
+
+- `spin_param`: the Bullock spin parameter $\lambda$ (uses $r_{200m}$).
+
+- `virial_temperature`: the virial temperature $T$ (computed using configuration file `MU`) (uses $r_{200m}$).
+
+- `circular_velocity`: the circular velocity at $r_{200m}$.
+
+- `vmax`: the maximum circular velocity $v_{max}$.
+
+- `rmax`: the radius at $v_{max}$.
+
+- `r{factor}c`: the radii enclosing the factor of critical density, where the factors are defined in the configuration file.
+
+- `m{factor}c`: the mass enclosed within `r{factor}c`, where the factors are defined in the configuration file.
+
+### Galaxy outputs
+
+- `BoverT_{ptype}`: the bulge-to-total kinematic ratio, defined in terms of the counter rotating mass.
+
+- `kappa_rot_{ptype}`: the ratio of rotational-to-total kinetic energy.
+
+## Particle-Specific Properties
+
+This stage computes properties which only pertain to a specific particle type.
+
+### Configurable Parameters
+
+- `nH_lim`: the density, in $n_{H} cm^{-3}$, below which gas is considered part of the CGM.
+
+- `T_lim`: the temperature, in $K$, below which gas is considered cold.
+
+### Per-group outputs
+
+Gas:
+
+- `sfr`: the total star forming rate
+
+- `metallicity_mass_weighted`: the mass-weighted metallicity.
+
+- `metallicity_sfr_weighted`: the sfr-weighted metallicity.
+
+- `temp_mass_weighted`: the mass-weighted temperature.
+
+- `mass_cold`: the mass below `T_lim`, as specified in the configuration file.
+
+- `mass_hot`: the mass above `T_lim`, as specified in the configuration file.
+
+Stars:
+
+- `metallicity_stellar` the mass-weighted metallicity.
+
+- `age_mass_weighted`: the mass-weighted age.
+
+- `age_metal_weighted`: the metallicity-weighted age.
+
+Black holes:
+
+- `smbh_mass`: the mass of the most massive black hole.
+
+- `smbh_fedd`: the Eddington fraction of the most massive black hole.
+
+- `smbh_mdot`: the accretion rate of the most massive black hole.
+
+### Halo outputs
+
+Gas properties are also computed for the halo CGM, which is defined as being gas with density below `nH_lim` in the configuration file:
+
+- `mass_cgm`: the CGM mass.
+
+- `metallicity_mass_weighted_cgm`: the CGM mass-weighted metallicity.
+
+- `metallicity_sfr_weighted_cgm`: the CGM sfr-weighted metallicity.
+
+- `temp_mass_weighted_cgm`: the CGM mass-weighted temperature.
+
+
+## Local Environment Properties
+
+This stage runs for galaxies and computes the properties of their local environment. This stage currently has known limitations.
+
+:::{warning}
+Aperture masses are slightly less accurate for galaxies at the edge of haloes, as they are computed using only in-halo particles.
+:::
+
+:::{warning}
+Local masses and densities are affected by the number of MPI ranks, as halo information is not accessible between ranks.
+:::
+
+### Configurable Parameters
+
+- `aperture_size`: the radii in $kpc$ for which aperture masses are computed.
+
+- `density_radii`: the radii in $kpc$ at which local environment densities are computed.
+
+### Galaxy Outputs
+
+- `mass_{ptype}_{aperture}kpc`: the mass contained within the specified {aperture} in $kpc$, where the aperture sizes are defined in the configuration file
+
+- `mass_HI_{aperture}kpc`: the neutral hydrogen mass contained within the specified $kpc$ aperture.
+
+- `mass_H2_{aperture}kpc`: the molecular hydrogen mass contained within the specified $kpc$ aperture.
+
+- `local_mass_density_{radius}kpc`: the local mass density contained within the specified $kpc$ radius.
+
+- `local_number_density_{radius}kpc`: the local number density contained within the specified $kpc$ radius.

@@ -1,0 +1,447 @@
+# Contributing to Octavius
+
+Octavius warmly welcomes and encourages contributions. While the development process has strived to avoid introducing bugs, they are inevitable in a 13,000-line codebase. 
+
+This guide expands on the [contributing guide](https://github.com/jp-duminy/octavius/blob/main/CONTRIBUTING.md) contained in the source repository.
+
+[I want to add a new stage](#adding-a-new-stage)
+
+[I want to support a new simulation type](#adding-a-new-snapshot-reader)
+
+[I want to support a new type of halo catalogue](#adding-a-new-halo-catalogue-source)
+
+## Setting up a developer environment
+
+To begin developing on Octavius, please clone the repository to a location of your choice:
+
+```bash
+git clone https://github.com/jp-duminy/octavius.git
+```
+
+The developer environment includes more dependencies. These can be installed by running:
+
+```bash
+pip install -e ".[dev,test,docs]"
+```
+
+The developer tools include [ruff](https://docs.astral.sh/ruff/), a formatting and linting tool used to tidy the code and catch latent errors. When developing, please install the pre-commit hooks by running:
+
+```bash
+pre-commit install
+```
+
+This runs ruff to automatically format each commit and prevent errors from being committed. This may require you to re-stage your changes.
+
+## Unit Tests
+
+Crucially, all code must pass a suite of unit tests before it can be merged to production. The unit tests are provided by `pytest` and should take under a minute to run. `pytest` is not included in the pre-commit hooks for the sake of flexibility, but it is strongly recommended you regularly run the unit tests while developing to catch bugs. You can run the unit tests by running:
+
+```bash
+pytest
+```
+From the root of the repository. The unit tests include:
+
+- Running the full pipeline and verifying there are no errors
+- Checks on physics functions to ensure their output is correct or physically sensible
+- Verification of the catalogue (datasets are present, no undesirable NaNs)
+- Checks on the membership arrays to verify they are self-consistent and usable
+- Ensure the package and its dependencies are importable
+
+:::{note}
+You should run pytest both normally and with `mpiexec -n 1 pytest` to verify both serial and parallel paths work. The synthetic test snapshot is tiny, and therefore you should always only run with 1 MPI rank.
+:::
+
+The unit tests are crucial to ensure production code is working. They do, however, add an extra dimension to the development process. When modifying the code, especially if refactoring, you _must_ inspect the associated unit tests and modify them accordingly and safely. When adding new code, please add new corresponding unit tests to instil confidence in the outputs.
+
+When adding new outputs, they should be added to the [hand-maintained validation lists](https://github.com/jp-duminy/octavius/blob/main/tests/validation/validation_columns.py). If you are changing the file structure of the catalogue in a way which affects the loader, please increment the [catalogue version](https://github.com/jp-duminy/octavius/blob/main/octavius/version.py), which will allow users to be warned when their installed Octavius version cannot load the new catalogue format.
+
+:::{note}
+The continuous integration (CI) process will clone the repository, install the unit tests, and flag any failures.
+:::
+
+## Regression Tests
+
+The unit tests can capture bugs and breakages, but not subtle regressions in the code which might affect the physics outputs. To remedy this, a validation suite is also provided independently of pytest. This includes the following functionality:
+
+- Detailed memory profiling with `memray`
+- Dozens of additional runtime checks on the pipeline
+- Catalogue validation to the floating-point level
+- Detailed test summaries
+
+To run the validation test, it is recommended you first use a stable version of Octavius to create a reference catalogue. The validation suite can then be run with the following command:
+
+```bash
+python -m tests.validation.validation_suite \
+    -s /path/to/snapshot.hdf5 \
+    -r /path/to/reference_catalogue.hdf5 \
+    -o /path/to/output_directory
+```
+
+It is strongly recommended to run the validation suite under MPI, as this is the primary usage mode for users and invariance under parallelism is essential. It is best practice to run the validation suite before submitting pull requests, and to document any changes expected between catalogues.
+
+:::{note}
+`memray` will add a small amount of overhead when running the pipeline in the validation suite.
+:::
+
+## Where do I start with the codebase?
+
+At 13,000 lines long, it may take some time to acquaint oneself with the codebase. The [contributing guide](https://github.com/jp-duminy/octavius/blob/main/CONTRIBUTING.md) provides a basic overview of the fundamentals. The [glossary](./glossary.md) explains most of the codebase language.
+
+The most important files to familiarise oneself with are `internals.yaml`, `data_management/conventions.py` and `data_management/data_structures.py`. These three files are the beating heart of the codebase. `internals.yaml` feeds into `data_management/pipeline_management.py`, which you may also wish to review. With these files under your belt, the natural follow-on point is `run_octavius.py`, which contains the full end-to-end analysis routine. This acts as a high-level overview for how the various submodules come together.
+
+:::{tip}
+Each file in the package contains an overview of its contents along with context.
+:::
+
+The over-3,000 lines of infrastructure in `data_management` and the modularity of the package is designed to make the development process friendly and simple. The code is also extensively commented. Once familiar with the general principles and conventions, you will hopefully find the codebase relatively intuitive and consistent to work with.
+
+## Codebase Principles
+
+### Agnosticism
+
+`run_octavius.py` demonstrates a core principle in the separation between `analyse_snapshot()` and `execute_pipeline()`: the pipeline should be agnostic to its inputs. The core routines do not know whether they receive data from a SWIFT or GIZMO snapshot, or whether the halo IDs came from an external catalogue or the snapshot itself. This is achieved through modular generic classes such as `SnapshotReader` and `HaloSource`. 
+
+Furthermore, the pipeline should be agnostic to any form of MPI communication. You will notice `MPI.COMM_WORLD` is not directly called during `execute_pipeline()`. When writing code called by the pipeline, the only form of parallelism to contend with is the relatively simple `prange` and `parallel=True` flags in `numba`.
+
+The catalogue outputs, such as dataset names and units, should also be agnostic to the inputs. 
+
+This means the read-in classes and functions should be thought of as parsers which translate simulation-specific fields into the domain of Octavius.
+
+### Dataclasses
+
+The codebase contains dozens of [dataclasses](https://docs.python.org/3/library/dataclasses.html). Dataclasses are highly-convenient containers for data with more rigour than a standard dictionary or tuple. They offer typed access to attributes, which enables code editors such as VS code to offer auto-complete and linting. They also allow for better documentation of their contents through type annotations, built-in `__repr__`, and naming. They can be used as follows:
+
+```python
+from dataclasses import dataclass
+
+@dataclass(slots=True, frozen=True)  # see below
+class Container:
+    array: np.ndarray,
+    value: int,
+    key: str,
+```
+
+:::{warning}
+`numba` does not yet accept dataclasses. For a similar experience, you can use `namedtuple` provided by the default package `collections`, which is supported. It is generally better to pass arrays directly unless the function signature would become unwieldy.
+:::
+
+There are two primary flags you will see on dataclasses in Octavius:
+
+- `slots=True`: this reduces memory usage by removing some dictionary-like behaviour; it should always be enabled.
+- `frozen=True`: this makes the dataclass immutable, which is often useful to prevent code accidentally corrupting the contents; only turn this on if the dataclass is not supposed to be modified once instantiated, only accessed.
+
+You can use the `replace` function from the `dataclasses` library to modify a frozen dataclass if needed.
+
+### Documentation
+
+Octavius aims to adhere to high standards of documentation in the codebase. To this end, please type-annotate function signatures and variables with unconventional structure. Docstrings should be include a brief description of what the function does, and what it returns (user-facing functions should please adhere to the [numpy docstring style](https://numpydoc.readthedocs.io/en/latest/format.html)). 
+
+As an example, consider a function which adds a number to an array and returns the array:
+
+```python
+def add(x1, x2):
+    return x1 + x2
+```
+
+In Octavius, we type-annotate the signature and what it returns, so our function might look like:
+
+```python
+def add(x1: np.ndarray, x2: float) -> np.ndarray:
+    """
+    Adds value 'x2' to the input 'x1' array. Returns:
+
+    - result: the resulting array.
+    """
+    result = x1 + x2
+    return result
+```
+
+### Performance
+
+Octavius is designed to be a high-performance package. This means the memory profile should be lean, and the runtime fast. To achieve this, you will find most of the codebase is compiled with `numba` for machine-level speed. The membership mapping is maintained through arrays for vectorised slicing operations. It is therefore recommended to consult the [numba performance tips](https://numba.readthedocs.io/en/stable/user/performance-tips.html) to optimise your code. It is helpful to consult the [supported Python](https://numba.readthedocs.io/en/stable/reference/pysupported.html) and [supported numpy](https://numba.readthedocs.io/en/stable/reference/numpysupported.html) features documentation too, as sometimes workarounds are necessary when `njit` does not support the behaviour you might be trying to run.
+
+The index mapping is, in my view, the most difficult aspect of the codebase to learn. Constructing, reordering and indexing the membership arrays is not immediately intuitive and will often require you to work through the process with pen and paper. This is especially true when MPI gets involved at the catalogue-writing step. However, the membership arrays are justified on the basis of the significant performance boosts they provide. 
+
+:::{warning}
+Membership arrays are _inclusive_ under substructure, meaning a particle can belong to multiple groups. For this reason, you should always loop over groups and access particles instead of trying to access the group of a particle when writing code.
+:::
+
+### pathlib.Path
+
+Octavius relies on the default library `pathlib` instead of raw strings or `os` for file operations. `pathlib.Path` objects provide a modern, object-oriented and intuitive way of working with files in Python.
+
+### Keyword Arguments
+
+There is a general convention of using keyword arguments where possible. This is because, owing to `numba`, function signatures can sometimes get quite long and complex. See [adding a new stage](#adding-a-new-stage) for more context.
+
+## Additions to the Codebase
+
+This section provides help with common scenarios in which you might want to extend the functionality of Octavius.
+
+### Adding a new stage
+
+Let's work through adding a new stage named `new_stage` to the pipeline, which outputs `new_quantity` for both haloes and galaxies, and `gal_quantity` for galaxies only.
+
+Firstly, the stage and its inputs & outputs must be declared in `internals.yaml` according to the following syntax under `stages`:
+
+```yaml
+new_stage:  # the name which appears on the internals dataclass
+    label: new_stage  # the name which appears in the HDF5 file
+    applies_to: [haloes, galaxies]  # which groups it applies to
+    requires: [properties_core]  # which existing pipeline stage it requires output from
+    needs_particle_columns:  # which datasets it needs
+        all: [pos]  # for all particles
+        star: [metallicity]
+        gas: [rho, helium_fraction]
+    outputs:  # dataset names which appear under the stage in the HDF5 file
+    - columns: ["new_quantity_{ptype}"]
+        over: {ptype: [gas, star, dm, bh]}  # auto-expands into new_quantity_star, ...
+      - columns: ["new_quantity_{combined}"]
+        over: {combined: [baryon, total]}  # separate syntax for baryon/total
+    - columns: ["gal_quantity_{ptype}"]
+        over: {ptype: [gas, star, bh]}
+        applies_to: [galaxies]  # declare this quantity only applies to galaxies
+      - columns: ["gal_quantity_{combined}"]
+        over: {combined: [baryon]}
+        applies_to: [galaxies]
+```
+
+:::{tip}
+The `over` field is shorthand for 'iterate over', and saves you having to type out each individual dataset name.
+:::
+
+Then, in the `output_columns` section, we must declare how the columns are stored:
+
+```yaml
+  new_quantity_{ptype}:
+    over:        {ptype: [gas, star, dm, bh, total, baryon]}  # which particle types it appears for
+    dtype:       float64  # the datatype to store on disc
+    unit:        "kpc"  # the units
+    a_exp:       1  # the scale-factor exponent
+    description: "A new quantity."  # description
+
+  gal_quantity_{ptype}:
+    over:        {ptype: [gas, star, bh, baryon]}
+    dtype:       float64
+    unit:        ""  # for dimensionless
+    a_exp:       0
+    description: "A new galaxy quantity."
+```
+
+Once this is declared, a few things can happen automatically:
+
+- The datasets will automatically appear in the HDF5 file if this stage is run
+- The autoloader will load the necessary particle data for you
+- Dependency resolution means the new stage will always be run at the most memory-efficient time
+- If a user enabled `new_stage` but `properties_core`, which we declared it needs, is disabled, `properties_core` will be re-enabled
+- The metadata will automatically appear on the datasets
+- If we declared output columns in `internals.yaml` but did not assign them to `new_stage`, nor any stage, the pipeline will raise
+- If the outputs of the stage do not appear in the `GroupStore` being written, the pipeline will warn
+- If another stage already computes one of the columns, the pipeline will raise
+
+This means when this stage is run, the `SimulationData` dataclass will have already stored the requisite columns on each `ParticleStore`. The only thing we need to do now is code up the stage. Once the necessary physics is written, you must define a top-level function to execute the routine. This function must take `SimulationData` and the `config` as its arguments, and modify `SimulationData` in-place.
+
+```python
+def run_new_stage(simulation_data: SimulationData, config: OctaviusConfig) -> None:
+    """
+    Top-level executor for new_stage.
+    """
+    ...
+```
+
+The general principle is the top-level executor simply takes what it needs from the containers and config, then calls the routine by passing the necessary parameters to functions. This keeps the code aligned with the [single-responsibility principle](https://en.wikipedia.org/wiki/Single-responsibility_principle). 
+
+In practice, function signatures can sometimes get long. This is because `numba` does not allow you to pass dataclasses directly to functions, so you will usually have to pass them in one-by-one from the dataclasses. This has led to the general codebase convention of using keyword arguments where possible.
+s
+`run_new_stage()` can then be exported to `run_octavius.py`, where it should be inserted into the `stage_dispatch` dictionary defined before the stages run. You should insert the function followed by its stage name. If done successfully, the stage should now run and appear in the catalogues.
+
+### Adding a new snapshot reader
+
+If you want Octavius to support a new type of simulation, adding this is simple. You will need to implement a `SnapshotReader` class. The idea is these classes contain all the snapshot-specific terminology and parse it into the agnostic codebase language. This process should be relatively straightforward, as you can use the existing readers as a template; it is more tedious than complex. You may wish to consult the [parallelism documentation](./features/parallelism.md) to understand how the read-in works.
+
+Let's work through a reader which reads the esoteric Gilgamesh snapshots.
+
+```python
+class GilgameshReader(SnapshotReader):  # inherit SnapshotReader
+    """
+    Snapshot reader for Gilgamesh-style snapshots.
+    """
+
+    ptype_map = {  # map the snapshot particle names to Octavius ptypes
+        "PartType0": "gas",
+        ...
+    }
+
+    dataset_map = {  # map any datasets you want to load to Octavius names
+        "pos": "Coordinates",
+        ...
+    }
+
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_chunks: int):
+
+        self.snapshot_path = snapshot_path
+        self.constants = constants
+        self.n_chunks = n_chunks  # from config.n_chunks
+        self.global_indices: dict[str, np.ndarray] | None = None
+        self.maps: dict[str, RedistributionMap] | None = None
+
+        self.read_header()
+```
+
+This is the basic structure to follow. From there, you will need to implement the following:
+
+```python
+
+def set_maps(
+    self,
+    slabs: dict[str, slice],
+    masks: dict[str, np.ndarray],
+    maps: dict[str, RedistributionMap],
+    comm: Comm | None,
+) -> None:
+    """
+    Sets the necessary information for MPI communication: per-rank slabs; global particle redistribution map; corresponding halo threshold masks; and MPI.COMM_WORLD.
+    """
+    pass
+
+def read_header(self) -> SimulationAttributes:
+    """
+    Reads header/metadata and constructs SimulationAttributes
+    """
+    pass
+
+def has_dataset(self, ptype: str, dataset: str) -> bool:
+    """
+    Verifies a dataset exists in the file.
+    """
+    pass
+
+def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+    """
+    The main dataset loading method: handles unit/dtype conversions and any exceptions.
+    """
+    pass
+
+def available_ptypes(self) -> list[str]:
+    """
+    List of available ptypes in Octavius convention (gas, star, etc.)
+    """
+    pass
+
+def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
+    """
+    Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
+    """
+    pass
+
+def read_particle_ids(self, ptype: str) -> np.ndarray:
+    """
+    Reads snapshot-assigned particle IDs for a specified ptype.
+    """
+    pass
+
+def read_temperature(self, ptype: str) -> np.ndarray:
+    """
+    Temperature usually comes from multiple datasets and so uses its own method.
+    """
+    pass
+```
+
+The readers are MPI-native: the MPI logic is in `data_management/parallel_reading.py`. In principle, the pipeline will handle this for you, and all your reader needs to do is accept the relevant parameters through `set_maps()`.
+
+:::{note}
+`read_halo_ids()` should only apply to halo IDs stored in the snapshot HDF5. If these do not exist, you can simply raise an error and document users need an external catalogue.
+:::
+
+It is easiest to consult the existing code to understand how to do this. Please refer to `CODE_UNITS` and `DTYPES` in `data_management/conventions.py` for information on how to parse the datasets. If your simulation format does not fit the existing generics, please [open an issue](https://github.com/jp-duminy/octavius/issues).
+
+Finally, all we need to do is update the existing `build_reader()` method to return our new reader.
+
+```python
+def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: OctaviusConfig) -> SnapshotReader:
+    """
+    Builds a reader class depending on what was specified in the config.
+    """
+    ...
+    elif config.simulation_type == "GILGAMESH":
+        logger.info("Using GILGAMESH reader.")
+        return GilgameshReader(snapshot_path=snapshot_path, constants=constants, n_chunks=config.n_chunks)
+    ...
+```
+
+If you have implemented the generics successfully, Octavius will now support your simulation.
+
+:::{warning}
+The codebase uses SPH conventions such as kernels and smoothing lengths entirely. Please [open an issue](https://github.com/jp-duminy/octavius/issues) if this does not work for your simulation.
+:::
+
+### Adding a new halo catalogue source
+
+External halo catalogues are supported by Octavius through a few abstractions which let the pipeline support them in the agnostic format. As with snapshot readers, it is recommended to refer to the existing code as a reference for implementing a new source. Octavius supports both catalogues which only contain field haloes, and catalogues with subhalo information: the properties computed for haloes will always be fully-inclusive. 
+
+In a similar vein to the snapshot readers, you must parse the catalogue using generic methods on an inherited class called `HaloSource`. The two dataclasses of relevance here are `HaloAssignments` and `SubhaloInformation`; all are defined in `external_halo_sources/halo_data_structures.py`. In this case, it can be harder to fit a catalogue-specific format into the generic abstractions. Suppose we want to support the esoteric Gilgamesh halo catalogues:
+
+:::{note}
+The `halo_ids` and `subhalo_ids` on `HaloAssignments` should refer to the top-level field halo ID assignment and the deepest-level subhalo ID assignment respectively. The other fields exist to fill in the hierarchy.
+:::
+
+```python
+class GilgameshHaloSource(HaloSource):  # inherit HaloSource
+    """
+    Parser for Gilgamesh halo catalogues.
+    """
+
+    def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
+        """
+        Reads particles in raw snapshot their HaloIDs based on the conventions and quirks of the source implementation; returns a HaloAssignments dataclass.
+        """
+        pass
+
+    def read_subhalo_info(self) -> SubhaloInformation | None:
+        """
+        Reads subhalo information from the source, if this exists.
+        """
+        pass
+
+    def distribute_raw_halo_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray]:
+        """
+        Distributes the global raw IDs via MPI.
+        """
+        pass
+
+    def distribute_raw_subhalo_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_subhalo_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray] | None:
+        """
+        Distributes the global raw subhalo IDs via MPI.
+        """
+        pass
+```
+
+Implementing these methods is too catalogue-specific to provide a generic guide. However, the existing halo sources may be a useful reference. Once you are satisfied with your parser, all you need to do is add it to the `build_halo_source()` function:
+
+```python
+def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSource:
+    """
+    Builds a HaloSource depending on config specification.
+    """
+    ...
+    elif config.halo_id_source == "GILGAMESH":
+        from .gilgamesh import GilgameshHaloSource  # avoid circular import
+        logger.info("Using GILGAMESH-assigned HaloIDs.")
+        logger.info(f"Finding AHF catalogues at {config.halo_id_filepath}")
+        return GilgameshHaloSource(
+            catalogue_path=config.halo_id_filepath
+        )
+    ...
+```
+
+If you have implemented the generics successfully, Octavius will now support your halo catalogue.

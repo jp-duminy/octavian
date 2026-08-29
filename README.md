@@ -23,12 +23,13 @@ Catalogues are stored as HDF5 files containing physical properties and membershi
 
 ## Install
 
-Octavius is packaged on pip and uv, with a planned conda-forge deployment. The package is (currently) pinned to relatively recent dependencies and it is therefore recommended to use uv for package resolution. It can be quickly installed via:
+Octavius is packaged on pip, with a planned conda-forge deployment in the near-future. It can be quickly installed from the terminal by running:
 
 ```terminal
     pip install octavius
-    uv pip install octavius
 ```
+
+The package is (currently) pinned to relatively recent dependencies and it is therefore recommended to use a tool like `uv` for version resolution. 
 
 ## Features
 
@@ -43,7 +44,7 @@ Octavius is packaged on pip and uv, with a planned conda-forge deployment. The p
 
 ## Quickstart Guide
 
-To analyse a snapshot, you must specify parameters with a [config file](config.yaml). Once installed, a config .yaml file for you to fill in can be generated in your current directory via:
+To analyse a snapshot, you must specify parameters with a [config file](octavius/config.yaml). Once installed, a config .yaml file for you to fill in can be generated in your current directory by running:
 
 ```terminal
     octavius init
@@ -64,7 +65,7 @@ The analysis can then be called either from the command line, or a Python script
     catalogue_path = analyse_snapshot(config)  # analyse_snapshot() is natively MPI-aware and can be run in serial too
 ```
 
-It is recommended to use the command-line method for larger snapshots and more complex workflows, as it is more flexible. For more information, please run
+It is recommended to use the command-line method for larger snapshots and more complex workflows, as it is more flexible. For more information, please run:
 
 ```terminal
     octavius analyse --help
