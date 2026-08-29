@@ -85,11 +85,11 @@ class GizmoReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_chunks: int):
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
-        self.n_chunks = n_chunks
+        self.n_io_chunks = n_io_chunks
         self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, np.ndarray] | None = None
 
@@ -203,7 +203,7 @@ class GizmoReader(SnapshotReader):
             if dataset == "metallicity":  # need first column for the total metal fraction
                 raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slab, self.n_chunks):
+                for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
                     raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 0]
@@ -211,7 +211,7 @@ class GizmoReader(SnapshotReader):
             elif dataset == "helium_fraction":  # second column for the helium fraction
                 raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slab, self.n_chunks):
+                for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
                     raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 1]
@@ -222,7 +222,7 @@ class GizmoReader(SnapshotReader):
                 ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
                 raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slab, self.n_chunks):
+                for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
                     raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
@@ -276,7 +276,7 @@ class GizmoReader(SnapshotReader):
             halo_hdf5_dataset = f[hdf5_group]["HaloID"]
             raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
 
-            for chunk in split_slab(slab, self.n_chunks):
+            for chunk in split_slab(slab, self.n_io_chunks):
                 offset = chunk.start - slab.start
                 chunk_length = chunk.stop - chunk.start
                 raw_halo_ids[offset : offset + chunk_length] = halo_hdf5_dataset[chunk]
@@ -302,7 +302,7 @@ class GizmoReader(SnapshotReader):
                 total_length = hdf5_dataset.shape[0]
                 particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slice(0, total_length), self.n_chunks):
+                for chunk in split_slab(slice(0, total_length), self.n_io_chunks):
                     offset = chunk.start
                     chunk_length = chunk.stop - chunk.start
                     particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
@@ -314,7 +314,7 @@ class GizmoReader(SnapshotReader):
                 slab_length = slab.stop - slab.start
                 particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slab, self.n_chunks):
+                for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
                     particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
@@ -386,11 +386,11 @@ class SwiftReader(SnapshotReader):
 
     inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
 
-    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_chunks: int):
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
 
         self.snapshot_path = snapshot_path
         self.constants = constants
-        self.n_chunks = n_chunks
+        self.n_io_chunks = n_io_chunks
         self.global_indices: dict[str, np.ndarray] | None = None
         self.maps: dict[str, RedistributionMap] | None = None
 
@@ -511,7 +511,7 @@ class SwiftReader(SnapshotReader):
                 raw_masses = np.empty(shape=slab_length, dtype=hdf5_mass.dtype)
                 raw_HI_masses = np.empty(shape=slab_length, dtype=hdf5_HI_mass.dtype)
 
-                for chunk in split_slab(slab, self.n_chunks):
+                for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
                     raw_masses[offset : offset + chunk_length] = hdf5_mass[chunk]
@@ -539,7 +539,7 @@ class SwiftReader(SnapshotReader):
                 if dataset == "helium_fraction":
                     raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
 
-                    for chunk in split_slab(slab, self.n_chunks):
+                    for chunk in split_slab(slab, self.n_io_chunks):
                         offset = chunk.start - slab.start
                         chunk_length = chunk.stop - chunk.start
                         raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 1]
@@ -550,7 +550,7 @@ class SwiftReader(SnapshotReader):
                     ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
                     raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
 
-                    for chunk in split_slab(slab, self.n_chunks):
+                    for chunk in split_slab(slab, self.n_io_chunks):
                         offset = chunk.start - slab.start
                         chunk_length = chunk.stop - chunk.start
                         raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
@@ -608,7 +608,7 @@ class SwiftReader(SnapshotReader):
             halo_hdf5_dataset = f[hdf5_group]["FOFGroupIDs"]
             raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
 
-            for chunk in split_slab(slab, self.n_chunks):
+            for chunk in split_slab(slab, self.n_io_chunks):
                 offset = chunk.start - slab.start
                 chunk_length = chunk.stop - chunk.start
                 raw_halo_ids[offset : offset + chunk_length] = halo_hdf5_dataset[chunk]
@@ -634,7 +634,7 @@ class SwiftReader(SnapshotReader):
                 total_length = hdf5_dataset.shape[0]
                 particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slice(0, total_length), self.n_chunks):
+                for chunk in split_slab(slice(0, total_length), self.n_io_chunks):
                     offset = chunk.start
                     chunk_length = chunk.stop - chunk.start
                     particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
@@ -646,7 +646,7 @@ class SwiftReader(SnapshotReader):
                 slab_length = slab.stop - slab.start
                 particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
 
-                for chunk in split_slab(slab, self.n_chunks):
+                for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
                     particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
@@ -683,10 +683,10 @@ def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: Octa
     """
     if config.simulation_type == "GIZMO":
         logger.info("Using GIZMO reader.")
-        return GizmoReader(snapshot_path=snapshot_path, constants=constants, n_chunks=config.n_chunks)
+        return GizmoReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
     elif config.simulation_type == "SWIFT":
         logger.info("Using SWIFT reader.")
-        return SwiftReader(snapshot_path=snapshot_path, constants=constants, n_chunks=config.n_chunks)
+        return SwiftReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
     else:
         raise ValueError(f"Unknown simulation ({config.simulation_type}), please put GIZMO/SWIFT!")
 

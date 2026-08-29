@@ -35,21 +35,21 @@ config = OctaviusConfig(...)  # type parameters manually
 
 `output_dir`: the directory to which you would like outputs routed.
 
-`halo_id_filepath`: the filepath of the halo catalogue (leave blank if using SNAPSHOT IDs).
+`halo_id_filepath`: the filepath of the halo catalogue (can be left blank if using snapshot IDs). AHF users should specify the stem of the filename before the `.AHF_` extension.
 
-`compress_catalogue`: whether to apply lossless GZIP compression to the catalogue.
+`compress_catalogue`: whether to apply lossless GZIP compression to the catalogue (default: `True`).
 
 ## Stages
 
-`find_galaxies`: run the 6D friends-of-friends algorithm to locate galaxies in the snapshot.
+`find_galaxies`: run the 6D friends-of-friends algorithm to locate galaxies in the snapshot (default: `True`).
 
-`properties_core`: compute core properties, which includes most basic physical properties such as kinematics.
+`properties_core`: compute core properties, which includes most basic physical properties such as kinematics (default: `True`).
 
-`properties_ptype_specific`: compute particle-type specific properties, such as supermassive black hole Eddington fractions.
+`properties_ptype_specific`: compute particle-type specific properties, such as supermassive black hole Eddington fractions (default: `True`).
 
-`properties_local_environment`: compute properties of galaxies' local environment: aperture masses, local densities/masses.
+`properties_local_environment`: compute properties of galaxies' local environment: aperture masses, local densities/masses (default: `True`).
 
-`photometry`: compute photometric properties for galaxies.
+`photometry`: compute photometric properties for galaxies (default: `True`).
 
 Dependency resolution is performed at runtime; for example, photometry requires gas SFR-weighted metallicities to exist, so if `photometry` is enabled but `properties_ptype_specific` is disabled in the config, `properties_ptype_specific` will be re-enabled. The exception to this is galaxy finding, which will disable its dependent stages as it is considered a pre-processing step.
 
@@ -69,7 +69,7 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `min_stars_per_galaxy`: the minimum number of stars a cluster of baryonic particles must contain to be considered a galaxy (default: `16`).
 
-`min_dm_per_halo`: the minimum number of dark matter particles a halo should contain. Haloes below this threshold are disregarded during analysis and will not appear in the catalogue (default: `16`).
+`min_dm_per_halo`: the minimum number of dark matter particles a halo should contain. Haloes below this threshold are disregarded during analysis and will not appear in the catalogue (default: `24`).
 
 `nH_lim`: the density, in hydrogen atoms per cubic centimetre, above which gas is considered dense. Used to locate dense gas in the FOF6D algorithm, and to define CGM quantities for haloes (default: `0.13`).
 
@@ -89,45 +89,45 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 ## Aggregate Property Parameters
 
-`radial_quantiles`: a dictionary of quantiles for enclosed mass radial profiles. The dictionary should contain the quantile keyed by its name, e.g. `"half-mass": 0.5`
+`radial_quantiles`: a dictionary of quantiles (keyed by name) for enclosed mass radial profiles (default: `{"r20": 0.2, "half_mass": 0.5, "r80": 0.8}`).
 
-`aperture_size`: a list of the radius (or radii), in kiloparsecs, of the apertures wherein aperture masses are computed. You can specify multiple aperture sizes.
+`aperture_size`: a list of the radius (or radii), in kiloparsecs, of the apertures wherein aperture masses are computed. You can specify multiple aperture sizes (default: `[30]`).
 
-`virial_factors`: a list of the overdensity threshold(s) for which halo virial quantities are computed.
+`virial_factors`: a list of the overdensity threshold(s) for which halo virial quantities are computed (default: `[200, 500, 2500]`).
 
-`density_radii`: a list of the radii, in kiloparsecs, at which local environment properties are computed.
+`density_radii`: a list of the radii, in kiloparsecs, at which local environment properties are computed. (default: `[300, 1000, 3000]`)
 
 ## Photometry Parameters
 
-`bands`: the FSPS-supported bands in which to compute magnitudes. Please run `fsps.list_filters()` to see the list of available options, or inspect the datasets in the Octavius photometry data file. For filters with multiple bands, e.g. `sdss_u`, `sdss_v` you can simply specify `sdss` and all of its bands will be run. The `v` filter is always enabled for $A_v$ computation. Furthermore, you can specify `all` for magnitudes in all available bands, or `uvoir` for magnitudes in all bands bluewards of five microns.
+`bands`: the FSPS-supported bands in which to compute magnitudes. Please run `fsps.list_filters()` to see the list of available options, or inspect the datasets in the Octavius photometry data file. For filters with multiple bands, e.g. `sdss_u`, `sdss_v` you can simply specify `sdss` and all of its bands will be run. The `v` filter is always enabled for $A_v$ computation. Furthermore, you can specify `all` for magnitudes in all available bands, or `uvoir` for magnitudes in all bands bluewards of five microns. (default: `["all"]`)
 
-`photometry_table_filepath`: the filepath to the Octavius photometry HDF5 datafile.
+`photometry_table_filepath`: the filepath to the Octavius photometry HDF5 datafile (can be left blank if not running photometry).
 
-`extinction_law`: Specify the extinction law to use. Octavius currently supports `power_law`, `calzetti`, `conroy`, `cardelli`, `smc`, `lmc`. In addition, two composite extinction laws are provided: `mix_calz_mw` uses Cardelli for galaxies with $\log_{10}(sSFR) < 0.1 Gyr^-1$, Calzetti for $\log_{10}(sSFR) > 1.0 Gyr^-1$ and a linear mix in between; `composite` adds a further metallicity dependence, using `mix_calz_mw` for $Z > Z_{\odot}$, `smc` for $Z < 0.1 Z_{\odot}$, and a linear combination in between.
+`extinction_law`: Specify the extinction law to use. Octavius currently supports `power_law`, `calzetti`, `conroy`, `cardelli`, `smc`, `lmc`. In addition, two composite extinction laws are provided: `mix_calz_mw` uses Cardelli for galaxies with $\log_{10}(sSFR) < 0.1 Gyr^-1$, Calzetti for $\log_{10}(sSFR) > 1.0 Gyr^-1$ and a linear mix in between; `composite` adds a further metallicity dependence, using `mix_calz_mw` for $Z > Z_{\odot}$, `smc` for $Z < 0.1 Z_{\odot}$, and a linear combination in between. (default: `composite`).
 
 `viewing_axis`: Specifies the Cartesian axis along which galaxies are viewed (options: `x`, `y`, `z`).
 
-`use_dust`: Specifies whether to use dust masses from the snapshot.
+`use_dust`: Specifies whether to use dust masses from the snapshot. (default: `True`)
 
-`use_cosmic_extinction`: Specifies whether to apply a redshift-dependent IGM attenuation as described in Madau (1995) `doi: 10.1086/175332`.
+`use_cosmic_extinction`: Specifies whether to apply a redshift-dependent IGM attenuation as described in Madau (1995) `doi: 10.1086/175332` (default: `True`).
 
-`interpolation_bins`: Specifies the granularity of the numerical approximation of the line-of-sight kernel weight integral used for gas metal column densities.
+`interpolation_bins`: Specifies the granularity of the numerical approximation of the line-of-sight kernel weight integral used for gas metal column densities (default: `5000`).
 
-`kernel_type`: Specifies the type of kernel used for gas metal column densities (options: `cubic`, `quintic`).
+`kernel_type`: Specifies the type of kernel used for gas metal column densities (options: `cubic`, `quintic`) (default: `cubic`).
 
-`power_law_alpha`: the exponent $\alpha$ to use on `power_law` attenuation (if using), which goes as $(\frac{\lambda}{\lambda_0})^{-\alpha}$.
+`power_law_alpha`: the exponent $\alpha$ to use on `power_law` attenuation (if using), which goes as $(\frac{\lambda}{\lambda_0})^{-\alpha}$ (default: `1.0`)
 
-`split_age`: the threshold age in $Gyr$ below which the ages of star particles are divided into sub-bins to improve the accuracy of their spectra.
+`split_age`: the threshold age in $Gyr$ below which the ages of star particles are divided into sub-bins to improve the accuracy of their spectra (default: `0.01`)
 
 ## Parallelism
 
-`n_chunks`: the number of chunks used to load datasets into the pipeline when conducting parallel file reads off disc.
+`n_io_chunks`: the number of chunks used to load datasets into the pipeline when conducting parallel file reads off disc (default: `10`).
 
 `cores_per_rank`: the number of cores to associate with each MPI rank. 
 
 ## Logging
 
-`terminal_output_level`: the level of log output you would like to display in the terminal. Set to `INFO` for default runtime notifications, `DEBUG` for detailed diagnostics, and `WARNING` for critical notifications only. This does not affect the `.log` file at the end, which contains all output.
+`terminal_output_level`: the level of log output you would like to display in the terminal. Set to `INFO` for default runtime notifications, `DEBUG` for detailed diagnostics, and `WARNING` for critical notifications only. This does not affect the `.log` file at the end, which contains all output (default: `"INFO"`).
 
-`keep_logs`: whether to keep the runtime logs. If `true`, the logs from multiple ranks are concatenated into a single file where they appear in rank-ascending order.
+`keep_logs`: whether to keep the runtime logs. If `true`, the logs from multiple ranks are concatenated into a single file where they appear in rank-ascending order (default: `False`).
 

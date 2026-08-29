@@ -51,50 +51,74 @@ class OctaviusConfig:
     - 'velocity_factor' is in units of the local velocity dispersion, and controls how many standard deviations from the local velocity dispersion a particle considers its neighbours to be linked in phase space.
     - FRAD is the radiative efficiency (in the accretion formula, usually 0.1).
     - MU is the mean molecular weight (in the virial scaling formulae, usually 0.6)
-    - n_chunks does not represent chunking through the full pipeline, rather, chunking on reading datasets. This is to alleviate stress on filesystems from multiple ranks simultaneously requesting multi-GB reads, but in practice leaving this at 10 is fine.
+    - n_io_chunks does not represent chunking through the full pipeline, rather, chunking on reading datasets. This is to alleviate stress on filesystems from multiple ranks simultaneously requesting multi-GB reads, but in practice leaving this at 10 is fine.
     """
 
+    # NOTE: since config is frozen (immutable) the dicts (default mutable) must be created with field(default_factory)
+    # default_factory expects a callable so wrap it in lambda:
+
+    snapshot_path: Path
+    output_dir: Path
     simulation_type: str
     halo_id_source: str  # filepath is at the bottom
-    compress_catalogue: bool
-
-    stages: dict[str, bool]
-    n_chunks: int
-    process_ptypes: dict[str, bool]
-
-    min_stars_per_galaxy: int
-    min_dm_per_halo: int
-
-    nH_lim: float
-    T_lim: float
-    FRAD: float
-    MU: float
-
-    b: float
-    velocity_factor: float
-
-    radial_quantiles: dict[str, float]
-    aperture_size: list[int]
-    virial_factors: list[int]
-    density_radii: list[int]
-
-    bands: list[str]
-    extinction_law: str
-    viewing_axis: str
-    use_dust: bool
-    use_cosmic_extinction: bool
-    interpolation_bins: int
-    kernel_type: str
-    power_law_alpha: float
-    split_age: float
-
     cores_per_rank: int
 
-    terminal_output_level: str
-    keep_logs: bool
+    n_io_chunks: int = 10
+    stages: dict[str, bool] = field(
+        default_factory=lambda: {
+            "find_galaxies": True,
+            "properties_core": True,
+            "properties_ptype_specific": True,
+            "properties_local_environment": True,
+            "photometry": True,
+        }
+    )
 
-    snapshot_path: Path | None = None
-    output_dir: Path | None = None
+    process_ptypes: dict[str, bool] = field(
+        default_factory=lambda: {
+            "gas": True,
+            "star": True,
+            "dm": True,
+            "bh": True,
+        }
+    )
+
+    min_stars_per_galaxy: int = 16
+    min_dm_per_halo: int = 24
+
+    nH_lim: float = 0.13
+    T_lim: float = 1.0e5
+    FRAD: float = 0.1
+    MU: float = 0.6
+
+    radial_quantiles: dict[str, float] = field(
+        default_factory=lambda: {
+            "r20": 0.2,
+            "half_mass": 0.5,
+            "r80": 0.8,
+        }
+    )
+    aperture_size: list[int] = field(default_factory=lambda: [30])
+    virial_factors: list[int] = field(default_factory=lambda: [200, 500, 2500])
+    density_radii: list[int] = field(default_factory=lambda: [300, 1000, 3000])
+
+    b: float = 0.02
+    velocity_factor: float = 1.0
+
+    bands: list[str] = field(default_factory=lambda: ["all"])
+    extinction_law: str = "composite"
+    viewing_axis: str = "z"
+    use_dust: bool = True
+    use_cosmic_extinction: bool = True
+    interpolation_bins: int = 5000
+    kernel_type: str = "cubic"
+    power_law_alpha: float = 1.0
+    split_age: float = 0.01
+
+    terminal_output_level: str = "INFO"
+    keep_logs: bool = False
+
+    compress_catalogue: bool = True
     halo_id_filepath: Path | None = None
     photometry_table_filepath: Path | None = None
 
