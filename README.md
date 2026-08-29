@@ -49,7 +49,7 @@ The package is (currently) pinned to relatively recent dependencies and it is th
 
 ## Quickstart Guide
 
-To analyse a snapshot, you must specify parameters with a [config file](octavius/config.yaml). Once installed, a config .yaml file for you to fill in can be generated in your current directory by running:
+To analyse a snapshot, you must specify parameters with a [configuration file](octavius/config.yaml). Once installed, a config YAML file for you to fill in can be generated in your current directory by running:
 
 ```terminal
     octavius init
