@@ -1,6 +1,6 @@
 # Example Scripts
 
-This section contains example scripts of running Octavius and working with its catalogues.
+This section contains example scripts of running Octavius and working with its catalogues. Please see the [examples folder] in the source repository for the scripts.
 
 [Analysing Snapshots](analysing_snapshots.md): examples of running the analysis on snapshots from both the command line and Python scripts.
 

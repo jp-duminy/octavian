@@ -265,7 +265,12 @@ def analyse_snapshot(
         comm.Barrier()  # so the banner doesn't print after the analysis
 
     # initialise logger for console output
-    configure_logger(rank=rank, output_level=config.terminal_output_level, log_dir=config.output_dir)
+    configure_logger(
+        snapshot_path=config.snapshot_path,
+        rank=rank,
+        output_level=config.terminal_output_level,
+        log_dir=config.output_dir,
+    )
     logger = get_logger()
     instantiation_message(
         snapshot_name=config.snapshot_path,
