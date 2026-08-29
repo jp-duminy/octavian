@@ -28,7 +28,7 @@ from octavius import analyse_snapshot, OctaviusConfig
 
 GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
 SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
-CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+CONFIG_PATH = Path(__file__).parent.parent / "octavius" / "config.yaml"
 PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavius" / "internals.yaml"
 
