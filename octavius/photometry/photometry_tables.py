@@ -141,8 +141,8 @@ def generate_photometry_table(
         Path object pointing to where you would like to save the photometry table.
     imf: str
         The choice of IMF to use with FSPS. All FSPS IMFs are supported (option 4, piecewise, is named "piecewise"); default: ``"chabrier"``.
-    nebular_emission: bool (default: True)
-        Whether or not to include nebular emission with FSPS.
+    nebular_emission: bool
+        Whether or not to include nebular emission with FSPS. Default: ``True``.
     oversample: tuple[int, int]
         The factors in [age, metallicity] by which to oversample the native FSPS grid ranges from for more accurate interpolation; will increase filesize.
     """
