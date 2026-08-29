@@ -10,7 +10,7 @@ Furthermore, the catalogue contains cosmological information from the snapshot i
 
 The datasets follow a standardised naming convention: first comes the quantity name, then any identifing information, then what particle type or combination thereof it belongs to, all underscore-separated. For example, `radius_max_baryon` is the maximum radius any baryonic particle lies from the centre of a group.
 
-## cat Object
+## Catalogue Object
 
 The `OctaviusCatalogue` object is designed to be easy and convenient to interface with. It provides on-demand access to datasets with unit/physical conversions, masks, and descriptions. The catalogue object can be instantiated by calling `load_catalogue()` on a `pathlib.Path` object pointing to the filepath of an Octavius HDF5 catalogue. 
 

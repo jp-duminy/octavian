@@ -28,7 +28,15 @@ dependencies = [
 
 keywords = ["astrophysics", "cosmology", "simulation", 
             "galaxy", "halo", "sph", 
-            "fof", "analysis", "hdf5"
+            "fof", "analysis", "hdf5",
+            "ahf", "swift", "gizmo",
+            "hbt",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
 ]
 
 [project.optional-dependencies]

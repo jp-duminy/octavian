@@ -48,7 +48,7 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 
 - `inertia_tensor_{ptype}`: the inertia tensor $\boldsymbol{I}$.
 
-- `radius_{quantile}_{ptype}`: the enclosed-mass radii, where the quantiles are controllable from the configuration file.
+- `radius_{quantile}_{ptype}`: the enclosed-mass radii, where the quantiles are defined in the configuration file.
 
 - `radius_max_{ptype}`: the maximum member particle radius.
 
@@ -86,7 +86,7 @@ This stage computes properties which only pertain to a specific particle type.
 
 ### Configurable Parameters
 
-- `nH_lim`: the density, in $n_{H} cm^{-3}$, below which gas is considered part of the CGM.
+- `nH_lim`: the density, in $n_{H} \ cm^{-3}$, below which gas is considered part of the CGM.
 
 - `T_lim`: the temperature, in $K$, below which gas is considered cold.
 

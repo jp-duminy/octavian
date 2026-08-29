@@ -1,7 +1,83 @@
-.bd-page-width {
-    max-width: 100rem !important;
+/* make the central content area wider */
+.content {
+    width: 55em;
+    padding: 0 3em;
 }
 
-.bd-main .bd-content .bd-article-container {
-    max-width: 75rem !important;
+/* furo-specific admonition */
+body {
+    --admonition-font-size: 1rem;
+    --admonition-title-font-size: 1rem;
+}
+
+/* increase font size of landing page font slightly */
+.landing-body {
+    font-size: 1.05rem;
+    text-align: left;
+}
+
+/* have logo + title appear on every page */
+.sidebar-brand {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sidebar-logo {
+    max-height: 2.5rem;
+    margin: 0;
+}
+
+.sidebar-brand-text {
+    margin: 0;
+}
+
+/* give the logo and 'octavius' more space */
+.sidebar-brand {
+    gap: 1rem;
+}
+
+/* decrease font size of landing page title so it fits on one line */
+h1 {
+    font-size: 2em;
+}
+
+/* increase spacing below headings, give the text room to breathe */
+h1 {
+    margin-bottom: 1.5rem;
+}
+
+h2 {
+    margin-top: 2.5rem;
+    margin-bottom: 1.2rem;
+}
+
+h3 {
+    margin-bottom: 1rem;
+    margin-top: 2rem;
+}
+
+/* increase line spacing */
+article {
+    line-height: 1.8;
+}
+
+article p {
+    margin-bottom: 1rem;
+}
+
+/* increase RHS sidebar size beyond defaults */
+body {
+    --toc-font-size: var(--font-size--small);
+    --toc-item-spacing-vertical: 0.5rem;
+}
+
+/* make the content on the landing page larger (deleted the RHS sidebar) */
+.content:has(~ .toc-drawer.no-toc) {
+    width: 70em;
+}
+
+.content:has(~ .toc-drawer.no-toc) h1 {
+    font-size: 2.5em;
+    margin-top: 2rem;
 }

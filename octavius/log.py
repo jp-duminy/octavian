@@ -17,7 +17,7 @@ BANNER = """
 ═ ░▀▀▀░▀▀▀░░▀░░▀░▀░░▀░░▀▀▀░▀▀▀░▀▀▀ ═
 ═                                  ═
 ████████████████████████████████████\n
-The next-generation analysis toolkit.
+The next-generation simulation analysis toolkit.
 """
 
 
