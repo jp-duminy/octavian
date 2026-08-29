@@ -1,7 +1,7 @@
 # Membership
 
 :::{seealso}
-Please see the [catalogues](../catalogues.md) documentation for information.
+Please see the [catalogues](../guide/catalogues.md) documentation for information.
 :::
 
 Membership arrays are stored in the catalogue, and provide mappings between related groups and their constituent particles in the raw snapshot. These datasets are accessible with the `get_membership()`, `get_particle_indices()`, and `get_galaxies()` (for haloes) methods.

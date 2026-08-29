@@ -19,7 +19,14 @@ release = "0.9.0"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["myst_parser", "sphinx.ext.autodoc", "sphinx.ext.napoleon", "sphinx.ext.autosummary", "sphinx_copybutton"]
+extensions = [
+    "myst_parser",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autosummary",
+    "sphinx_copybutton",
+    "sphinx.ext.intersphinx",
+]
 myst_enable_extensions = ["dollarmath", "colon_fence"]
 autodoc_member_order = "bysource"
 source_suffix = {
@@ -51,3 +58,8 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "h5py": ("https://docs.h5py.org/en/stable/", None),
 }
+nitpick_ignore = [
+    ("py:class", "fsps.StellarPopulation"),
+    ("py:class", "h5py._hl.group.Group"),
+    ("py:class", "dict[str"),
+]

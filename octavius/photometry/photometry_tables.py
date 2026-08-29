@@ -139,8 +139,8 @@ def generate_photometry_table(
     ----------
     output_path: pathlib.Path
         Path object pointing to where you would like to save the photometry table.
-    imf: str (default: "chabrier")
-        The choice of IMF to use with FSPS. All FSPS IMFs are supported (option 4, piecewise, is named "piecewise".)
+    imf: str
+        The choice of IMF to use with FSPS. All FSPS IMFs are supported (option 4, piecewise, is named "piecewise"); default: ``"chabrier"``.
     nebular_emission: bool (default: True)
         Whether or not to include nebular emission with FSPS.
     oversample: tuple[int, int]
