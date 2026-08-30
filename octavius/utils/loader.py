@@ -150,11 +150,11 @@ class GroupCollection:
     -------
 
     describe()
-        Print available aggregate property datasets and membership columns.
+        Print available property datasets and membership columns.
     get_dataset(name, mask, to_units, to_physical, verbose)
-        Read a single aggregate property dataset with optional unit/physical conversion.
+        Read a single property dataset with optional unit/physical conversion.
     get_datasets(names, mask, to_units, to_physical, verbose)
-        Wrapper around get_dataset for reading multiple aggregate property datasets.
+        Wrapper around get_dataset for reading multiple property datasets.
     get_membership(name, group_index, verbose)
         Read a single membership dataset with the option of retrieving it for a single group.
     get_galaxies(halo_index)
@@ -204,7 +204,7 @@ class GroupCollection:
 
     def describe(self) -> None:
         """
-        Prints what is in the catalogue group collection, to save you having to inspect the HDF5 file.
+        Prints all datasets available in the catalogue group collection, to save you having to inspect the HDF5 file.
         """
         print(f"Aggregate properties ({len(self._dataset_paths)} datasets in catalogue)\n")
         for short_name, path in sorted(self._dataset_paths.items()):
@@ -336,8 +336,8 @@ class GroupCollection:
         """
         Retrieves a membership dataset from the membership section of the catalogue; can optionally
         retrieve members for the specified group_index. Membership datasets are not necessarily (n_groups)
-        length, and therefore a mask argument is not provided; it is recommended to instead load the dataset
-        using this method and then mask appropriately.
+        length, and therefore a mask argument is not provided to avoid unintended behaviour; it is recommended to
+        instead load the dataset using this method and then mask appropriately.
 
         Parameters
         ----------
@@ -373,7 +373,7 @@ class GroupCollection:
     ) -> np.ndarray:
         """
         Retrieves the indices into the catalogue corresponding to the galaxies which belong to the
-        halo at halo_index; will not work if used on the galaxies collection.
+        halo at halo_index; will raise an error if used on the galaxies collection.
 
         Parameters
         ----------

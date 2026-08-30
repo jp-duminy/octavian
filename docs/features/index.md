@@ -2,7 +2,7 @@
 
 This section contains documentation for the features of the package and their outputs. All features work out-of-the-box.
 
-[Galaxy Finding](galaxy_finding.md): the built-in galaxy finding with the FOF6D algorithm.
+[Galaxy Finding](galaxy_finding.md): built-in galaxy finding with the FOF6D algorithm.
 
 [Aggregate Properties](aggregate_properties.md): physical properties of galaxies and haloes.
 

@@ -61,7 +61,7 @@ def generate_test_catalogue(
     simulation_type: str,
 ) -> Path:
     """
-    Generates a tiny synthetic Octavius catalogue for testing purposes. This catalogue is produced from a procedurally-generated snapshot filled with junk data; this function can therefore be used to assess the catalogue HDF5 file layout and whether the pipeline runs. It produces its own synthetic junk config file too. This must be run under MPI.
+    Generates a tiny synthetic Octavius catalogue for testing purposes. This catalogue is produced from a procedurally-generated snapshot filled with junk data; this function can therefore be used to assess the catalogue HDF5 file layout and whether the pipeline runs. It produces its own synthetic junk config file too.
 
     Parameters
     ----------
