@@ -6,5 +6,5 @@ versions.
 
 """
 
-__version__ = "0.9.1.2"
+__version__ = "0.9.1.3"
 CATALOGUE_VERSION = 1
