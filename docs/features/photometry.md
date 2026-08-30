@@ -26,7 +26,7 @@ The photometry table contains metadata in its top-level attributes, which can be
 
 Photometry includes the most user-configured parameters of the other stages in the configuration file. Functionality is included to:
 
-- Specify a threshold age below which to create sub-bins to improve the accuracy of their spectra
+- Specify a threshold age for stars below which to create sub-bins to improve the accuracy of their spectra
 - Control the extinction law
 - Apply cosmic extinction
 - Increase the granularity of the interpolated approximation of the kernel LOS integral

@@ -124,11 +124,11 @@ Optional:
 
 ## Citing
 
-Octavius can be cited with [Zenodo](https://doi.org/10.5281/zenodo.22166418).
+Octavius can be cited with [Zenodo](https://doi.org/10.5281/zenodo.22166418) `doi: 10.5281/zenodo.22166634`.
 
 ## Beta
 
-The package is currently in beta pre-release; please keep this in mind if using it for analysis. You are encouraged to please play around with the code and report any bugs or inaccuracies which may arise.
+The package is currently in beta pre-release; please keep this in mind if using it for analysis. You are encouraged to please play around with the code and [report any bugs or inaccuracies](https://github.com/jp-duminy/octavius/issues) which may arise.
 
 ## Caesar
 

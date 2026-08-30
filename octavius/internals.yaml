@@ -461,7 +461,7 @@ output_columns:
     dtype:       float64
     unit:        "Lsun"
     a_exp:       0
-    description: "Far infrared luminosity."  # TODO: make this more descriptive when I've written it
+    description: "Bolometric far-infrared luminosity."
 
   beta:
     dtype:       float64

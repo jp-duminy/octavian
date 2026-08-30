@@ -25,6 +25,10 @@ config = OctaviusConfig.from_yaml(config_path)  # from .yaml
 config = OctaviusConfig(...)  # type parameters manually
 ```
 
+:::{note}
+The catalogue will inherit the name of the snapshot prefixed with `octavius_`, as will the log file (if enabled).
+:::
+
 ## General Options
 
 `simulation_type`: the format of the snapshot (GIZMO/SWIFT).
@@ -41,15 +45,15 @@ config = OctaviusConfig(...)  # type parameters manually
 
 ## Stages
 
-`find_galaxies`: run the 6D friends-of-friends algorithm to locate galaxies in the snapshot (default: `True`).
+`find_galaxies`: run the [6D friends-of-friends algorithm](../features/galaxy_finding.md) to locate galaxies in the snapshot (default: `True`).
 
-`properties_core`: compute core properties, which includes most basic physical properties such as kinematics (default: `True`).
+`properties_core`: compute [core properties](../features/aggregate_properties.md#core-properties), which includes most basic physical properties such as kinematics (default: `True`).
 
-`properties_ptype_specific`: compute particle-type specific properties, such as supermassive black hole Eddington fractions (default: `True`).
+`properties_ptype_specific`: compute [particle-type specific properties](../features/aggregate_properties.md#particle-specific-properties), such as supermassive black hole Eddington fractions (default: `True`).
 
-`properties_local_environment`: compute properties of galaxies' local environment: aperture masses, local densities/masses (default: `True`).
+`properties_local_environment`: compute [properties of galaxies' local environment](../features/aggregate_properties.md#local-environment-properties): aperture masses, local densities/masses (default: `True`).
 
-`photometry`: compute photometric properties for galaxies (default: `True`).
+`photometry`: compute [photometric properties](../features/photometry.md) for galaxies (default: `True`).
 
 Dependency resolution is performed at runtime; for example, photometry requires gas SFR-weighted metallicities to exist, so if `photometry` is enabled but `properties_ptype_specific` is disabled in the config, `properties_ptype_specific` will be re-enabled. The exception to this is galaxy finding, which will disable its dependent stages as it is considered a pre-processing step.
 
@@ -71,9 +75,9 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `min_dm_per_halo`: the minimum number of dark matter particles a halo should contain. Haloes below this threshold are disregarded during analysis and will not appear in the catalogue (default: `24`).
 
-`nH_lim`: the density, in hydrogen atoms per cubic centimetre, above which gas is considered dense. Used to locate dense gas in the FOF6D algorithm, and to define CGM quantities for haloes (default: `0.13`).
+`nH_lim`: the density, in $n_{H} \ cm^{-3}$, above which gas is considered dense. Used to locate dense gas in the FOF6D algorithm, and to define CGM quantities for haloes (default: `0.13`).
 
-`T_lim`: the temperature, in Kelvin, below which gas is considered cold. Used to locate cold gas in the FOF6D algorithm (default: `1.0e5`).
+`T_lim`: the temperature, in $K$, below which gas is considered cold. Used to locate cold gas in the FOF6D algorithm (default: `1.0e5`).
 
 ## Physics Parameters
 

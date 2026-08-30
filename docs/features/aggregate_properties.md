@@ -14,6 +14,7 @@ When a stage is enabled, all of its outputs will appear in the output catalogue;
 The datasets which are present in a catalogue for either group can be listed through the `describe()` method on an `OctaviusCatalogue` on `haloes` or `galaxies`.
 :::
 
+(core-properties)=
 ## Core Properties
 
 This stage is the most heavy of the three. The 'core' properties are an assortment of familiar astronomical properties such as kinematic, rotational, radial, virial, and morphological quantities.
@@ -58,7 +59,11 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 
 - `minpot_vel_{ptype}`: the velocity vector of the particle at the minimum potential.
 
-- `r200`: the radius which enclosed 200x the mean matter density $r_{200m}$.
+:::{tip}
+The minimum potential is often more useful than the centre-of-mass for haloes, owing to the irregular shapes of FOF haloes.
+:::
+
+- `r200`: the radius which encloses 200x the mean matter density $r_{200m}$.
 
 - `spin_param`: the Bullock spin parameter $\lambda$ (uses $r_{200m}$).
 
@@ -70,9 +75,9 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 
 - `rmax`: the radius at $v_{max}$.
 
-- `r{factor}c`: the radii enclosing the factor of critical density, where the factors are defined in the configuration file.
+- `r{factor}c`: the radii enclosing the factor of critical density (e.g. $r_{200c}$), where the factors are defined in the configuration file.
 
-- `m{factor}c`: the mass enclosed within `r{factor}c`, where the factors are defined in the configuration file.
+- `m{factor}c`: the mass enclosed within `r{factor}c` (e.g. $m_{200c}$), where the factors are defined in the configuration file.
 
 ### Galaxy outputs
 
@@ -80,9 +85,10 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 
 - `kappa_rot_{ptype}`: the ratio of rotational-to-total kinetic energy.
 
+(particle-specific-properties)=
 ## Particle-Specific Properties
 
-This stage computes properties which only pertain to a specific particle type.
+This stage computes properties which only pertain to a specific particle type; they are not keyed by their individual ptype suffixes.
 
 ### Configurable Parameters
 
@@ -94,7 +100,7 @@ This stage computes properties which only pertain to a specific particle type.
 
 Gas:
 
-- `sfr`: the total star forming rate
+- `sfr`: the total star forming rate.
 
 - `metallicity_mass_weighted`: the mass-weighted metallicity.
 
@@ -110,9 +116,9 @@ Stars:
 
 - `metallicity_stellar` the mass-weighted metallicity.
 
-- `age_mass_weighted`: the mass-weighted age.
+- `age_mass_weighted`: the mean mass-weighted age.
 
-- `age_metal_weighted`: the metallicity-weighted age.
+- `age_metal_weighted`: the mean metallicity-weighted age.
 
 Black holes:
 
@@ -134,7 +140,7 @@ Gas properties are also computed for the halo CGM, which is defined as being gas
 
 - `temp_mass_weighted_cgm`: the CGM mass-weighted temperature.
 
-
+(local-environment-properties)=
 ## Local Environment Properties
 
 This stage runs for galaxies and computes the properties of their local environment. This stage currently has known limitations.
@@ -155,7 +161,7 @@ Local masses and densities are affected by the number of MPI ranks, as halo info
 
 ### Galaxy Outputs
 
-- `mass_{ptype}_{aperture}kpc`: the mass contained within the specified {aperture} in $kpc$, where the aperture sizes are defined in the configuration file
+- `mass_{ptype}_{aperture}kpc`: the mass contained within the specified {aperture} in $kpc$, where the aperture sizes are defined in the configuration file. Do note the the `dm` mass in the aperture is also provided.
 
 - `mass_HI_{aperture}kpc`: the neutral hydrogen mass contained within the specified $kpc$ aperture.
 

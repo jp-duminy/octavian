@@ -1,8 +1,8 @@
-simulation_type:    GIZMO       # SWIFT/GIZMO
+simulation_type:    GIZMO            # SWIFT/GIZMO
 halo_id_source:     SNAPSHOT         # AHF/SNAPSHOT
-snapshot_path:      /path/to/config.yaml
+snapshot_path:      /path/to/snapshot.hdf5
 output_dir:         /path/to/output_directory
-halo_id_filepath:   /path/to/catalogue_file  # use stem for AHF
+halo_id_filepath:   /path/to/catalogue_file  # use stem for AHF; leave blank if using SNAPSHOT haloes
 compress_catalogue: true
 
 

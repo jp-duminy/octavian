@@ -20,6 +20,16 @@ The 'best' method of identifying structure is a topic of debate, as is the ideal
 
 ## Octavius FOF6D
 
+### Configurable Parameters
+
+- `b`: the FOF dimensionless scaling parameter
+- `velocity_factor`: the number of standard deviations from the local velocity dispersion within which a particle considers a neighbour to be linked in phase space.
+- `min_stars_per_galaxy`: the minimum number of stars which define a galaxy.
+- `T_lim`: the temperature below which gas is considered _cold._
+- `nH_lim`: the density in $n_{H} \ cm^{-3}$ below which gas is considered _dense._
+
+### Algorithm Description
+
 Octavius locates galaxies within haloes using the FOF6D algorithm. The implementation goes as follows:
 
 Firstly, position-space links must be identified. A naïve implementation may check the criterion for every particle against every other; however, the time of this approach goes as $\mathcal{O}(N^2)$ and is thus untenable at scale. A spatial hashing structure known as a cell linked-list is therefore used. In this structure, a halo is divided into spatial cells of size $\ell_{fof}$. By partitioning the halo this way, if we want to find the links of a particle, the query radius of $\ell_{fof}$ will only extend into adjacent cells. Thus we must only query the 27 neighbouring cells instead of the entire halo, avoiding a significant amount of wasted computation. 
@@ -31,5 +41,5 @@ The second step is to apply the velocity criterion. To do this, for each particl
 A textbook [path-compressed union find](https://en.wikipedia.org/wiki/Disjoint-set_data_structure#Union_by_rank) is then applied to create the connected components, which are then masked to the user-configured minimum star criterion before being propagated into the analysis pipeline.
 
 :::{note}
-The choices of `b`, the `velocity_factor`, and `min_stars_per_galaxy` are accessible in the configuration file.
+Only gas which passes the cold, dense filter will be assigned to galaxies.
 :::
