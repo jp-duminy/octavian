@@ -47,11 +47,11 @@ The catalogue will inherit the name of the snapshot prefixed with `octavius_`, a
 
 `find_galaxies`: run the [6D friends-of-friends algorithm](../features/galaxy_finding.md) to locate galaxies in the snapshot (default: `True`).
 
-`properties_core`: compute [core properties](../features/aggregate_properties.md#core-properties), which includes most basic physical properties such as kinematics (default: `True`).
+`properties_core`: compute {ref}`core properties <core-properties>`, which includes most basic physical properties such as kinematics (default: `True`).
 
-`properties_ptype_specific`: compute [particle-type specific properties](../features/aggregate_properties.md#particle-specific-properties), such as supermassive black hole Eddington fractions (default: `True`).
+`properties_ptype_specific`: compute {ref}`particle-type specific properties <particle-specific-properties>`, such as supermassive black hole Eddington fractions (default: `True`).
 
-`properties_local_environment`: compute [properties of galaxies' local environment](../features/aggregate_properties.md#local-environment-properties): aperture masses, local densities/masses (default: `True`).
+`properties_local_environment`: compute {ref}`properties of galaxies' local environment <local-environment-properties>`: aperture masses, local densities/masses (default: `True`).
 
 `photometry`: compute [photometric properties](../features/photometry.md) for galaxies (default: `True`).
 
