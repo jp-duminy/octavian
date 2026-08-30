@@ -289,7 +289,7 @@ def analyse_snapshot(
     if config.stages.get("photometry", False):
         names, lambda_effs = read_filter_names(config.photometry_table_filepath)
         config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
-        internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
+    internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctaviusConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)
     halo_source = build_halo_source(config=config, reader=reader)
