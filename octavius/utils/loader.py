@@ -139,7 +139,7 @@ class OctaviusCatalogue:
         """
         Controls what you see when you print a catalogue interface.
         """
-        return f'OctaviusCatalogue "{self._cat.name}" | z = {self.redshift:.3f} | {self.halo_id_source} | boxsize = {self.boxsize_comoving}kpc | {self.n_haloes} haloes | {self.n_galaxies} galaxies'
+        return f'OctaviusCatalogue "{self._cat.name}" | z = {self.redshift:.3f} | {self.halo_id_source} | boxsize = {self.boxsize_comoving:.2f} kpc | {self.n_haloes} haloes | {self.n_galaxies} galaxies'
 
 
 class GroupCollection:
