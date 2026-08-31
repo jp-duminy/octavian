@@ -64,6 +64,14 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             gas["mass_HI"] = mass_HI  # these need to go on ParticleStore for local environment properties
             gas["mass_H2"] = mass_H2
 
+            # this lets us decouple core properties as a dependency for ptype properties
+            if "mass_gas" in group_store:
+                gas_mass = group_store["mass_gas"]
+            else:
+                gas_mass = sum_per_group(
+                    values=gas["mass"], offsets=gas_offsets, idx_sorted=gas_idx, n_groups=group_store.n_groups
+                )
+
             gas_results = compute_gas_properties(
                 masses=gas["mass"],
                 masses_HI=mass_HI,
@@ -71,7 +79,7 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
                 metallicities=gas["metallicity"],
                 temperatures=gas["temperature"],
                 sfrs=gas["sfr"],
-                gas_mass=group_store["mass_gas"],
+                gas_mass=gas_mass,
                 offsets=gas_offsets,
                 idx_sorted=gas_idx,
                 n_groups=n_groups,
@@ -96,11 +104,20 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
         if "star" in particles:
             star = particles["star"]
             star_offsets, star_idx = group_store.get_particle_csr(ptype="star")
+
+            # this lets us decouple core properties as a dependency for ptype properties
+            if "mass_star" in group_store:
+                star_mass = group_store["mass_star"]
+            else:
+                star_mass = sum_per_group(
+                    values=star["mass"], offsets=star_offsets, idx_sorted=star_idx, n_groups=group_store.n_groups
+                )
+
             star_results = compute_star_properties(
                 masses=star["mass"],
                 metallicities=star["metallicity"],
                 ages=star["age"],
-                star_mass=group_store["mass_star"],
+                star_mass=star_mass,
                 offsets=star_offsets,
                 idx_sorted=star_idx,
                 n_groups=n_groups,

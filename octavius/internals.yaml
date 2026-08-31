@@ -64,7 +64,7 @@ stages:
   properties_ptype_specific:
     label: particle_specific
     applies_to: [haloes, galaxies]
-    requires: [properties_core]
+    requires: []
     needs_particle_columns:
       all: [mass]
       gas: [metallicity, sfr, rho, fHI, fH2, helium_fraction, temperature]
@@ -80,7 +80,7 @@ stages:
   properties_local_environment:
     label: environment
     applies_to: [galaxies]
-    requires: [properties_ptype_specific]
+    requires: [properties_ptype_specific]  # needs HI and H2 masses
     needs_particle_columns: 
       all: [pos, mass]
     outputs:
@@ -94,7 +94,7 @@ stages:
   photometry:
     label: photometry
     applies_to: [galaxies]
-    requires: [properties_ptype_specific]  # needs the sfr and metallicity
+    requires: [properties_ptype_specific, properties_core]  # needs the sfr and metallicity + centre of mass
     needs_particle_columns: 
       star: [pos, vel, mass, age, metallicity]
       gas: [pos, mass, metallicity, smoothing_length]
