@@ -31,7 +31,7 @@ The catalogue will inherit the name of the snapshot prefixed with `octavius_`, a
 
 ## General Options
 
-`simulation_type`: the format of the snapshot (GIZMO/SWIFT).
+`simulation_type`: the format of the snapshot (GIZMO/SWIFT-KIARA).
 
 `halo_id_source`: where the halo catalogue should be parsed from (SNAPSHOT/AHF).
 
