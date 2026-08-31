@@ -747,28 +747,28 @@ def _derive_halo_quantities(
     """
     Derived halo quantities, returning a dict of:
 
-    - r200: radius at which matter overdensity is 200x the mean matter density
-    - circular_velocity
+    - r200m: radius at which matter overdensity is 200x the mean matter density
+    - velocity_circular
     - virial_temperature
     - spin_param: (Bullock) spin parameter
     """
     results: dict[str, np.ndarray] = {}
-    r200 = r200_factor * group_mass ** (1.0 / 3.0)  # NOTE: comoving
+    r200m = r200_factor * group_mass ** (1.0 / 3.0)  # NOTE: comoving
     v_circ = np.sqrt(
-        guarded_divide(numerator=(constants.G_VCIRC * group_mass), denominator=(r200 * scale_factor))
-    )  # v_circ needs physical r200
+        guarded_divide(numerator=(constants.G_VCIRC * group_mass), denominator=(r200m * scale_factor))
+    )  # v_circ needs physical r200m
 
     virial_temperature = constants.VIRIAL_TEMP_FACTOR * v_circ**2
-    spin_param = guarded_divide(numerator=L_mag, denominator=(np.sqrt(2) * group_mass * v_circ * r200))
+    spin_param = guarded_divide(numerator=L_mag, denominator=(np.sqrt(2) * group_mass * v_circ * r200m))
 
     empty = counts == 0
     logger.debug(f"{empty.sum()} haloes are empty (NaN for their halo quantities).")
 
-    for arr in [r200, v_circ, virial_temperature, spin_param]:
+    for arr in [r200m, v_circ, virial_temperature, spin_param]:
         arr[empty] = np.nan
 
-    results["r200"] = r200
-    results["circular_velocity"] = v_circ
+    results["r200m"] = r200m
+    results["velocity_circular"] = v_circ
     results["virial_temperature"] = virial_temperature
     results["spin_param"] = spin_param
 

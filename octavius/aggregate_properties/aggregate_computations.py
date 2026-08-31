@@ -163,8 +163,8 @@ def compute_rotational_quantities(
             rotation_axis_distance = np.sqrt(cx**2 + cy**2 + cz**2)
 
             if rotation_axis_distance > 0.0:
-                circular_velocity = L_dot / (rotation_axis_distance * mass)
-                k_rot[g] += 0.5 * mass * circular_velocity**2
+                velocity_circular = L_dot / (rotation_axis_distance * mass)
+                k_rot[g] += 0.5 * mass * velocity_circular**2
 
     return counter_rotating_mass, k_rot
 

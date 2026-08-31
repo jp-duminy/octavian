@@ -63,13 +63,13 @@ This stage is the most heavy of the three. The 'core' properties are an assortme
 The minimum potential is often more useful than the centre-of-mass for haloes, owing to the irregular shapes of FOF haloes.
 :::
 
-- `r200`: the radius which encloses 200x the mean matter density $r_{200m}$.
+- `r200m`: the radius which encloses 200x the mean matter density $r_{200m}$.
 
 - `spin_param`: the Bullock spin parameter $\lambda$ (uses $r_{200m}$).
 
 - `virial_temperature`: the virial temperature $T$ (computed using configuration file `MU`) (uses $r_{200m}$).
 
-- `circular_velocity`: the circular velocity at $r_{200m}$.
+- `velocity_circular`: the circular velocity at $r_{200m}$.
 
 - `vmax`: the maximum circular velocity $v_{max}$.
 
@@ -102,23 +102,23 @@ Gas:
 
 - `sfr`: the total star forming rate.
 
-- `metallicity_mass_weighted`: the mass-weighted metallicity.
+- `metallicity_gas_mass_weighted`: the mass-weighted metallicity.
 
-- `metallicity_sfr_weighted`: the sfr-weighted metallicity.
+- `metallicity_gas_sfr_weighted`: the sfr-weighted metallicity.
 
-- `temp_mass_weighted`: the mass-weighted temperature.
+- `temperature_gas_mass_weighted`: the mass-weighted temperature.
 
-- `mass_cold`: the mass below `T_lim`, as specified in the configuration file.
+- `mass_gas_cold`: the mass below `T_lim`, as specified in the configuration file.
 
-- `mass_hot`: the mass above `T_lim`, as specified in the configuration file.
+- `mass_gas_hot`: the mass above `T_lim`, as specified in the configuration file.
 
 Stars:
 
-- `metallicity_stellar` the mass-weighted metallicity.
+- `metallicity_star_mass_weighted` the mass-weighted metallicity.
 
-- `age_mass_weighted`: the mean mass-weighted age.
+- `age_star_mass_weighted`: the mean mass-weighted age.
 
-- `age_metal_weighted`: the mean metallicity-weighted age.
+- `age_star_metal_weighted`: the mean metallicity-weighted age.
 
 Black holes:
 
@@ -134,11 +134,11 @@ Gas properties are also computed for the halo CGM, which is defined as being gas
 
 - `mass_cgm`: the CGM mass.
 
-- `metallicity_mass_weighted_cgm`: the CGM mass-weighted metallicity.
+- `metallicity_gas_mass_weighted_cgm`: the CGM mass-weighted metallicity.
 
-- `metallicity_sfr_weighted_cgm`: the CGM sfr-weighted metallicity.
+- `metallicity_gas_sfr_weighted_cgm`: the CGM sfr-weighted metallicity.
 
-- `temp_mass_weighted_cgm`: the CGM mass-weighted temperature.
+- `temperature_gas_mass_weighted_cgm`: the CGM mass-weighted temperature.
 
 (local-environment-properties)=
 ## Local Environment Properties

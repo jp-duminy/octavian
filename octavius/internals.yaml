@@ -58,7 +58,7 @@ stages:
       - columns: ["r{factor}c", "m{factor}c"]
         over: {factor: from_config:virial_factors}
         applies_to: [haloes]
-      - columns: ["r200", "virial_temperature", "circular_velocity", "spin_param", "vmax", "rmax"]
+      - columns: ["r200m", "virial_temperature", "velocity_circular", "spin_param", "vmax", "rmax"]
         applies_to: [haloes]
 
   properties_ptype_specific:
@@ -71,10 +71,10 @@ stages:
       star: [metallicity, age]
       bh: [bhmass, bhmdot]
     outputs:
-      - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_mass_weighted", "metallicity_sfr_weighted", "temp_mass_weighted", "mass_cold", "mass_hot"]
-      - columns: ["metallicity_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temp_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
+      - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_gas_mass_weighted", "metallicity_gas_sfr_weighted", "temperature_gas_mass_weighted", "mass_gas_cold", "mass_gas_hot"]
+      - columns: ["metallicity_gas_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temperature_gas_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
         applies_to: [haloes]
-      - columns: ["metallicity_stellar", "age_mass_weighted", "age_metal_weighted"]
+      - columns: ["metallicity_star_mass_weighted", "age_star_mass_weighted", "age_star_metal_weighted"]
       - columns: ["smbh_mass", "smbh_mdot", "smbh_fedd"]
 
   properties_local_environment:
@@ -239,7 +239,7 @@ output_columns:
     a_exp:       1
     description: "Radius at which vmax occurs."
 
-  r200:
+  r200m:
     dtype:       float64
     unit:        "kpc"
     a_exp:       1
@@ -259,23 +259,23 @@ output_columns:
     a_exp:       0
     description: "Mass enclosed within r{factor}c."
 
-  circular_velocity:
+  velocity_circular:
     dtype:       float64
     unit:        "km/s"
     a_exp:       0
-    description: "Circular velocity at r200."
+    description: "Circular velocity at r200m."
 
   spin_param:
     dtype:       float64
     unit:        ""
     a_exp:       0
-    description: "Spin parameter (Bullock) (uses r200)."
+    description: "Spin parameter (Bullock) (uses r200m)."
 
   virial_temperature:
     dtype:       float64
     unit:        "K"
     a_exp:       0
-    description: "Virial temperature (uses r200)."
+    description: "Virial temperature (uses r200m)."
   # end only haloes
 
   # only gas
@@ -285,19 +285,19 @@ output_columns:
     a_exp:       0
     description: "Total star formation rate."
 
-  metallicity_mass_weighted:
+  metallicity_gas_mass_weighted:
     dtype:       float64
     unit:        ""
     a_exp:       0
     description: "Mass-weighted gas metallicity."
 
-  metallicity_sfr_weighted:
+  metallicity_gas_sfr_weighted:
     dtype:       float64
     unit:        ""
     a_exp:       0
     description: "SFR-weighted gas metallicity."
 
-  metallicity_mass_weighted_cgm: # only haloes
+  metallicity_gas_mass_weighted_cgm: # only haloes
     dtype:       float64
     unit:        ""
     a_exp:       0
@@ -309,13 +309,13 @@ output_columns:
     a_exp:       0
     description: "Temperature-weighted CGM gas metallicity."
 
-  temp_mass_weighted:
+  temperature_gas_mass_weighted:
     dtype:       float64
     unit:        "K"
     a_exp:       0
     description: "Mass-weighted gas temperature."
 
-  temp_mass_weighted_cgm: # only haloes
+  temperature_gas_mass_weighted_cgm: # only haloes
     dtype:       float64
     unit:        "K"
     a_exp:       0
@@ -333,13 +333,13 @@ output_columns:
     a_exp:       0
     description: "CGM gas mass."
 
-  mass_cold:
+  mass_gas_cold:
     dtype:       float64
     unit:        "Msun"
     a_exp:       0
     description: "Cold gas mass (as defined in user config Tlim)."
 
-  mass_hot:
+  mass_gas_hot:
     dtype:       float64
     unit:        "Msun"
     a_exp:       0
@@ -347,19 +347,19 @@ output_columns:
   # end only gas
 
   # only stars
-  metallicity_stellar:
+  metallicity_star_mass_weighted:
     dtype:       float64
     unit:        ""
     a_exp:       0
     description: "Mass-weighted stellar metallicity."
 
-  age_mass_weighted:
+  age_star_mass_weighted:
     dtype:       float64
     unit:        "Gyr"
     a_exp:       0
     description: "Mass-weighted stellar age."
 
-  age_metal_weighted:
+  age_star_metal_weighted:
     dtype:       float64
     unit:        "Gyr"
     a_exp:       0
@@ -569,5 +569,5 @@ header_fields:
   r200_factor:
     unit: "kpc/Msun**1/3"
     a_exp: 0
-    description: "r200 prefactor."
+    description: "r200m prefactor."
   

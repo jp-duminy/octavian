@@ -165,9 +165,9 @@ def compute_gas_properties(
     - mass_HI, mass_H2
     - sfr
     - metallicity_{mass/sfr}_weighted
-    - temp_mass_weighted
-    - mass_hot: gas mass above Tlim
-    - mass_cold: gas mass below Tlim
+    - temperature_gas_mass_weighted
+    - mass_gas_hot: gas mass above Tlim
+    - mass_gas_cold: gas mass below Tlim
 
     And writes HI/H2 masses back to ParticleStore for local environment properties.
     """
@@ -183,18 +183,18 @@ def compute_gas_properties(
     temp_mass = sum_per_group(values=(temperatures * masses), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
 
     cold_masses = np.where(temperatures < Tlim, masses, 0.0)
-    mass_cold = sum_per_group(values=cold_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    mass_gas_cold = sum_per_group(values=cold_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
     hot_masses = np.where(temperatures >= Tlim, masses, 0.0)
-    mass_hot = sum_per_group(values=hot_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
+    mass_gas_hot = sum_per_group(values=hot_masses, offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups)
 
     results["mass_HI"] = mass_HI
     results["mass_H2"] = mass_H2
-    results["mass_cold"] = mass_cold
-    results["mass_hot"] = mass_hot
+    results["mass_gas_cold"] = mass_gas_cold
+    results["mass_gas_hot"] = mass_gas_hot
     results["sfr"] = sfr
-    results["metallicity_mass_weighted"] = guarded_divide(numerator=metal_mass, denominator=gas_mass)
-    results["metallicity_sfr_weighted"] = guarded_divide(numerator=metal_sfr, denominator=sfr)
-    results["temp_mass_weighted"] = guarded_divide(numerator=temp_mass, denominator=gas_mass)
+    results["metallicity_gas_mass_weighted"] = guarded_divide(numerator=metal_mass, denominator=gas_mass)
+    results["metallicity_gas_sfr_weighted"] = guarded_divide(numerator=metal_sfr, denominator=sfr)
+    results["temperature_gas_mass_weighted"] = guarded_divide(numerator=temp_mass, denominator=gas_mass)
 
     return results
 
@@ -238,9 +238,9 @@ def compute_cgm_properties(
     )
 
     results["mass_cgm"] = cgm_mass
-    results["temp_mass_weighted_cgm"] = guarded_divide(numerator=cgm_temp_mass, denominator=cgm_mass)
+    results["temperature_gas_mass_weighted_cgm"] = guarded_divide(numerator=cgm_temp_mass, denominator=cgm_mass)
     results["temp_metal_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_metal_mass)
-    results["metallicity_mass_weighted_cgm"] = guarded_divide(numerator=cgm_metal_mass, denominator=cgm_mass)
+    results["metallicity_gas_mass_weighted_cgm"] = guarded_divide(numerator=cgm_metal_mass, denominator=cgm_mass)
     results["metallicity_temp_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_temp_mass)
 
     return results
@@ -258,7 +258,7 @@ def compute_star_properties(
     """
     Computes star-specific properties, returning a dict of:
 
-    - metallicity_stellar
+    - metallicity_star_mass_weighted
     - age_{mass/metal}_weighted
     """
     results: dict[str, np.ndarray] = {}
@@ -271,9 +271,9 @@ def compute_star_properties(
         values=(ages * masses * metallicities), offsets=offsets, idx_sorted=idx_sorted, n_groups=n_groups
     )
 
-    results["metallicity_stellar"] = guarded_divide(numerator=metal_mass, denominator=star_mass)
-    results["age_mass_weighted"] = guarded_divide(numerator=age_mass, denominator=star_mass)
-    results["age_metal_weighted"] = guarded_divide(numerator=age_metal, denominator=metal_mass)
+    results["metallicity_star_mass_weighted"] = guarded_divide(numerator=metal_mass, denominator=star_mass)
+    results["age_star_mass_weighted"] = guarded_divide(numerator=age_mass, denominator=star_mass)
+    results["age_star_metal_weighted"] = guarded_divide(numerator=age_metal, denominator=metal_mass)
 
     return results
 
