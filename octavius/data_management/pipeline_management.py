@@ -282,7 +282,6 @@ def _load_columns(
                 if optional and not reader.has_dataset(target, column):
                     continue
 
-                logger.debug(f"Loading {column} for {ptype}")
                 particles[target][column] = reader.read_dataset(ptype=target, dataset=column)
 
 

@@ -1,4 +1,4 @@
-simulation_type:    GIZMO            # SWIFT/GIZMO
+simulation_type:    GIZMO            # SWIFT-KIARA/GIZMO
 halo_id_source:     SNAPSHOT         # AHF/SNAPSHOT
 snapshot_path:      /path/to/snapshot.hdf5
 output_dir:         /path/to/output_directory

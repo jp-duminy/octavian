@@ -26,7 +26,7 @@ stages:
     applies_to: []
     requires: []
     needs_particle_columns:
-      gas: [rho, sfr, metallicity, helium_fraction]
+      gas: [rho, sfr, metallicity, helium_fraction, temperature]
 
   properties_core:
     label: core
@@ -67,7 +67,7 @@ stages:
     requires: [properties_core]
     needs_particle_columns:
       all: [mass]
-      gas: [metallicity, sfr, rho, fHI, fH2, helium_fraction]
+      gas: [metallicity, sfr, rho, fHI, fH2, helium_fraction, temperature]
       star: [metallicity, age]
       bh: [bhmass, bhmdot]
     outputs:
