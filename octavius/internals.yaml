@@ -58,7 +58,7 @@ stages:
       - columns: ["r{factor}c", "m{factor}c"]
         over: {factor: from_config:virial_factors}
         applies_to: [haloes]
-      - columns: ["r200m", "virial_temperature", "velocity_circular", "spin_param", "vmax", "rmax"]
+      - columns: ["r200m", "temperature_virial", "velocity_circular", "spin_param", "vmax", "rmax"]
         applies_to: [haloes]
 
   properties_ptype_specific:
@@ -271,7 +271,7 @@ output_columns:
     a_exp:       0
     description: "Spin parameter (Bullock) (uses r200m)."
 
-  virial_temperature:
+  temperature_virial:
     dtype:       float64
     unit:        "K"
     a_exp:       0

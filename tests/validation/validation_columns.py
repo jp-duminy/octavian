@@ -253,7 +253,7 @@ SOFT_NAN = [
     "properties/core/r200m",
     "properties/core/velocity_circular",
     "properties/core/spin_param",
-    "properties/core/virial_temperature",
+    "properties/core/temperature_virial",
     "properties/core/r200c",
     "properties/core/r500c",
     "properties/core/r2500c",

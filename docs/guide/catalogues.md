@@ -80,7 +80,7 @@ field_halo_idx = raw_field_halo_idx[mass_threshold]
 `field_halo_idx` is an index into `halo_data` for the field halo properties of the galaxies, aligned to the galaxy arrays. We can now access the properties of these haloes using the `mask` argument:
 
 ```python
-halo_datasets = ["virial_temperature", "velocity_dispersion_total"]
+halo_datasets = ["temperature_virial", "velocity_dispersion_total"]
 halo_dataset_units = ["K", "pc/yr"]
 
 halo_temps, halo_vel_disps = cat.haloes.get_datasets(
