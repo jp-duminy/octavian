@@ -9,7 +9,8 @@ raw data can be safely dropped between analysis stages.
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .conventions import OctaviusConfig, SnapshotReader
+    from .conventions import OctaviusConfig
+    from .snapshot_readers import SnapshotReader
     from .data_structures import ParticleStore
 
 # default libraries

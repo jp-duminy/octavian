@@ -9,8 +9,7 @@ snapshot unit conversions and physical constants. Also defines the snapshot read
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .parallel_reading import RedistributionMap
-    from mpi4py.MPI import Comm
+    pass
 
 # default packages
 from dataclasses import dataclass, field
@@ -361,72 +360,6 @@ def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     assert factor.unit == u.dimensionless_unscaled, f"Unit mismatch for {dataset}"
 
     return factor.value
-
-
-class SnapshotReader:
-    """
-    Base reader class (for inheritance). I tucked it away here.
-    """
-
-    inverse_ptype_map: dict[str, str] = NotImplemented
-    dataset_map: dict[str, dict[str, str]] = NotImplemented
-    simulation_attributes: SimulationAttributes = NotImplemented
-    global_indices: dict[str, np.ndarray] | None = NotImplemented
-    particle_counts: dict[str, int] | None = NotImplemented
-
-    def set_maps(
-        self,
-        slabs: dict[str, slice],
-        masks: dict[str, np.ndarray],
-        maps: dict[str, RedistributionMap],
-        comm: Comm | None,
-    ) -> None:
-        """
-        Sets the per-rank slabs; global particle redistribution map; corresponding halo threshold masks; and  and comm for MPI reading.
-        """
-        raise NotImplementedError
-
-    def read_header(self) -> SimulationAttributes:
-        """
-        Read header attributes and, where necessary, convert units.
-        """
-        raise NotImplementedError
-
-    def has_dataset(self, ptype: str, dataset: str) -> bool:
-        """
-        Checks whether a dataset exists in the snapshot.
-        """
-        raise NotImplementedError
-
-    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
-        """
-        Returns array in Octavius code units with the correct dtype.
-        """
-        raise NotImplementedError
-
-    def available_ptypes(self) -> list[str]:
-        """
-        List of available ptypes in Octavius convention (gas, star, etc.)
-        """
-        raise NotImplementedError
-
-    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
-        """
-        Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
-        """
-        raise NotImplementedError
-
-    def read_particle_ids(self, ptype: str) -> np.ndarray:
-        """
-        Reads snapshot-assigned particle IDs for a specified ptype.
-        """
-        raise NotImplementedError
-
-    def read_temperature(self, ptype: str) -> np.ndarray:
-        """
-        Temperature is usually computed from multiple datasets, and how it can be computed differs between readers.
-        """
-        raise NotImplementedError
 
 
 def output_catalogue_path(snapshot_path: Path, output_dir: Path) -> Path:
