@@ -12,8 +12,7 @@ from dataclasses import replace
 
 # internal imports
 from ..data_management import OctaviusConfig
-from ..data_management import output_catalogue_path
-from .generate_snapshots import generate_gizmo_snapshot, generate_swift_snapshot
+from .generate_snapshots import generate_swift_snapshot
 from ..log import get_logger
 
 logger = get_logger()
@@ -58,7 +57,6 @@ def repack_catalogue(
 
 def generate_test_catalogue(
     output_dir: Path,
-    simulation_type: str,
 ) -> Path:
     """
     Generates a tiny synthetic Octavius catalogue for testing purposes. This catalogue is produced from a procedurally-generated snapshot filled with junk data; this function can therefore be used to assess the catalogue HDF5 file layout and whether the pipeline runs. It produces its own synthetic junk config file too.
@@ -67,32 +65,24 @@ def generate_test_catalogue(
     ----------
     output_dir: pathlib.Path
         Where you would like to output the test catalogue.
-    simulation_type: str
-        Which simulation type you would like the test catalogue to be generated from. In practice this does not affect the output catalogue, which is agnostic to the simulation type. Must be ``"GIZMO"`` or ``"SWIFT"``.
 
     Returns
     -------
-    test_catalogue: pathlib.Path
+    catalogue_path: pathlib.Path
         A path object pointing to the test catalogue.
     """
     from ..run_octavius import analyse_snapshot  # avoid circular import
 
     snapshot_path = output_dir / "test_snap.hdf5"
-    output_path = output_catalogue_path(snapshot_path=snapshot_path, output_dir=output_dir)
 
-    if simulation_type == "SWIFT":
-        generate_swift_snapshot(path=snapshot_path)
-    elif simulation_type == "GIZMO":
-        generate_gizmo_snapshot(path=snapshot_path)
-    else:
-        raise ValueError(f"simulation_type {simulation_type} is invalid/unsupported, please provide GIZMO/SWIFT.")
+    generate_swift_snapshot(path=snapshot_path)
 
     config = OctaviusConfig.from_yaml(config_path=config_path)
     config = replace(
         config,
         snapshot_path=snapshot_path,
         output_dir=output_dir,
-        simulation_type=simulation_type,
+        simulation_type="SWIFT-KIARA",
         halo_id_source="SNAPSHOT",
         min_dm_per_halo=0,
         min_stars_per_galaxy=2,
@@ -102,12 +92,9 @@ def generate_test_catalogue(
         terminal_output_level="DEBUG",
     )
 
-    analyse_snapshot(config=config)
-
-    intermediates_dir = output_dir / "Intermediates"
+    catalogue_path = analyse_snapshot(config=config)
     snapshot_path.unlink()
-    intermediates_dir.rmdir()
 
-    logger.info(f"Successfully created a synthetic catalogue at {output_path}.")
+    logger.info(f"Successfully created a synthetic catalogue at {catalogue_path}.")
 
-    return output_path
+    return catalogue_path
