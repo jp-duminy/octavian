@@ -12,13 +12,15 @@ from .data_structures import (
     ParticleStore as ParticleStore,
     GroupStore as GroupStore,
     SimulationAttributes as SimulationAttributes,
+    build_galaxy_store as build_galaxy_store,
+    build_halo_store as build_halo_store,
+    build_particle_stores as build_particle_stores,
+)
+from .snapshot_readers import (
     SnapshotReader as SnapshotReader,
     GizmoReader as GizmoReader,
     SwiftReader as SwiftReader,
     build_reader as build_reader,
-    build_galaxy_store as build_galaxy_store,
-    build_halo_store as build_halo_store,
-    build_particle_stores as build_particle_stores,
 )
 from .pipeline_management import (
     PipelineStage as PipelineStage,
