@@ -19,7 +19,7 @@ from .data_structures import (
 from .snapshot_readers import (
     SnapshotReader as SnapshotReader,
     GizmoReader as GizmoReader,
-    SwiftReader as SwiftReader,
+    KiaraReader as KiaraReader,
     build_reader as build_reader,
 )
 from .pipeline_management import (

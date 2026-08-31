@@ -3,10 +3,12 @@
 h5py-backed, MPI-native raw snapshot readers. Parse raw simulation output into Octavius analysis, converting
 snapshot-specific terminology into an agnostic interface for the data structures.
 
+This relies on the abstract base class SnapshotReader. In practice, the format-specific differences require some
+bespoke treatments here and there with overrides and such.
 """
 
 # type checking
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from .conventions import OctaviusConstants, OctaviusConfig
@@ -15,6 +17,7 @@ if TYPE_CHECKING:
 
 # default libraries
 from pathlib import Path
+from abc import ABC, abstractmethod
 
 # other packages
 import h5py
@@ -40,16 +43,62 @@ from ..log import get_logger
 logger = get_logger()
 
 
-class SnapshotReader:
+def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: OctaviusConfig) -> SnapshotReader:
     """
-    Base reader class (for inheritance). I tucked it away here.
+    Builds a SnapshotReader class depending on what was specified in the config. Returns:
+
+    - SnapshotReader: a bespoke reader class with all generic methods.
+    """
+    if config.simulation_type == "GIZMO":
+        logger.info("Using GIZMO reader.")
+        return GizmoReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
+
+    elif config.simulation_type == "SWIFT-KIARA":
+        logger.info("Using SWIFT-KIARA reader.")
+        return KiaraReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
+
+    else:
+        raise ValueError(f"Unknown simulation ({config.simulation_type}), please see documentation.")
+
+
+class SnapshotReader(ABC):
+    """
+    Abstract base class for snapshot readers; must be inherited by any reader class.
     """
 
-    inverse_ptype_map: dict[str, str] = NotImplemented
-    dataset_map: dict[str, dict[str, str]] = NotImplemented
-    simulation_attributes: SimulationAttributes = NotImplemented
-    global_indices: dict[str, np.ndarray] | None = NotImplemented
-    particle_counts: dict[str, int] | None = NotImplemented
+    ptype_map: dict[str, str] = NotImplemented  # for ptype names
+    dataset_map: dict[str, str] = NotImplemented  # for ptype datasets
+    dataset_map_overrides: dict[tuple[str, str], str] = (
+        NotImplemented  # where common datasets have different ptype-specific names
+    )
+    id_map: dict[str, str] = NotImplemented  # for halo IDs and particle IDs
+    derived_columns: dict[str, Callable] = {}
+
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
+
+        self.snapshot_path = snapshot_path
+        self.constants = constants
+        self.n_io_chunks = n_io_chunks  # set from config
+        self.global_indices: dict[str, np.ndarray] | None = None  # instantiate to None so serial path works
+        self.maps: dict[str, np.ndarray] | None = None
+
+        self.inverse_ptype_map = {v: k for k, v in self.ptype_map.items()}
+        self.read_header()  # should set SimulationAttributes & particle_counts on self
+
+    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Reads a particle dataset from the HDF5 file, returning it as an ndarray converted into
+        internal code units and appropriate dtype, masked to the rank's allocation.
+        """
+        if not self.has_dataset(ptype, dataset):
+            raise KeyError(f"{dataset} either not available or not found for {ptype}.")
+
+        logger.debug(f"Loading {dataset} for {ptype}.")
+
+        if dataset in self.derived_columns:
+            return self.derived_columns[dataset](ptype)  # passes it to a bespoke function
+
+        return self._read_raw(ptype, dataset)
 
     def set_maps(
         self,
@@ -59,51 +108,108 @@ class SnapshotReader:
         comm: Comm | None,
     ) -> None:
         """
-        Sets the per-rank slabs; global particle redistribution map; corresponding halo threshold masks; and  and comm for MPI reading.
+        Sets the per-rank slabs (which part of the dataset it reads); the masks (for the haloes which belong to it);
+        the maps (to know where other haloes belong); and the COMM_WORLD object (for MPI)
         """
-        raise NotImplementedError
+        self.slabs = slabs
+        self.masks = masks
+        self.maps = maps
+        self.comm = comm
+        self.global_indices: dict[str, np.ndarray] = {}
 
-    def read_header(self) -> SimulationAttributes:
-        """
-        Read header attributes and, where necessary, convert units.
-        """
-        raise NotImplementedError
+        assert slabs.keys() == masks.keys()
+
+        for ptype in masks:
+            slab = slabs[ptype]
+            global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
+            self.global_indices[ptype] = redistribute_data(
+                local_data=global_indices, redistribution_map=maps[ptype], comm=comm
+            )
 
     def has_dataset(self, ptype: str, dataset: str) -> bool:
         """
         Checks whether a dataset exists in the snapshot.
         """
-        raise NotImplementedError
+        if dataset in self.derived_columns:  # trying to support this would be tricky, it will raise an error anyway
+            return True
 
-    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
-        """
-        Returns array in Octavius code units with the correct dtype.
-        """
-        raise NotImplementedError
+        hdf5_group = self.inverse_ptype_map[ptype]
+        hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map.get(dataset))
+
+        logger.debug(f"Checking for dataset {hdf5_name} ({dataset}) ")
+
+        if hdf5_name is None:  # if not defined in the dataset maps
+            logger.warning(f"{dataset} is not defined to the reader class.")
+            return False
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            return hdf5_name in f.get(hdf5_group, {})
 
     def available_ptypes(self) -> list[str]:
         """
-        List of available ptypes in Octavius convention (gas, star, etc.)
+        Finds which ptypes are available in the raw snapshot (using internal names)
         """
-        raise NotImplementedError
+        with h5py.File(self.snapshot_path) as f:
+            return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
 
+    def read_particle_ids(self, ptype: str) -> np.ndarray:
+        """
+        Reads the snapshot particle IDs for the specified ptype. Returns an array of IDs.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        pid_name = self.id_map["particle_id"]
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            hdf5_dataset = f[hdf5_group][pid_name]
+
+            if self.maps is None:
+                total_length = hdf5_dataset.shape[0]
+                particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slice(0, total_length), self.n_io_chunks):
+                    offset = chunk.start
+                    chunk_length = chunk.stop - chunk.start
+                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+                result = particle_ids
+
+            else:
+                slab = self.slabs[ptype]
+                slab_length = slab.stop - slab.start
+                particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_io_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+                filtered_particle_ids = particle_ids[self.masks[ptype]]
+                result = redistribute_data(
+                    local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
+                )
+
+        return result.astype(DTYPES.get("pid", np.int64))
+
+    @abstractmethod
+    def read_header(self) -> SimulationAttributes:
+        """
+        Read header attributes and, where necessary, convert units; must create a SimulationAttributes dataclass.
+        """
+        ...
+
+    @abstractmethod
+    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Reads a raw HDF5 dataset from the file.
+        """
+        ...
+
+    @abstractmethod
     def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
         Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
         """
-        raise NotImplementedError
-
-    def read_particle_ids(self, ptype: str) -> np.ndarray:
-        """
-        Reads snapshot-assigned particle IDs for a specified ptype.
-        """
-        raise NotImplementedError
-
-    def read_temperature(self, ptype: str) -> np.ndarray:
-        """
-        Temperature is usually computed from multiple datasets, and how it can be computed differs between readers.
-        """
-        raise NotImplementedError
+        ...
 
 
 class GizmoReader(SnapshotReader):
@@ -117,6 +223,7 @@ class GizmoReader(SnapshotReader):
         "PartType4": "star",
         "PartType5": "bh",
     }
+
     dataset_map = {
         "pos": "Coordinates",
         "vel": "Velocities",
@@ -137,17 +244,16 @@ class GizmoReader(SnapshotReader):
         "smoothing_length": "SmoothingLength",
     }
 
-    inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
+    id_map = {
+        "particle_id": "ParticleIDs",
+        "HaloID": "HaloID",
+    }
+
+    dataset_map_overrides: dict[tuple[str, str], str] = {}
 
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
 
-        self.snapshot_path = snapshot_path
-        self.constants = constants
-        self.n_io_chunks = n_io_chunks
-        self.global_indices: dict[str, np.ndarray] | None = None
-        self.maps: dict[str, np.ndarray] | None = None
-
-        self.read_header()
+        super().__init__(snapshot_path, constants, n_io_chunks)
         self.unit_conversions = {
             dataset: gizmo_unit_conversion_factor(
                 dataset, self.simulation_attributes.h, self.simulation_attributes.scale_factor
@@ -155,31 +261,7 @@ class GizmoReader(SnapshotReader):
             for dataset in self.dataset_map
             if dataset in DTYPES
         }
-
-    def set_maps(
-        self,
-        slabs: dict[str, slice],
-        masks: dict[str, np.ndarray],
-        maps: dict[str, RedistributionMap],
-        comm: Comm | None,
-    ) -> None:
-        """
-        Stores the global particle redistribution map and comm for MPI file reads.
-        """
-        self.slabs = slabs
-        self.masks = masks
-        self.maps = maps
-        self.comm = comm
-        self.global_indices: dict[str, np.ndarray] = {}
-
-        assert slabs.keys() == masks.keys()
-
-        for ptype in masks:
-            slab = slabs[ptype]
-            global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
-            self.global_indices[ptype] = redistribute_data(
-                local_data=global_indices, redistribution_map=maps[ptype], comm=comm
-            )
+        self.derived_columns: dict[str, Callable] = {"temperature": self._derive_temperature}
 
     def read_header(self) -> SimulationAttributes:
         """
@@ -221,29 +303,9 @@ class GizmoReader(SnapshotReader):
 
         return self.simulation_attributes
 
-    def available_ptypes(self) -> list[str]:
+    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
         """
-        Finds which Octavia-compatible ptypes are available in the snapshot.
-        """
-        with h5py.File(self.snapshot_path) as f:
-            return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
-
-    def has_dataset(self, ptype: str, dataset: str) -> bool:
-        """
-        Checks whether a dataset exists in the snapshot.
-        """
-        hdf5_group = self.inverse_ptype_map[ptype]
-        hdf5_name = self.dataset_map.get(dataset)
-
-        if hdf5_name is None:
-            logger.warning(f"{dataset} is not defined to the reader.")
-            return False
-        with h5py.File(self.snapshot_path, "r") as f:
-            return hdf5_name in f.get(hdf5_group, {})
-
-    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
-        """
-        Reads a HDF5 dataset from the file. Returns an ndarray of the chosen dataset in Octavius code units with the correct dtype applied, masked to the rank's allocation.
+        Reads a HDF5 dataset from the file, handling dtypes, unit conversions, and masks.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map[dataset]
@@ -320,6 +382,7 @@ class GizmoReader(SnapshotReader):
         Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavius's -1.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
+        halo_id_name = self.id_map["HaloID"]  # equivalent for GIZMO but best practice to use the dict
 
         if slab.start is None:  # SnapshotHaloSource calls this without slab arg
             slab = slice(0, self.particle_counts[ptype])
@@ -327,7 +390,7 @@ class GizmoReader(SnapshotReader):
         slab_length = slab.stop - slab.start
 
         with h5py.File(self.snapshot_path, "r") as f:
-            halo_hdf5_dataset = f[hdf5_group]["HaloID"]
+            halo_hdf5_dataset = f[hdf5_group][halo_id_name]
             raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
 
             for chunk in split_slab(slab, self.n_io_chunks):
@@ -343,57 +406,22 @@ class GizmoReader(SnapshotReader):
 
         return raw_halo_ids
 
-    def read_particle_ids(self, ptype: str) -> np.ndarray:
+    def _derive_temperature(self, ptype: str = "gas") -> np.ndarray:
         """
-        Reads GIZMO snapshot PIDs in int64.
-        """
-        hdf5_group = self.inverse_ptype_map[ptype]
-
-        with h5py.File(self.snapshot_path, "r") as f:
-            hdf5_dataset = f[hdf5_group]["ParticleIDs"]
-
-            if self.maps is None:
-                total_length = hdf5_dataset.shape[0]
-                particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slice(0, total_length), self.n_io_chunks):
-                    offset = chunk.start
-                    chunk_length = chunk.stop - chunk.start
-                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
-
-                result = particle_ids
-
-            else:
-                slab = self.slabs[ptype]
-                slab_length = slab.stop - slab.start
-                particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
-
-                filtered_particle_ids = particle_ids[self.masks[ptype]]
-                result = redistribute_data(
-                    local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
-                )
-
-        return result.astype(DTYPES.get("pid", np.int64))
-
-    def read_temperature(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Reads data to calculate temperature according to method in http://www.tapir.caltech.edu/~phopkins/Site/GIZMO_files/gizmo_documentation.html
+        Reads data to calculate temperature according to method described
+        in http://www.tapir.caltech.edu/~phopkins/Site/GIZMO_files/gizmo_documentation.html
         """
         assert ptype == "gas", f"Temperature is configured to be computed from gas, not {ptype}."
 
-        internal_energy = self.read_dataset(ptype, "internal_energy")
+        internal_energy = self._read_raw(ptype, "internal_energy")
 
         try:
-            electron_abundance = self.read_dataset(ptype, "electron_abundance")
+            electron_abundance = self._read_raw(ptype, "electron_abundance")
         except KeyError:
             electron_abundance = np.ones(shape=len(internal_energy))
 
-        helium_fraction = self.read_dataset(ptype, "helium_fraction")
+        helium_fraction = self._read_raw(ptype, "helium_fraction")
+
         temperature = calculate_temperature(
             internal_energy=internal_energy,
             electron_abundance=electron_abundance,
@@ -404,9 +432,9 @@ class GizmoReader(SnapshotReader):
         return temperature
 
 
-class SwiftReader(SnapshotReader):
+class KiaraReader(SnapshotReader):
     """
-    Swift (SWIMBA/KIARA) snapshot reader.
+    Kiara (SWIFT) snapshot reader.
     """
 
     ptype_map = {
@@ -415,6 +443,7 @@ class SwiftReader(SnapshotReader):
         "PartType4": "star",
         "PartType5": "bh",
     }
+
     dataset_map = {
         "pos": "Coordinates",
         "vel": "Velocities",
@@ -438,47 +467,15 @@ class SwiftReader(SnapshotReader):
         ("bh", "mass"): "DynamicalMasses",
     }
 
-    inverse_ptype_map = {v: k for k, v in ptype_map.items()}  # for convenience
+    id_map = {
+        "particle_id": "ParticleIDs",
+        "HaloID": "FOFGroupIDs",
+    }
 
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
 
-        self.snapshot_path = snapshot_path
-        self.constants = constants
-        self.n_io_chunks = n_io_chunks
-        self.global_indices: dict[str, np.ndarray] | None = None
-        self.maps: dict[str, RedistributionMap] | None = None
-
-        self.read_header()
-
-    def set_maps(
-        self,
-        slabs: dict[str, slice],
-        masks: dict[str, np.ndarray],
-        maps: dict[str, RedistributionMap],
-        comm: Comm | None,
-    ) -> None:
-        """
-        Stores the global particle redistribution map and comm for MPI file reads.
-        """
-        self.slabs = slabs
-        self.masks = masks
-        self.maps = maps
-        self.comm = comm
-        self.global_indices: dict[str, np.ndarray] = {}
-
-        for ptype in masks:
-            slab = slabs[ptype]
-            global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
-            self.global_indices[ptype] = redistribute_data(
-                local_data=global_indices, redistribution_map=maps[ptype], comm=comm
-            )
-
-    def available_ptypes(self) -> list[str]:
-        """
-        Finds which Octavia-compatible ptypes are available in the snapshot.
-        """
-        with h5py.File(self.snapshot_path, "r") as f:
-            return [pt for raw, pt in self.ptype_map.items() if raw in f and len(f[raw]) > 0]
+        super().__init__(snapshot_path, constants, n_io_chunks)
+        self.derived_columns: dict[str, Callable] = {"temperature": self._derive_temperature}
 
     def read_header(self) -> SimulationAttributes:
         """
@@ -535,20 +532,7 @@ class SwiftReader(SnapshotReader):
 
         return self.simulation_attributes
 
-    def has_dataset(self, ptype: str, dataset: str) -> bool:
-        """
-        Checks whether a dataset exists in the snapshot.
-        """
-        hdf5_group = self.inverse_ptype_map[ptype]
-        hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map.get(dataset))
-
-        if hdf5_name is None:
-            logger.warning(f"{dataset} is not defined to the reader.")
-            return False
-        with h5py.File(self.snapshot_path, "r") as f:
-            return hdf5_name in f.get(hdf5_group, {})
-
-    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
         """
         Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision); auto-applies SWIFT attribute conversions to Octavius code units.
         """
@@ -652,6 +636,7 @@ class SwiftReader(SnapshotReader):
         Reads (placeholder) FOFGroupIDs as HaloIDs if the external doesn't exist. SWIFT sentinel value is the uint32 max.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
+        halo_id_name = self.id_map["HaloID"]
 
         if slab.start is None:  # SnapshotHaloSource calls this without slab arg
             slab = slice(0, self.particle_counts[ptype])
@@ -659,7 +644,7 @@ class SwiftReader(SnapshotReader):
         slab_length = slab.stop - slab.start
 
         with h5py.File(self.snapshot_path, "r") as f:
-            halo_hdf5_dataset = f[hdf5_group]["FOFGroupIDs"]
+            halo_hdf5_dataset = f[hdf5_group][halo_id_name]
             raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
 
             for chunk in split_slab(slab, self.n_io_chunks):
@@ -675,51 +660,14 @@ class SwiftReader(SnapshotReader):
 
         return raw_halo_ids
 
-    def read_particle_ids(self, ptype: str) -> np.ndarray:
-        """
-        Reads SWIFT snapshot PIDs in int64.
-        """
-        hdf5_group = self.inverse_ptype_map[ptype]
-
-        with h5py.File(self.snapshot_path, "r") as f:
-            hdf5_dataset = f[hdf5_group]["ParticleIDs"]
-
-            if self.maps is None:
-                total_length = hdf5_dataset.shape[0]
-                particle_ids = np.empty(total_length, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slice(0, total_length), self.n_io_chunks):
-                    offset = chunk.start
-                    chunk_length = chunk.stop - chunk.start
-                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
-
-                result = particle_ids
-
-            else:
-                slab = self.slabs[ptype]
-                slab_length = slab.stop - slab.start
-                particle_ids = np.empty(slab_length, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    particle_ids[offset : offset + chunk_length] = hdf5_dataset[chunk]
-
-                filtered_particle_ids = particle_ids[self.masks[ptype]]
-                result = redistribute_data(
-                    local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
-                )
-
-        return result.astype(DTYPES.get("pid", np.int64))
-
-    def read_temperature(self, ptype: str = "gas"):
+    def _derive_temperature(self, ptype: str = "gas"):
         """
         Computes the per-particle temperatures from composition & internal energy (method described in GIZMO docs). SWIFT does not directly store electron abundance but this is trivial to compute.
         """
-        internal_energy = self.read_dataset(ptype=ptype, dataset="internal_energy")
-        helium_frac = self.read_dataset(ptype=ptype, dataset="helium_fraction")
-        y_helium = helium_frac / (4 * (1 - helium_frac))
-        electron_abundance = 1 + 2 * y_helium
+        internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
+        helium_frac = self._read_raw(ptype=ptype, dataset="helium_fraction")
+        y_helium = helium_frac / (4.0 * (1.0 - helium_frac))
+        electron_abundance = 1.0 + 2.0 * y_helium
 
         temperature = calculate_temperature(
             internal_energy=internal_energy,
@@ -729,17 +677,3 @@ class SwiftReader(SnapshotReader):
         )
 
         return temperature
-
-
-def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: OctaviusConfig) -> SnapshotReader:
-    """
-    Builds a GIZMO/SWIFT reader class depending on what was specified in the config.
-    """
-    if config.simulation_type == "GIZMO":
-        logger.info("Using GIZMO reader.")
-        return GizmoReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
-    elif config.simulation_type == "SWIFT":
-        logger.info("Using SWIFT reader.")
-        return SwiftReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
-    else:
-        raise ValueError(f"Unknown simulation ({config.simulation_type}), please put GIZMO/SWIFT!")

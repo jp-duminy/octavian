@@ -294,12 +294,13 @@ CODE_UNITS = {
 }
 
 DTYPES = {
-    "pid": np.int64,
+    "particle_id": np.int64,
     "ptype": np.int8,  # this allows up to 256 ptypes
     # NOTE: quantities requiring 64-bit precision
     "pos": np.float64,
     "vel": np.float64,
     "mass": np.float64,
+    "dust_mass": np.float64,
     "rho": np.float64,
     "internal_energy": np.float64,
     "sfr": np.float64,

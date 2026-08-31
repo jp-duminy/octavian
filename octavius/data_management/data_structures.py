@@ -86,7 +86,7 @@ def build_particle_stores(
     process_ptypes: dict[str, bool],
 ) -> dict[str, ParticleStore]:
     """
-    Constructs basic particle stores using information from what is available in the snapshot, and what the config specifies to process.
+    Constructs basic particle stores containing mass, position and velocity.
     """
     available = reader.available_ptypes()
     requested = [pt for pt in available if process_ptypes.get(pt, True)]
@@ -101,12 +101,7 @@ def build_particle_stores(
             store["SubhaloID"] = halo_assignments.subhalo_ids[ptype]
 
         for dataset in ["mass", "pos", "vel"]:
-            store[dataset] = reader.read_dataset(ptype, dataset)
-
-        if (
-            ptype == "gas"
-        ):  # temperature is always relevant to gas properties and has a bespoke read method so load it here
-            store["temperature"] = reader.read_temperature(ptype=ptype)
+            store[dataset] = reader.read_dataset(ptype=ptype, dataset=dataset)
 
         particles[ptype] = store
 
@@ -133,7 +128,7 @@ class GroupStore:
         if max_id == 0:
             logger.debug(f"Empty GroupStore for {group_key}")
 
-        self.id_to_idx = np.full(shape=max_id + 1, fill_value=-1, dtype=DTYPES["pid"])
+        self.id_to_idx = np.full(shape=max_id + 1, fill_value=-1, dtype=DTYPES["particle_id"])
         self.id_to_idx[group_ids] = np.arange(self.n_groups, dtype=DTYPES["csr_offsets"])
 
         if original_ids is not None:
