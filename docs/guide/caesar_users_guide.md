@@ -16,6 +16,7 @@ If you have identified a feature present in Caesar but absent in Octavius, or ha
 - Octavius has no Cython dependency; performance-critical code is written in numba.
 - The data manager and object access patterns in Caesar are replaced by modularised dataclasses and aligned arrays in Octavius.
 - Idiomatic usage of Caesar catalogues uses list comprehension; Octavius relies on vectorised numpy.
+- Dataset names follow a standardised convention and may have changed.
 
 ## General Differences
 

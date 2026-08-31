@@ -272,42 +272,32 @@ class GilgameshReader(SnapshotReader):  # inherit SnapshotReader
     Snapshot reader for Gilgamesh-style snapshots.
     """
 
-    ptype_map = {  # map the snapshot particle names to Octavius ptypes
+    ptype_map: dict[str, str] = {  # map the snapshot particle names to Octavius ptypes
         "PartType0": "gas",
         ...
     }
 
-    dataset_map = {  # map any datasets you want to load to Octavius names
+    dataset_map: dict[str, str] = {  # map any datasets you want to load to Octavius names
         "pos": "Coordinates",
         ...
     }
 
+    dataset_map_overrides: dict[tuple[str, str], str] = {}  # if a common column (e.g. mass) has a different name for a ptype (e.g. dynamical/subgrid mass for black holes)
+
+    id_map: dict[str, str] = {  # must add halo/particle ID map as this is used by generics
+        "HaloID": "Halo_ID",
+        "particle_id": "PID",
+    }
+
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
 
-        self.snapshot_path = snapshot_path
-        self.constants = constants
-        self.n_io_chunks = n_io_chunks  # from config.n_io_chunks
-        self.global_indices: dict[str, np.ndarray] | None = None
-        self.maps: dict[str, RedistributionMap] | None = None
-
-        self.read_header()
+        super().__init__(snapshot_path=snapshot_path, constants=constants, n_io_chunks)
+        ...  # add any simulation-specific init needs
 ```
 
-This is the basic structure to follow. From there, you will need to implement the following:
+The SnapshotReader is an abstract base class equipped with some methods which work across all readers once the maps are defined. This thankfully includes the MPI methods. If any simulation-specific additions need to be made, you can simply user the `super()` method and expand the functions accordinfly. There are three methods which must always be implemented:
 
 ```python
-
-def set_maps(
-    self,
-    slabs: dict[str, slice],
-    masks: dict[str, np.ndarray],
-    maps: dict[str, RedistributionMap],
-    comm: Comm | None,
-) -> None:
-    """
-    Sets the necessary information for MPI communication: per-rank slabs; global particle redistribution map; corresponding halo threshold masks; and MPI.COMM_WORLD.
-    """
-    pass
 
 def read_header(self) -> SimulationAttributes:
     """
@@ -315,21 +305,9 @@ def read_header(self) -> SimulationAttributes:
     """
     pass
 
-def has_dataset(self, ptype: str, dataset: str) -> bool:
-    """
-    Verifies a dataset exists in the file.
-    """
-    pass
-
-def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
     """
     The main dataset loading method: handles unit/dtype conversions and any exceptions.
-    """
-    pass
-
-def available_ptypes(self) -> list[str]:
-    """
-    List of available ptypes in Octavius convention (gas, star, etc.)
     """
     pass
 
@@ -339,33 +317,24 @@ def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
     """
     pass
 
-def read_particle_ids(self, ptype: str) -> np.ndarray:
-    """
-    Reads snapshot-assigned particle IDs for a specified ptype.
-    """
-    pass
-
-def read_temperature(self, ptype: str) -> np.ndarray:
-    """
-    Temperature usually comes from multiple datasets and so uses its own method.
-    """
-    pass
 ```
-
-The readers are MPI-native: the MPI logic is in `data_management/parallel_reading.py`. In principle, the pipeline will handle this for you, and all your reader needs to do is accept the relevant parameters through `set_maps()`.
 
 :::{note}
 `read_halo_ids()` should only apply to halo IDs stored in the snapshot HDF5. If these do not exist, you can simply raise an error and document users need an external catalogue.
 :::
 
-It is easiest to consult the existing code to understand how to do this. Please refer to `CODE_UNITS` and `DTYPES` in `data_management/conventions.py` for information on how to parse the datasets. If your simulation format does not fit the existing generics, please [open an issue](https://github.com/jp-duminy/octavius/issues).
+The inherited methods will handle MPI parallelism for you, as will the pipeline. This logic is in `data_management/parallel_reading.py`. 
+
+Simulation-specific formats are abstract and as such it is not possible to provide a single guide. It is easiest to refer to the existing code to see the various overrides and quirks in the implemented subclasses. Please refer to `CODE_UNITS` and `DTYPES` in `data_management/conventions.py` for information on how to parse the datasets. If your simulation format does not fit the existing generics, please [open an issue](https://github.com/jp-duminy/octavius/issues).
 
 Finally, all we need to do is update the existing `build_reader()` method to return our new reader.
 
 ```python
 def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: OctaviusConfig) -> SnapshotReader:
     """
-    Builds a reader class depending on what was specified in the config.
+    Builds a SnapshotReader class depending on what was specified in the config. Returns:
+
+    - SnapshotReader: a bespoke reader class with all generic methods.
     """
     ...
     elif config.simulation_type == "GILGAMESH":
