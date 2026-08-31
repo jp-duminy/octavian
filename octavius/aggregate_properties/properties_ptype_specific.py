@@ -153,12 +153,15 @@ def _prepare_hydrogen_fractions(
 
     Necessary for (cgm) gas properties.
     """
-    not_conserving = (fHI + fH2) > 1.0  # enforce mass conservation: fHI + fH2 <= 1
+    XH = 1.0 - gas_Z - gas_Y
+    not_conserving = (fHI + fH2) > XH  # HI and H2 fraction cannot exceed total hydrogen fraction
     logger.debug(f"{not_conserving.sum()} particles not conserving hydrogen mass.")
     fHI = fHI.copy()
-    fHI[not_conserving] = 1.0 - fH2[not_conserving]  # fix relative to fH2 (this is an inherited convention)
+    fHI[not_conserving] = (
+        XH[not_conserving] - fH2[not_conserving]
+    )  # fix relative to fH2 (this is an inherited convention)
 
-    nH = rho * (1.0 - gas_Z - gas_Y) / proton_mass
+    nH = rho * XH / proton_mass
 
     return nH, fHI, fH2
 

@@ -262,7 +262,7 @@ s
 (adding-a-new-snapshot-reader)=
 ### Adding a new snapshot reader
 
-If you want Octavius to support a new type of simulation, adding this is simple. You will need to implement a `SnapshotReader` class. The idea is these classes contain all the snapshot-specific terminology and parse it into the agnostic codebase language. This process should be relatively straightforward, as you can use the existing readers as a template; it is more tedious than complex. You may wish to consult the [parallelism documentation](../features/parallelism.md) to understand how the read-in works.
+If you want Octavius to support a new type of simulation, adding this is simple. You will need to implement a `SnapshotReader` class in the `data_structures/snapshot_readers.py` file. The idea is these classes contain all the snapshot-specific terminology and parse it into the agnostic codebase language. This process should be relatively straightforward, as you can use the existing readers as a template; it is more tedious than complex. You may wish to consult the [parallelism documentation](../features/parallelism.md) to understand how the read-in works.
 
 Let's work through a reader which reads the esoteric Gilgamesh snapshots.
 
@@ -295,7 +295,11 @@ class GilgameshReader(SnapshotReader):  # inherit SnapshotReader
         ...  # add any simulation-specific init needs
 ```
 
-The SnapshotReader is an abstract base class equipped with some methods which work across all readers once the maps are defined. This thankfully includes the MPI methods. If any simulation-specific additions need to be made, you can simply user the `super()` method and expand the functions accordinfly. There are three methods which must always be implemented:
+:::{tip}
+If your snapshot obeys the SWIFT format, a further `SwiftReader` base class is provided. You can inherit the `SwiftReader` to skip having to implement the further steps below, and will only need to define the maps and any overrides.
+:::
+
+The SnapshotReader is an abstract base class equipped with some methods which work across all readers once the maps are defined; this includes the MPI methods. If any simulation-specific additions need to be made, you can simply user the `super()` method and expand the functions accordingly. There are three methods which must always be implemented:
 
 ```python
 
@@ -311,7 +315,7 @@ def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
     """
     pass
 
-def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
+def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:  # necessary for sentinel value remapping
     """
     Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
     """
@@ -325,22 +329,16 @@ def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
 
 The inherited methods will handle MPI parallelism for you, as will the pipeline. This logic is in `data_management/parallel_reading.py`. 
 
-Simulation-specific formats are abstract and as such it is not possible to provide a single guide. It is easiest to refer to the existing code to see the various overrides and quirks in the implemented subclasses. Please refer to `CODE_UNITS` and `DTYPES` in `data_management/conventions.py` for information on how to parse the datasets. If your simulation format does not fit the existing generics, please [open an issue](https://github.com/jp-duminy/octavius/issues).
+Simulation-specific formats are abstract and as such it is not possible to provide a unified guide. It is easiest to refer to the existing code to see the various overrides and quirks in the implemented subclasses. Please refer to `CODE_UNITS` and `DTYPES` in `data_management/conventions.py` for information on how to parse the datasets. If your simulation format does not fit the existing generics, please [open an issue](https://github.com/jp-duminy/octavius/issues).
 
-Finally, all we need to do is update the existing `build_reader()` method to return our new reader.
+Finally, all we need to do is update the existing `build_reader()` method to return our new reader. At the bottom of `snapshot_readers.py`, you will find a dictionary to map the configuration file entry to your reader, where you should make a new entry.
 
 ```python
-def build_reader(snapshot_path: Path, constants: OctaviusConstants, config: OctaviusConfig) -> SnapshotReader:
-    """
-    Builds a SnapshotReader class depending on what was specified in the config. Returns:
-
-    - SnapshotReader: a bespoke reader class with all generic methods.
-    """
+READER_MAP: dict[str, type[SnapshotReader]] = {
     ...
-    elif config.simulation_type == "GILGAMESH":
-        logger.info("Using GILGAMESH reader.")
-        return GilgameshReader(snapshot_path=snapshot_path, constants=constants, n_io_chunks=config.n_io_chunks)
+    "GILGAMESH": GilgameshReader,
     ...
+}
 ```
 
 If you have implemented the generics successfully, Octavius will now support your simulation.
