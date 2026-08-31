@@ -276,6 +276,14 @@ CODE_UNITS = {
     "vel": DatasetUnits(unit=(u.km / u.s)),  # peculiar
     "potential": DatasetUnits(unit=u.km**2 / u.s**2),  # (km/s)**2
     "mass": DatasetUnits(unit=u.M_sun),  # solar masses
+    "mass_HI": DatasetUnits(unit=u.M_sun),  # solar masses
+    "mass_H2": DatasetUnits(unit=u.M_sun),  # solar masses
+    "dust_mass": DatasetUnits(unit=(u.M_sun)),  # solar masses
+    "dust_mass_fractions": DatasetUnits(unit=(u.M_sun)),
+    "species_HI": DatasetUnits(unit=u.dimensionless_unscaled),
+    "species_H2": DatasetUnits(unit=u.dimensionless_unscaled),
+    "HI_abundance": DatasetUnits(unit=u.dimensionless_unscaled),
+    "H2_fraction": DatasetUnits(unit=u.dimensionless_unscaled),
     "internal_energy": DatasetUnits(unit=(u.cm**2 / u.s**2)),  # CGS
     "temperature": DatasetUnits(unit=u.K),  # kelvin
     "metallicity": DatasetUnits(unit=u.dimensionless_unscaled),  # dimensionless
@@ -289,7 +297,6 @@ CODE_UNITS = {
     "sfr": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
     "bhmass": DatasetUnits(unit=u.M_sun),  # solar masses
     "bhmdot": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
-    "dust_mass": DatasetUnits(unit=(u.M_sun)),  # solar masses
     "smoothing_length": DatasetUnits(unit=u.kpc, a_exponent=1),  # ckpc
 }
 
