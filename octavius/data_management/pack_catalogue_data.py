@@ -135,7 +135,7 @@ def construct_membership_arrays(
                 offsets=offsets.astype(DTYPES["csr_offsets"]),
             )
 
-    logger.info("Constructed particle-level membership arrays.")
+    logger.info("Successfully constructed particle-level membership arrays.")
 
     return result
 
@@ -148,7 +148,7 @@ def pack_rank_data(
     """
     Packs per-rank analysis data into a RankPackedData dataclass which follows the HDF5 output catalogue naming conventions; stripping of GroupStore columns prefixed with a _ is handled here.
     """
-    logger.info("Packing data for MPI gather.")
+    logger.info("Packing analysis outputs.")
     groups_packed: dict[str, GroupPackedData] = {}
 
     for group_name in internals.group_types:
@@ -201,6 +201,7 @@ def pack_rank_data(
             particle_lists=particle_membership,
         )
 
+    logger.info("Successfully packed analysis outputs.")
     return RankPackedData(groups=groups_packed)
 
 
