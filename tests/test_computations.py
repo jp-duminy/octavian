@@ -324,8 +324,8 @@ def test_virial_quantities() -> None:
 
     for g in range(N_GROUPS):
         if not np.isnan(result_r[g, 0]):
-            assert result_r[g, 1] <= result_r[g, 0], "compute_virial_quantities failed: r500 > r200."
-            assert result_m[g, 1] <= result_m[g, 0], "compute_virial_quantities failed: m500 > m200."
+            assert result_r[g, 1] <= result_r[g, 0], "compute_virial_quantities failed: r500c > r200c."
+            assert result_m[g, 1] <= result_m[g, 0], "compute_virial_quantities failed: m500c > m200c."
             assert result_r[g, 0] <= np.max(radii[GROUP_IDX == g]), (
                 "compute_virial_quantities failed: virial radius exceeds max particle radius."
             )

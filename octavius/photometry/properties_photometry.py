@@ -245,7 +245,7 @@ def _prepare_galaxy_quantities(galaxies: GroupStore, Z_sun: float) -> tuple[np.n
     ssfr_gyr[ssfr_gyr <= 0.0] = 1e-30  # prevent NaN/inf
     gal_ssfr = np.log10(ssfr_gyr)
     Z_sfr_weighted = np.nan_to_num(
-        galaxies["metallicity_sfr_weighted"], nan=0.0
+        galaxies["metallicity_gas_sfr_weighted"], nan=0.0
     )  # masked to NaN for undefined groups; set to zero as we want magnitudes for all galaxies
     Z_ratio = guarded_divide(
         numerator=Z_sfr_weighted,

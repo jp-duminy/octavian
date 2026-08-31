@@ -39,7 +39,7 @@ parent_star_mass, parent_I_tensor, parent_virial_temp, parent_rmax = cat.haloes.
 child_gal_idx = cat.haloes.get_galaxies(halo_index=23)
 
 child_metal_weighted_ages = cat.galaxies.get_dataset(  # I want to know their metallicity-weighted ages
-    name="age_metal_weighted",
+    name="age_star_metal_weighted",
     to_units="Gyr",
     mask=child_gal_idx,
 )
