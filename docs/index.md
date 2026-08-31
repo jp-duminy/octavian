@@ -28,7 +28,7 @@ hide-toc: true  # remove RHS sidebar
 <div style="margin-bottom: 3.0em;"></div>
 <div style="text-align: center;">
 
-**Version:** 0.9.1.3
+**Version:** 0.9.1.4
 
 **Useful Links:** | [Installation](getting_started/installation.md) | [Quickstart](getting_started/quickstart.md) | [Five-Minute Guide](getting_started/five_minute_guide.md) | [GitHub](https://github.com/jp-duminy/octavius)
 
