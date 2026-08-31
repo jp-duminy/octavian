@@ -33,7 +33,7 @@ PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.
 INTERNALS_PATH = Path(__file__).parent.parent / "octavius" / "internals.yaml"
 
 
-@pytest.fixture(scope="session", params=["GIZMO", "SWIFT"])
+@pytest.fixture(scope="session", params=["GIZMO", "SWIFT-KIARA"])
 def mock_catalogue(
     request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
 ) -> Generator[h5py.File, None, None]:

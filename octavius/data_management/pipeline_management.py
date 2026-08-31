@@ -364,10 +364,12 @@ def resolve_dependencies(stages: dict[str, PipelineStage], requested: list[str])
                 depth[n] += 1
                 dependents[req].append(n)
 
-    ready = [n for n in needed if depth[n] == 0]  # top-level nodes
+    # NOTE: need to sort stages such that all stages are executed in the same order across ranks to avoid MPI desync
+    ready = sorted(n for n in needed if depth[n] == 0)  # top-level nodes
     ordered_stages = []
 
     while ready:
+        ready.sort()  # sort each time a stage is added (see above comment ^)
         n = ready.pop()
         ordered_stages.append(stages[n])
 

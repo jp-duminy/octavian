@@ -119,7 +119,9 @@ class SnapshotReader(ABC):
 
         assert slabs.keys() == masks.keys()
 
-        for ptype in masks:
+        for ptype in sorted(
+            masks
+        ):  # must be sorted so ranks iterate in same order, otherwise rank desync crashes can occur
             slab = slabs[ptype]
             global_indices = np.arange(slab.start, slab.stop, dtype=np.int64)[masks[ptype]]
             self.global_indices[ptype] = redistribute_data(
@@ -150,7 +152,7 @@ class SnapshotReader(ABC):
         Finds which ptypes are available in the raw snapshot (using internal names)
         """
         with h5py.File(self.snapshot_path) as f:
-            return [self.ptype_map[k] for k in f.keys() if k in self.ptype_map]
+            return [pt for raw, pt in self.ptype_map.items() if raw in f and len(f[raw]) > 0]
 
     def read_particle_ids(self, ptype: str) -> np.ndarray:
         """
@@ -188,7 +190,7 @@ class SnapshotReader(ABC):
                     local_data=filtered_particle_ids, redistribution_map=self.maps[ptype], comm=self.comm
                 )
 
-        return result.astype(DTYPES.get("pid", np.int64))
+        return result.astype(DTYPES.get("particle_id", np.int64))
 
     @abstractmethod
     def read_header(self) -> SimulationAttributes:
