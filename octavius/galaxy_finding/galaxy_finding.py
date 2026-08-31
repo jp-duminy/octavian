@@ -112,7 +112,7 @@ def find_galaxies(
         logger.warning("No particles pass the FOF6D criteria; no galaxies found.")
         return empty_result
 
-    logger.debug(f"Linking length: {params.linking_length}")
+    logger.debug(f"Linking length: {params.linking_length:.3f}")
 
     parents = np.full(len(work_data.pos), -1, dtype=np.int32)
     dispatch_fof6d(

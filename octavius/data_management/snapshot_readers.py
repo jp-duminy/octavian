@@ -95,7 +95,7 @@ class SnapshotReader(ABC):
         if not self.has_dataset(ptype, dataset):
             raise KeyError(f"{dataset} either not available or not found for {ptype}.")
 
-        logger.debug(f"Loading {dataset} for {ptype}.")
+        logger.debug(f"Loading '{dataset}' for {ptype}.")
 
         if dataset in self.derived_columns:
             return self.derived_columns[dataset](ptype)  # passes it to a bespoke function
@@ -140,7 +140,7 @@ class SnapshotReader(ABC):
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map.get(dataset))
 
-        logger.debug(f"Checking for dataset {hdf5_name} ({dataset}) ")
+        logger.debug(f"Checking for raw snapshot dataset '{hdf5_name}' ('{dataset}') ")
 
         if hdf5_name is None:  # if not defined in the dataset maps
             logger.warning(f"{dataset} is not defined to the reader class.")
