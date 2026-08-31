@@ -20,15 +20,18 @@ SWIFT_DATASET_ATTRS: dict[str, dict[str, float]] = {
     "Potentials": {"a-scale exponent": -1, "h-scale exponent": 0, "cgs_factor": 9999999999.999998},
     "InternalEnergies": {"a-scale exponent": -2, "h-scale exponent": 0, "cgs_factor": 9999999999.999998},
     "Densities": {"a-scale exponent": -3, "h-scale exponent": 0, "cgs_factor": 6.767905773162602e-31},
-    "AtomicHydrogenMasses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
     "StarFormationRates": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 6.443997950038578e23},
     "MetalMassFractions": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
     "ElementMassFractions": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
-    "MolecularHydrogenFractions": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
     "BirthScaleFactors": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
     "DynamicalMasses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
     "SubgridMasses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
     "AccretionRates": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 6.443997950038578e23},
+    "Temperatures": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.0},
+    "AtomicHydrogenMasses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
+    "MolecularHydrogenMasses": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1.98841e43},
+    "SpeciesFractions": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
+    "TotalDustMassFractions": {"a-scale exponent": 0, "h-scale exponent": 0, "cgs_factor": 1},
 }
 
 # cosmology
@@ -136,15 +139,18 @@ def generate_gizmo_snapshot(path: Path) -> None:
         bh.create_dataset("BH_Mdot", data=bh_specific["bhmdot"] * h)
 
 
-def generate_swift_snapshot(path: Path) -> None:
+def generate_swift_snapshot(path: Path, model: str = "KIARA") -> None:
     """
-    Procedurally generates a SWIFT snapshot filled with junk data. The catalogue is self-consistent,
+    Procedurally generates a SWIFT snapshot filled with junk data, according to the simulation
+    type specified by ``model``. The catalogue is self-consistent,
     but its data only exists to be accessed for file validation, not any sort of physics checks.
 
     Parameters
     ----------
     path: pathlib.Path
         Path object pointing to where the SWIFT snapshot should be written.
+    model: str
+        Simulation type, according to those supported. Default ``KIARA``.
     """
 
     gas_base = _generate_base_datasets(n_particles=N_GAS, halo_centres=halo_centres, halo_velocities=halo_velocities)
@@ -191,13 +197,14 @@ def generate_swift_snapshot(path: Path) -> None:
 
         _create_swift_dataset(gas, "InternalEnergies", gas_specific["internal_energy"])
         _create_swift_dataset(gas, "Densities", gas_specific["rho"])
-        _create_swift_dataset(gas, "AtomicHydrogenMasses", gas_specific["fHI"] * gas_base["mass"])
         _create_swift_dataset(gas, "StarFormationRates", gas_specific["sfr"])
-        _create_swift_dataset(gas, "MolecularHydrogenFractions", gas_specific["fH2"])
         _create_swift_dataset(gas, "MetalMassFractions", gas_specific["metallicity"][:, 0])
         _create_swift_dataset(gas, "ElementMassFractions", gas_specific["metallicity"])
-        _create_swift_dataset(gas, "DustMasses", gas_specific["dust_mass"])
         _create_swift_dataset(gas, "SmoothingLengths", gas_specific["smoothing_length"])
+        _create_swift_dataset(gas, "Temperatures", gas_specific["temperature"])
+
+        # specific flavoured gas datasets
+        _generate_swift_gas_datasets(gas_group=gas, gas_base=gas_base, gas_specific=gas_specific, model=model)
 
         # dm
         dm = f.create_group("PartType1")
@@ -265,6 +272,16 @@ def _generate_base_datasets(
     }
 
 
+def _generate_star_datasets(n_star: int) -> dict[str, np.ndarray]:
+    """
+    Generates star-specific datasets.
+    """
+    return {
+        "age": rng.uniform(0.05, scale_factor, size=n_star).astype(np.float64),
+        "metallicity": rng.uniform(0.0, 0.05, size=(n_star, 11)).astype(np.float64),
+    }
+
+
 def _generate_gas_datasets(n_gas: int) -> dict[str, np.ndarray]:
     """
     Generates gas-specific datasets.
@@ -279,17 +296,36 @@ def _generate_gas_datasets(n_gas: int) -> dict[str, np.ndarray]:
         "fH2": rng.uniform(0.0, 1.0, size=n_gas).astype(np.float64),
         "dust_mass": rng.uniform(1e-5, 1e-3, size=n_gas).astype(np.float64),
         "smoothing_length": rng.uniform(1.0, 10.0, size=n_gas).astype(np.float64),
+        "temperature": rng.uniform(1e3, 1e6, size=n_gas).astype(np.float64),
+        "species_fractions": rng.uniform(0.0, 0.1, size=(n_gas, 11)).astype(np.float64),
+        "dust_mass_fractions": rng.uniform(0.0, 0.05, size=n_gas).astype(np.float64),
     }
 
 
-def _generate_star_datasets(n_star: int) -> dict[str, np.ndarray]:
+def _generate_swift_gas_datasets(
+    gas_group: h5py.Group,
+    gas_base: dict[str, np.ndarray],
+    gas_specific: dict[str, np.ndarray],
+    model: str,
+) -> None:
     """
-    Generates star-specific datasets.
+    Fills in the gas datasets which are specific to a certain SWIFT model.
     """
-    return {
-        "age": rng.uniform(0.05, scale_factor, size=n_star).astype(np.float64),
-        "metallicity": rng.uniform(0.0, 0.05, size=(n_star, 11)).astype(np.float64),
-    }
+    if model == "KIARA":
+        _create_swift_dataset(gas_group, "AtomicHydrogenMasses", gas_specific["fHI"] * gas_base["mass"])
+        _create_swift_dataset(gas_group, "MolecularHydrogenMasses", gas_specific["fH2"] * gas_base["mass"])
+        _create_swift_dataset(gas_group, "DustMasses", gas_specific["dust_mass"])
+
+    elif model == "EAGLE":
+        _create_swift_dataset(gas_group, "AtomicHydrogenMasses", gas_specific["fHI"] * gas_base["mass"])
+        _create_swift_dataset(gas_group, "MolecularHydrogenMasses", gas_specific["fH2"] * gas_base["mass"])
+
+    elif model == "COLIBRE":
+        _create_swift_dataset(gas_group, "SpeciesFractions", gas_specific["species_fractions"])
+        _create_swift_dataset(gas_group, "TotalDustMassFractions", gas_specific["dust_mass_fractions"])
+
+    else:
+        raise ValueError(f"Unknown SWIFT sim type: '{model}'")
 
 
 def _generate_bh_datasets(n_bh: int) -> dict[str, np.ndarray]:

@@ -24,16 +24,18 @@ import pytest
 import h5py
 
 # internal imports
-from octavius import analyse_snapshot, OctaviusConfig
+from octavius.run_octavius import analyse_snapshot
+from octavius.data_management.conventions import OctaviusConfig
+from octavius.utils.generate_snapshots import generate_gizmo_snapshot, generate_swift_snapshot
 
-GIZMO_TEST_PATH = Path(__file__).parent / "data" / "gizmo_test_snapshot.hdf5"
-SWIFT_TEST_PATH = Path(__file__).parent / "data" / "swift_test_snapshot.hdf5"
 CONFIG_PATH = Path(__file__).parent.parent / "octavius" / "config.yaml"
 PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavius" / "internals.yaml"
 
+FORMATS = ["GIZMO", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE"]
 
-@pytest.fixture(scope="session", params=["GIZMO", "SWIFT-KIARA"])
+
+@pytest.fixture(scope="session", params=FORMATS)
 def mock_catalogue(
     request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
 ) -> Generator[h5py.File, None, None]:
@@ -41,15 +43,21 @@ def mock_catalogue(
     Generates the mock catalogue for testing (uses a tiny test snapshot).
     """
     tmp_dir = tmp_path_factory.mktemp("pipeline")
-
+    tmp_snap = tmp_dir / "test_snapshot.hdf5"
     sim_type = request.param
-    snapshot_path = GIZMO_TEST_PATH if sim_type == "GIZMO" else SWIFT_TEST_PATH
+
+    if sim_type == "GIZMO":
+        generate_gizmo_snapshot(path=tmp_snap)
+    elif "SWIFT" in sim_type:
+        model = sim_type.split(sep="-")[1]  # slightly hacky
+        generate_swift_snapshot(path=tmp_snap, model=model)
+
     config = OctaviusConfig.from_yaml(config_path=CONFIG_PATH)
 
     config = replace(
         config,
         simulation_type=sim_type,
-        snapshot_path=snapshot_path,
+        snapshot_path=tmp_snap,
         output_dir=tmp_dir,
         halo_id_source="SNAPSHOT",
         photometry_table_filepath=PHOTOMETRY_TABLE_PATH,
