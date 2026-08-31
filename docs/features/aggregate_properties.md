@@ -67,7 +67,7 @@ The minimum potential is often more useful than the centre-of-mass for haloes, o
 
 - `spin_param`: the Bullock spin parameter $\lambda$ (uses $r_{200m}$).
 
-- `virial_temperature`: the virial temperature $T$ (computed using configuration file `MU`) (uses $r_{200m}$).
+- `temperature_virial`: the virial temperature $T$ (computed using configuration file `MU`) (uses $r_{200m}$).
 
 - `velocity_circular`: the circular velocity at $r_{200m}$.
 

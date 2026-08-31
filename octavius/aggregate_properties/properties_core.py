@@ -749,7 +749,7 @@ def _derive_halo_quantities(
 
     - r200m: radius at which matter overdensity is 200x the mean matter density
     - velocity_circular
-    - virial_temperature
+    - temperature_virial
     - spin_param: (Bullock) spin parameter
     """
     results: dict[str, np.ndarray] = {}
@@ -758,18 +758,18 @@ def _derive_halo_quantities(
         guarded_divide(numerator=(constants.G_VCIRC * group_mass), denominator=(r200m * scale_factor))
     )  # v_circ needs physical r200m
 
-    virial_temperature = constants.VIRIAL_TEMP_FACTOR * v_circ**2
+    temperature_virial = constants.VIRIAL_TEMP_FACTOR * v_circ**2
     spin_param = guarded_divide(numerator=L_mag, denominator=(np.sqrt(2) * group_mass * v_circ * r200m))
 
     empty = counts == 0
     logger.debug(f"{empty.sum()} haloes are empty (NaN for their halo quantities).")
 
-    for arr in [r200m, v_circ, virial_temperature, spin_param]:
+    for arr in [r200m, v_circ, temperature_virial, spin_param]:
         arr[empty] = np.nan
 
     results["r200m"] = r200m
     results["velocity_circular"] = v_circ
-    results["virial_temperature"] = virial_temperature
+    results["temperature_virial"] = temperature_virial
     results["spin_param"] = spin_param
 
     return results

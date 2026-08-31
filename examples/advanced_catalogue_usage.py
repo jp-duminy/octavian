@@ -26,7 +26,7 @@ field_halo_idx = raw_field_halo_idx[HI_mask]  # Imask after loading
 assert len(field_halo_idx) == len(gal_stellar_mass), "This should pass."
 
 # and let's say I want some quantities out of their field haloes
-parent_datasets_I_want = ["mass_star", "inertia_tensor_total", "virial_temperature", "rmax"]
+parent_datasets_I_want = ["mass_star", "inertia_tensor_total", "temperature_virial", "rmax"]
 parent_units = ["kg", "g*Mpc**2", "K", "Mpc"]
 parent_star_mass, parent_I_tensor, parent_virial_temp, parent_rmax = cat.haloes.get_datasets(
     names=parent_datasets_I_want,
