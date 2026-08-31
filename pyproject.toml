@@ -23,14 +23,15 @@ dependencies = [
     "astropy>=8.0",
     "h5py>=3.16",
     "numba>=0.65",
-    "mpi4py>=4.1.2"
+    "mpi4py>=4.0"
 ]
 
 keywords = ["astrophysics", "cosmology", "simulation", 
             "galaxy", "halo", "sph", 
             "fof", "analysis", "hdf5",
             "ahf", "swift", "gizmo",
-            "hbt",
+            "hbt", "eagle", "colibre",
+            "kiara",
 ]
 classifiers = [
     "Programming Language :: Python :: 3.14",
