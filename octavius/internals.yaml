@@ -80,7 +80,7 @@ stages:
   properties_local_environment:
     label: environment
     applies_to: [galaxies]
-    requires: [properties_ptype_specific]  # needs HI and H2 masses
+    requires: [properties_core, properties_ptype_specific]  # needs HI/H2 masses + centre of mass
     needs_particle_columns: 
       all: [pos, mass]
     outputs:
