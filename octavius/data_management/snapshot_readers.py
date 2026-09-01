@@ -26,7 +26,7 @@ from astropy.cosmology import FlatLambdaCDM, Flatw0waCDM
 import astropy.units as u
 
 # internal imports
-from .parallel_reading import redistribute_data, split_slab
+from .parallel_reading import redistribute_data, split_slab, generate_read_plan
 from .physics import (
     derive_stellar_age,
     calculate_temperature,
@@ -326,7 +326,53 @@ class GizmoReader(SnapshotReader):
         slab = self.slabs[ptype]
         slab_length = slab.stop - slab.start
 
-        # read the rank's slab
+        # serial mini-slice reads for analyser
+        if self.subset_indices is not None:
+            read_plan = generate_read_plan(idx_sorted=self.subset_indices)
+
+            with h5py.File(self.snapshot_path, "r") as f:
+                hdf5_dataset = f[hdf5_group][hdf5_name]
+
+                n_particles = len(self.subset_indices)
+
+                # allocate output
+                if dataset in self.column_indices:
+                    output = np.empty(n_particles, dtype=hdf5_dataset.dtype)
+                else:
+                    full_shape = (n_particles,) + hdf5_dataset.shape[1:]
+                    output = np.empty(full_shape, dtype=hdf5_dataset.dtype)
+
+                # iterate over the slices and read them into the output
+                position = 0
+                for read_slice, mask in read_plan:
+                    if dataset in self.column_indices:  # 2D columns
+                        chunk = hdf5_dataset[read_slice, self.column_indices[dataset]]
+                    else:
+                        chunk = hdf5_dataset[read_slice]
+
+                    if mask is not None:
+                        chunk = chunk[mask]
+
+                    output[position : position + len(chunk)] = chunk
+                    position += len(chunk)  # analogous to offsets array
+
+            output = output.astype(DTYPES.get(dataset, np.float64), copy=False)
+            # convert units
+            if dataset == "age":
+                output = derive_stellar_age(
+                    formation_time=output,
+                    time_gyr=self.simulation_attributes.time_gyr,
+                    cosmology=self.simulation_attributes.cosmology,
+                )
+                return output
+
+            conversion_factor = self.unit_conversions.get(dataset, 1.0)
+            if conversion_factor != 1.0:  # skip unit conversion multiplication if unnecessary
+                output *= conversion_factor
+
+            return output
+
+        # pipeline reads
         with h5py.File(self.snapshot_path, "r") as f:
             hdf5_dataset = f[hdf5_group][hdf5_name]
 
@@ -562,6 +608,64 @@ class SwiftReader(SnapshotReader):
         """
         hdf5_group = self.inverse_ptype_map[ptype]
         hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map[dataset])
+
+        # serial mini-slice reads for analyser
+        if self.subset_indices is not None:
+            read_plan = generate_read_plan(idx_sorted=self.subset_indices)
+
+            with h5py.File(self.snapshot_path, "r") as f:
+                hdf5_dataset = f[hdf5_group][hdf5_name]
+
+                n_particles = len(self.subset_indices)
+
+                # allocate output
+                if dataset in self.column_indices:
+                    output = np.empty(n_particles, dtype=hdf5_dataset.dtype)
+                else:
+                    full_shape = (n_particles,) + hdf5_dataset.shape[1:]
+                    output = np.empty(full_shape, dtype=hdf5_dataset.dtype)
+
+                # iterate over the slices and read them into the output
+                position = 0
+                for read_slice, mask in read_plan:
+                    if dataset in self.column_indices:  # 2D columns
+                        chunk = hdf5_dataset[read_slice, self.column_indices[dataset]]
+                    else:
+                        chunk = hdf5_dataset[read_slice]
+
+                    if mask is not None:
+                        chunk = chunk[mask]
+
+                    output[position : position + len(chunk)] = chunk
+                    position += len(chunk)  # analogous to offsets array
+
+                a_exp = hdf5_dataset.attrs["a-scale exponent"]
+                h_exp = hdf5_dataset.attrs["h-scale exponent"]
+                cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
+
+            output = output.astype(DTYPES.get(dataset, np.float64), copy=False)
+            # convert units
+            if dataset == "age":
+                output = derive_stellar_age(
+                    formation_time=output,
+                    time_gyr=self.simulation_attributes.time_gyr,
+                    cosmology=self.simulation_attributes.cosmology,
+                )
+                return output
+
+            target_units = CODE_UNITS[dataset]
+            target_cgs_units = (1.0 * target_units.unit).cgs.value
+            a_correction = self.simulation_attributes.scale_factor ** (a_exp - target_units.a_exponent)
+            h_correction = self.simulation_attributes.h**h_exp  # code units do not carry h
+
+            unit_factor = (a_correction * h_correction) * (cgs_factor / target_cgs_units)
+
+            if unit_factor != 1.0:
+                output *= unit_factor
+
+            return output
+
+        # pipeline reads
         slab = self.slabs[ptype]
         slab_length = slab.stop - slab.start
 
