@@ -136,9 +136,11 @@ Gas properties are also computed for the halo CGM, which is defined as being gas
 
 - `metallicity_gas_mass_weighted_cgm`: the CGM mass-weighted metallicity.
 
-- `metallicity_gas_sfr_weighted_cgm`: the CGM sfr-weighted metallicity.
+- `metallicity_gas_temperature_weighted_cgm`: the CGM temperature-weighted metallicity. 
 
 - `temperature_gas_mass_weighted_cgm`: the CGM mass-weighted temperature.
+
+- `temperature_gas_metal_weighted_cgm`: the metallicity-weighted temperature.
 
 (local-environment-properties)=
 ## Local Environment Properties
