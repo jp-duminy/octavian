@@ -81,6 +81,8 @@ stages:
     label: environment
     applies_to: [galaxies]
     requires: [properties_core, properties_ptype_specific]  # needs HI/H2 masses + centre of mass
+    cross_group_requirements:
+      galaxies: [haloes]
     needs_particle_columns: 
       all: [pos, mass]
     outputs:
@@ -95,6 +97,8 @@ stages:
     label: photometry
     applies_to: [galaxies]
     requires: [properties_ptype_specific, properties_core]  # needs the sfr and metallicity + centre of mass
+    cross_group_requirements:
+      galaxies: [haloes]
     needs_particle_columns: 
       star: [pos, vel, mass, age, metallicity]
       gas: [pos, mass, metallicity, smoothing_length]

@@ -34,6 +34,7 @@ class PipelineStage:
     label: str
     requires: frozenset[str]
     applies_to: frozenset[str]
+    cross_group_requirements: dict[str, frozenset[str]]
     needs_particle_columns: dict[str, frozenset[str]]
     optional_particle_columns: dict[str, frozenset[str]]
 
@@ -106,10 +107,14 @@ def load_internals(internals_filepath: Path, config: OctaviusConfig) -> Internal
         raw_optional = stage_config.get("optional_particle_columns", {})
         optional = {k: frozenset(v) for k, v in raw_optional.items()}
 
+        raw_cross_group = stage_config.get("cross_group_requirements", {})
+        cross_groups = {k: frozenset(v) for k, v in raw_cross_group.items()}
+
         stages[stage_name] = PipelineStage(
             name=stage_name,
             label=stage_config["label"],
             requires=frozenset(stage_config.get("requires", [])),
+            cross_group_requirements=cross_groups,
             applies_to=frozenset(stage_config["applies_to"]),
             needs_particle_columns=needed,
             optional_particle_columns=optional,
