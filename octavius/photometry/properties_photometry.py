@@ -127,7 +127,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     stars = simulation_data.particles["star"]
     star_data = StarData(
         pos=stars["pos"],
-        vel_los=stars["vel"][:, los_axis],
+        vel=stars["vel"],
         mass=stars["mass"],
         age=stars["age"],
         metallicity=stars["metallicity"],
@@ -164,6 +164,13 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         metallicities=photometry_table.metallicities,
     )
 
+    if "_rotation_matrices" in galaxies.columns:
+        use_rotation = True
+        rotation_matrices = galaxies["_rotation_matrices"]
+    else:
+        use_rotation = False
+        rotation_matrices = np.zeros((0, 3, 3))
+
     phot_constants = PhotometryConstants(
         split_age=config.split_age,
         los_axis=los_axis,
@@ -175,6 +182,8 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         Z_col_to_A_v=Z_col_to_A_v,
         use_cosmic_ext=config.use_cosmic_extinction,
         use_dust=use_dust,
+        use_rotation=use_rotation,
+        rotation_matrices=rotation_matrices,
     )
 
     dust_data = DustData(
