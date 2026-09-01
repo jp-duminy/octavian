@@ -99,14 +99,27 @@ def compute_photometric_properties(
         star_end = star_data.offsets[gal_idx + 1]
         star_slice = star_data.idx_sorted[star_start:star_end]
 
+        # optional rotation matrices
+        if phot_constants.use_rotation:
+            rot = phot_constants.rotation_matrices[gal_idx]
+            star_pos = star_data.pos[star_slice] @ rot.T
+            star_vel_los = (star_data.vel[star_slice] @ rot.T)[:, phot_constants.los_axis]
+            com_pos = gal_com_pos[gal_idx] @ rot.T
+            gas_pos = gas_data.pos[gas_slice] @ rot.T
+        else:
+            star_pos = star_data.pos[star_slice]
+            star_vel_los = star_data.vel[star_slice, phot_constants.los_axis]
+            com_pos = gal_com_pos[gal_idx]
+            gas_pos = gas_data.pos[gas_slice]
+
         # compute metal column density
         Z_col = compute_metal_column_densities(
-            star_pos=star_data.pos[star_slice],
-            gas_pos=gas_data.pos[gas_slice],
+            star_pos=star_pos,
+            gas_pos=gas_pos,
             gas_mass=gas_data.dust_mass[gas_slice],
             gas_metallicity=gas_data.metallicity[gas_slice],
             smoothing_lengths=gas_data.smoothing_lengths[gas_slice],
-            gal_centre=gal_com_pos[gal_idx],
+            gal_centre=com_pos,
             neighbour_offsets=neighbour_offsets,
             kernel_table=kernel_table,
             los_axis=phot_constants.los_axis,
@@ -132,7 +145,7 @@ def compute_photometric_properties(
             star_masses=star_data.mass[star_slice],
             star_ages=star_data.age[star_slice],
             star_metallicities=star_data.metallicity[star_slice],
-            star_los_velocities=star_data.vel_los[star_slice],
+            star_los_velocities=star_vel_los,
             star_A_v=star_A_v,
             attenuation_curve=extinction_curve,
             ssp_spectra=ssp_data.spectra,

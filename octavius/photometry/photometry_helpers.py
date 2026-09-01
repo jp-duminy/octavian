@@ -226,7 +226,7 @@ StarData = namedtuple(
     "StarData",
     [
         "pos",
-        "vel_los",
+        "vel",
         "mass",
         "age",
         "metallicity",
@@ -292,6 +292,8 @@ PhotometryConstants = namedtuple(
         "Z_col_to_A_v",
         "use_cosmic_ext",
         "use_dust",
+        "use_rotation",
+        "rotation_matrices",
     ],
 )
 
