@@ -259,9 +259,11 @@ def compute_cgm_properties(
 
     results["mass_cgm"] = cgm_mass
     results["temperature_gas_mass_weighted_cgm"] = guarded_divide(numerator=cgm_temp_mass, denominator=cgm_mass)
-    results["temp_metal_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_metal_mass)
+    results["temperature_gas_metal_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_metal_mass)
     results["metallicity_gas_mass_weighted_cgm"] = guarded_divide(numerator=cgm_metal_mass, denominator=cgm_mass)
-    results["metallicity_temp_weighted_cgm"] = guarded_divide(numerator=cgm_temp_metal, denominator=cgm_temp_mass)
+    results["metallicity_gas_temperature_weighted_cgm"] = guarded_divide(
+        numerator=cgm_temp_metal, denominator=cgm_temp_mass
+    )
 
     return results
 

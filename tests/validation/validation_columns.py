@@ -246,9 +246,9 @@ ZERO_WHEN_EMPTY = {
 SOFT_NAN = [
     "properties/particle_specific/metallicity_gas_sfr_weighted",
     "properties/particle_specific/metallicity_gas_mass_weighted_cgm",
-    "properties/particle_specific/metallicity_temp_weighted_cgm",
+    "properties/particle_specific/metallicity_gas_temperature_weighted_cgm",
     "properties/particle_specific/temperature_gas_mass_weighted_cgm",
-    "properties/particle_specific/temp_metal_weighted_cgm",
+    "properties/particle_specific/temperature_gas_metal_weighted_cgm",
     "properties/particle_specific/age_star_metal_weighted",
     "properties/core/r200m",
     "properties/core/velocity_circular",

@@ -72,7 +72,7 @@ stages:
       bh: [bhmass, bhmdot]
     outputs:
       - columns: ["mass_HI", "mass_H2", "sfr", "metallicity_gas_mass_weighted", "metallicity_gas_sfr_weighted", "temperature_gas_mass_weighted", "mass_gas_cold", "mass_gas_hot"]
-      - columns: ["metallicity_gas_mass_weighted_cgm", "metallicity_temp_weighted_cgm", "temperature_gas_mass_weighted_cgm", "temp_metal_weighted_cgm", "mass_cgm"]
+      - columns: ["metallicity_gas_mass_weighted_cgm", "metallicity_gas_temperature_weighted_cgm", "temperature_gas_mass_weighted_cgm", "temperature_gas_metal_weighted_cgm", "mass_cgm"]
         applies_to: [haloes]
       - columns: ["metallicity_star_mass_weighted", "age_star_mass_weighted", "age_star_metal_weighted"]
       - columns: ["smbh_mass", "smbh_mdot", "smbh_fedd"]
@@ -307,7 +307,7 @@ output_columns:
     a_exp:       0
     description: "Mass-weighted CGM gas metallicity."
 
-  metallicity_temp_weighted_cgm: # only haloes
+  metallicity_gas_temperature_weighted_cgm: # only haloes
     dtype:       float64
     unit:        ""
     a_exp:       0
@@ -325,7 +325,7 @@ output_columns:
     a_exp:       0
     description: "Mass-weighted CGM gas temperature."
 
-  temp_metal_weighted_cgm: # only haloes
+  temperature_gas_metal_weighted_cgm: # only haloes
     dtype:       float64
     unit:        "K"
     a_exp:       0
