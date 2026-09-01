@@ -14,14 +14,16 @@ if TYPE_CHECKING:
     import h5py
 
 # default libraries
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 # other packages
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 # internal imports
 from ..data_management import (
+    SimulationData,
     ParticleStore,
     GroupStore,
     OctaviusConfig,
@@ -29,6 +31,9 @@ from ..data_management import (
     build_reader,
 )
 from ..data_management.pipeline_management import load_internals, Internals, PipelineStage
+from ..photometry import run_photometry, read_filter_names, resolve_band_names
+from ..aggregate_properties import run_core_properties, run_ptype_specific_properties
+from .helpers import guarded_divide
 from ..log import get_logger, configure_logger
 
 INTERNALS_FILEPATH = Path(__file__).parent.parent / "internals.yaml"
@@ -66,7 +71,7 @@ def build_analyser(
     configure_logger(snapshot_path=snapshot_path, rank=0, output_level=config.terminal_output_level)
 
     # initialise data structures
-    constants = OctaviusConstants(MU=config.MU, FRAD=config.FRAD)
+    constants = OctaviusConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
     internals = load_internals(internals_filepath=INTERNALS_FILEPATH, config=config)
 
@@ -152,6 +157,196 @@ class OctaviusAnalyser:
         Controls behaviour of print(OctaviusAnalyser)
         """
         return f"<OctaviusAnalyser> | {self._reader.snapshot_path.stem} |"
+
+    def compute_photometry(
+        self,
+        group_indices: list[int],
+        orientation: str | np.ndarray | None = None,
+    ) -> StageResult:
+        """
+        Runs the photometry pipeline for the galaxies specified by group_indices, with optional rotation.
+
+        Parameters
+        ----------
+        group_indices: list[str]
+            The indices into the Octavius catalogue of the galaxies to run on.
+        orientation: str | np.ndarray | None
+            Orientation to rotate the galaxies into. ``edge-on`` and ``face-on`` are available, or a bespoke (3, 3) rotation
+            matrix can be passed. If left blank, the default positions will be used.
+
+        Returns
+        -------
+        result: StageResult
+            A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
+        """
+        names, lambda_effs = read_filter_names(self._config.photometry_table_filepath)
+        self._config = replace(self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs))
+
+        group_type = "galaxies"  # only runs on galaxies
+        if group_type not in self._collections:
+            raise KeyError(f"'{group_type}' is not present in the catalogue.")
+
+        group_indices = np.array(group_indices)
+        photometry = self._internals.stages["photometry"]
+        self._verify_dependencies(stage=photometry, group_type=group_type)
+
+        # get columns needed by photometry
+        ptype_columns = self._resolve_stage_columns(stage=photometry, group_type=group_type)
+        gal_reqs = {"star": ptype_columns["star"]}
+        halo_reqs = {"gas": ptype_columns["gas"]}
+
+        halo_idx, gal_halo_map = _resolve_linked_groups(
+            collection=self._collections["galaxies"], group_idx=group_indices, linking_column="field_halo_index"
+        )
+        gal_data = self._extract_groups(group_type=group_type, group_indices=group_indices, ptype_columns=gal_reqs)
+        halo_data = self._extract_groups(group_type="haloes", group_indices=halo_idx, ptype_columns=halo_reqs)
+
+        subset_data = gal_data | halo_data  # this works because one provides gas and the other star
+        particles = _build_particle_stores(subset_data=subset_data, internals=self._internals)
+
+        haloes = _build_group_store(
+            group_type="haloes", group_indices=halo_idx, subset_data=halo_data, internals=self._internals
+        )
+        galaxies = _build_group_store(
+            group_type="galaxies", group_indices=group_indices, subset_data=gal_data, internals=self._internals
+        )
+
+        # dependencies
+        _preload_stage_dependencies(
+            collection=self._collections["galaxies"],
+            group_store=galaxies,
+            group_indices=group_indices,
+            stage=photometry,
+            internals=self._internals,
+        )
+        galaxies["field_halo_index"] = gal_halo_map
+
+        groups = {
+            "galaxies": galaxies,
+            "haloes": haloes,
+        }
+
+        if orientation is not None:
+            align_orientations(galaxies=galaxies, orientation=orientation)  # modifies in place
+
+        sim_data = SimulationData(
+            simulation=self._reader.simulation_attributes,
+            constants=self._constants,
+            particles=particles,
+            groups=groups,
+        )
+
+        pre_columns = set(galaxies.columns.keys())
+        run_photometry(sim_data, self._config)
+        results = _extract_results(
+            group_store=galaxies, group_type=group_type, group_indices=group_indices, pre_columns=pre_columns
+        )
+
+        return results
+
+    def compute_ptype_specific_properties(self, group_indices: list[int], group_type: str) -> StageResult:
+        """
+        Runs the particle-type specific properties routine for the groups (of one group type) specified by group_indices.
+
+        Parameters
+        ----------
+        group_indices: list[str]
+            The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
+            to one type of group (e.g. only galaxies or only haloes).
+
+        Returns
+        -------
+        result: StageResult
+            A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
+        """
+        if group_type not in self._collections:
+            raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
+
+        group_indices = np.array(group_indices)
+        stage = self._internals.stages["properties_ptype_specific"]
+        self._verify_dependencies(stage=stage, group_type=group_type)
+
+        ptype_columns = self._resolve_stage_columns(stage=stage, group_type=group_type)
+        subset_data = self._extract_groups(
+            group_type=group_type, group_indices=group_indices, ptype_columns=ptype_columns
+        )
+        particles = _build_particle_stores(subset_data=subset_data, internals=self._internals)
+        group_store = _build_group_store(
+            group_type=group_type, group_indices=group_indices, subset_data=subset_data, internals=self._internals
+        )
+        _preload_stage_dependencies(
+            collection=self._collections[group_type],
+            group_store=group_store,
+            group_indices=group_indices,
+            stage=stage,
+            internals=self._internals,
+        )
+
+        sim_data = SimulationData(
+            simulation=self._reader.simulation_attributes,
+            constants=self._constants,
+            particles=particles,
+            groups={group_type: group_store},
+        )
+
+        pre_columns = set(group_store.columns.keys())
+        run_ptype_specific_properties(sim_data, self._config)
+        results = _extract_results(
+            group_store=group_store, group_type=group_type, group_indices=group_indices, pre_columns=pre_columns
+        )
+        return results
+
+    def compute_core_properties(self, group_indices: list[int], group_type: str) -> StageResult:
+        """
+        Runs the core properties routine for the groups (of one group type) specified by group_indices.
+
+        Parameters
+        ----------
+        group_indices: list[str]
+            The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
+            to one type of group (e.g. only galaxies or only haloes).
+
+        Returns
+        -------
+        result: StageResult
+            A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
+        """
+        if group_type not in self._collections:
+            raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
+
+        group_indices = np.array(group_indices)
+        stage = self._internals.stages["properties_core"]
+        self._verify_dependencies(stage=stage, group_type=group_type)
+
+        ptype_columns = self._resolve_stage_columns(stage=stage, group_type=group_type)
+        subset_data = self._extract_groups(
+            group_type=group_type, group_indices=group_indices, ptype_columns=ptype_columns
+        )
+        particles = _build_particle_stores(subset_data=subset_data, internals=self._internals)
+        group_store = _build_group_store(
+            group_type=group_type, group_indices=group_indices, subset_data=subset_data, internals=self._internals
+        )
+        _preload_stage_dependencies(
+            collection=self._collections[group_type],
+            group_store=group_store,
+            group_indices=group_indices,
+            stage=stage,
+            internals=self._internals,
+        )
+
+        sim_data = SimulationData(
+            simulation=self._reader.simulation_attributes,
+            constants=self._constants,
+            particles=particles,
+            groups={group_type: group_store},
+        )
+
+        pre_columns = set(group_store.columns.keys())
+        run_core_properties(sim_data, self._config)
+        results = _extract_results(
+            group_store=group_store, group_type=group_type, group_indices=group_indices, pre_columns=pre_columns
+        )
+        return results
 
     def _extract_groups(
         self,
@@ -280,9 +475,8 @@ class OctaviusAnalyser:
 
         for dependent in stage.requires:
             dependent_label = self._internals.stages[dependent].label
-            if f"properties/{dependent_label}" in data:
-                continue
-            else:
+
+            if f"properties/{dependent_label}" not in data:
                 raise KeyError(f"Dependent stage {dependent_label} is not present in the catalogue.")
 
 
@@ -424,4 +618,41 @@ def _preload_stage_dependencies(
         dep_group = collection._data[f"properties/{dep_label}"]
 
         for col_name in dep_group:
-            group_store[col_name] = dep_group[col_name][group_indices]
+            all_data = dep_group[col_name][:]  # load all for speed
+            group_store[col_name] = all_data[group_indices]
+
+
+def align_orientations(
+    galaxies: GroupStore,
+    orientation: str | np.ndarray,
+) -> None:
+    """
+    In-place modifies the GroupStores to rotate particles into the requested reference frame (or rotation
+    matrix). This will rotate galaxies relative to the z component of their angular momentum.
+    """
+    L_vectors = galaxies["L_baryon"]
+    L_mags = np.linalg.norm(L_vectors, axis=1)
+    L_unit_vectors = guarded_divide(L_vectors, L_mags[:, np.newaxis])  # new axis for shape consistency
+    n_galaxies = galaxies.n_groups
+    rotation_matrices = np.empty(shape=(n_galaxies, 3, 3), dtype=np.float64)
+
+    if isinstance(orientation, np.ndarray):
+        rotation_matrices[:] = orientation
+        galaxies["_rotation_matrices"] = rotation_matrices
+        return
+
+    if orientation == "face-on":
+        rotation_vector = [0, 0, 1]
+    elif orientation == "edge-on":
+        rotation_vector = [1, 0, 0]
+    else:
+        raise ValueError(f"{orientation} is not currently supported; check typo?")
+
+    for g in range(n_galaxies):
+        if np.any(np.isnan(L_unit_vectors[g])):  # prevent NaN galaxies from falling through
+            logger.debug(f"Galaxy {g} has NaN in its L unit vector.")
+            rotation_matrices[g] = np.eye(3)  # give them identity matrix
+        else:
+            rotation_matrices[g] = Rotation.align_vectors([rotation_vector], [L_unit_vectors[g]])[0].as_matrix()
+
+    galaxies["_rotation_matrices"] = rotation_matrices
