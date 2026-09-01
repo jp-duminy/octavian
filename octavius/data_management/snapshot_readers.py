@@ -73,6 +73,7 @@ class SnapshotReader(ABC):
     dataset_map_overrides: dict[tuple[str, str], str] = (
         NotImplemented  # where common datasets have different ptype-specific names
     )
+    column_indices: dict[str, int] = NotImplemented  # 2D arrays which need indexing
     id_map: dict[str, str] = NotImplemented  # for halo IDs and particle IDs
     derived_columns: dict[str, Callable] = {}
 
@@ -84,6 +85,7 @@ class SnapshotReader(ABC):
         self.global_indices: dict[str, np.ndarray] | None = None  # instantiate to None so serial path works
         self.maps: dict[str, np.ndarray] | None = None
         self.subset_indices: np.ndarray | None = None
+        self.simulation_attributes: SimulationAttributes | None = None
 
         self.inverse_ptype_map = {v: k for k, v in self.ptype_map.items()}
         self.read_header()  # should set SimulationAttributes & particle_counts on self
@@ -102,6 +104,88 @@ class SnapshotReader(ABC):
             return self.derived_columns[dataset](ptype)  # passes it to a bespoke function
 
         return self._read_raw(ptype, dataset)
+
+    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Reads a HDF5 dataset from the file, handling dtypes, unit conversions, and masks.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map[dataset])
+
+        # serial mini-slice reads for analyser
+        if self.subset_indices is not None:
+            read_plan = generate_read_plan(idx_sorted=self.subset_indices)
+
+            with h5py.File(self.snapshot_path, "r") as f:
+                hdf5_dataset = f[hdf5_group][hdf5_name]
+                conversion_factor = self._unit_conversion_factor(dataset=dataset, hdf5_dataset=hdf5_dataset)
+                n_particles = len(self.subset_indices)
+
+                # allocate output
+                if dataset in self.column_indices:
+                    values = np.empty(n_particles, dtype=hdf5_dataset.dtype)
+                else:
+                    full_shape = (n_particles,) + hdf5_dataset.shape[1:]
+                    values = np.empty(full_shape, dtype=hdf5_dataset.dtype)
+
+                # iterate over the slices and read them into the output
+                position = 0
+                for read_slice, mask in read_plan:
+                    if dataset in self.column_indices:  # 2D columns
+                        chunk = hdf5_dataset[read_slice, self.column_indices[dataset]]
+                    else:
+                        chunk = hdf5_dataset[read_slice]
+
+                    if mask is not None:
+                        chunk = chunk[mask]
+
+                    values[position : position + len(chunk)] = chunk
+                    position += len(chunk)  # analogous to offsets array
+
+            # close file, convert units and return (no MPI)
+            output = self._convert_units(dataset=dataset, values=values, conversion_factor=conversion_factor)
+
+            return output
+
+        # pipeline read path (optional MPI, chunked/slab reads with redistribution)
+        slab = self.slabs[ptype]
+        slab_length = slab.stop - slab.start
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            hdf5_dataset = f[hdf5_group][hdf5_name]
+            conversion_factor = self._unit_conversion_factor(dataset=dataset, hdf5_dataset=hdf5_dataset)
+
+            if dataset in self.column_indices:  # for metallicity columns
+                col_idx = self.column_indices[dataset]
+                raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_io_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, col_idx]
+
+            else:  # read flat for all others
+                full_shape = (slab_length,) + hdf5_dataset.shape[
+                    1:
+                ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
+                raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
+
+                for chunk in split_slab(slab, self.n_io_chunks):
+                    offset = chunk.start - slab.start
+                    chunk_length = chunk.stop - chunk.start
+                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
+
+            filtered_array = raw_array[self.masks[ptype]]
+
+        # close file, convert units, return
+        output = self._convert_units(dataset=dataset, values=filtered_array, conversion_factor=conversion_factor)
+
+        if self.maps is not None:
+            result = redistribute_data(local_data=output, redistribution_map=self.maps[ptype], comm=self.comm)
+        else:
+            result = output
+
+        return result
 
     def set_maps(
         self,
@@ -195,6 +279,24 @@ class SnapshotReader(ABC):
 
         return result.astype(DTYPES.get("particle_id", np.int64))
 
+    def _convert_units(self, dataset: str, values: np.ndarray, conversion_factor: float) -> np.ndarray:
+        """
+        Converts units and dtype from raw snapshot to Octavius internal.
+        """
+        values = values.astype(DTYPES.get(dataset, np.float64), copy=False)  # cast before conversion for precision
+
+        if dataset == "age":  # age needs cosmology calls so has a unique branch
+            return derive_stellar_age(
+                formation_time=values,
+                time_gyr=self.simulation_attributes.time_gyr,
+                cosmology=self.simulation_attributes.cosmology,
+            )
+
+        if conversion_factor != 1.0:
+            values *= conversion_factor
+
+        return values
+
     @abstractmethod
     def read_header(self) -> SimulationAttributes:
         """
@@ -203,9 +305,9 @@ class SnapshotReader(ABC):
         ...
 
     @abstractmethod
-    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
+    def _unit_conversion_factor(self, dataset: str, hdf5_dataset: h5py.Dataset) -> float:
         """
-        Reads a raw HDF5 dataset from the file.
+        Snapshot-specific unit conversion factors.
         """
         ...
 
@@ -317,118 +419,14 @@ class GizmoReader(SnapshotReader):
 
         return self.simulation_attributes
 
-    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
+    def _unit_conversion_factor(self, dataset: str, hdf5_dataset: h5py.Dataset) -> float:
         """
-        Reads a HDF5 dataset from the file, handling dtypes, unit conversions, and masks.
+        Calls unit conversion factors from Gizmo documentation.
         """
-        hdf5_group = self.inverse_ptype_map[ptype]
-        hdf5_name = self.dataset_map[dataset]
-        slab = self.slabs[ptype]
-        slab_length = slab.stop - slab.start
-
-        # serial mini-slice reads for analyser
-        if self.subset_indices is not None:
-            read_plan = generate_read_plan(idx_sorted=self.subset_indices)
-
-            with h5py.File(self.snapshot_path, "r") as f:
-                hdf5_dataset = f[hdf5_group][hdf5_name]
-
-                n_particles = len(self.subset_indices)
-
-                # allocate output
-                if dataset in self.column_indices:
-                    output = np.empty(n_particles, dtype=hdf5_dataset.dtype)
-                else:
-                    full_shape = (n_particles,) + hdf5_dataset.shape[1:]
-                    output = np.empty(full_shape, dtype=hdf5_dataset.dtype)
-
-                # iterate over the slices and read them into the output
-                position = 0
-                for read_slice, mask in read_plan:
-                    if dataset in self.column_indices:  # 2D columns
-                        chunk = hdf5_dataset[read_slice, self.column_indices[dataset]]
-                    else:
-                        chunk = hdf5_dataset[read_slice]
-
-                    if mask is not None:
-                        chunk = chunk[mask]
-
-                    output[position : position + len(chunk)] = chunk
-                    position += len(chunk)  # analogous to offsets array
-
-            output = output.astype(DTYPES.get(dataset, np.float64), copy=False)
-            # convert units
-            if dataset == "age":
-                output = derive_stellar_age(
-                    formation_time=output,
-                    time_gyr=self.simulation_attributes.time_gyr,
-                    cosmology=self.simulation_attributes.cosmology,
-                )
-                return output
-
-            conversion_factor = self.unit_conversions.get(dataset, 1.0)
-            if conversion_factor != 1.0:  # skip unit conversion multiplication if unnecessary
-                output *= conversion_factor
-
-            return output
-
-        # pipeline reads
-        with h5py.File(self.snapshot_path, "r") as f:
-            hdf5_dataset = f[hdf5_group][hdf5_name]
-
-            if dataset in self.column_indices:  # for metallicity columns
-                col_idx = self.column_indices[dataset]
-                raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, col_idx]
-
-            else:  # read flat for all others
-                full_shape = (slab_length,) + hdf5_dataset.shape[
-                    1:
-                ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
-                raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
-
-            filtered_array = raw_array[self.masks[ptype]].astype(DTYPES.get(dataset, np.float64), copy=False)
-
-        # close file, do unit/dtype conversions and MPI redistribution
-        if (
-            dataset == "age"
-        ):  # age has an early return because its unit conversion is handled by the function internally (this dataset is different)
-            filtered_array = derive_stellar_age(
-                formation_time=filtered_array,
-                time_gyr=self.simulation_attributes.time_gyr,
-                cosmology=self.simulation_attributes.cosmology,
-            )
-
-            if self.maps is not None:
-                result = redistribute_data(
-                    local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
-                )
-            else:
-                result = filtered_array
-
-            return result
-
-        # apply unit conversion factor (after data is filtered and masked, so the operation is cheaper)
+        hdf5_dataset = hdf5_dataset  # unused
         conversion_factor = self.unit_conversions.get(dataset, 1.0)
-        if conversion_factor != 1.0:  # skip unit conversion multiplication if unnecessary
-            filtered_array *= conversion_factor
 
-        # mpi vs serial
-        if self.maps is not None:
-            result = redistribute_data(local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm)
-        else:
-            result = filtered_array
-
-        return result
+        return conversion_factor
 
     def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
@@ -602,114 +600,13 @@ class SwiftReader(SnapshotReader):
 
         return self.simulation_attributes
 
-    def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
+    def _unit_conversion_factor(self, dataset: str, hdf5_dataset: h5py.Dataset):
         """
-        Convert a HDF5 dataset in the snapshot to a numpy array with the correct dtype (for floating point precision); auto-applies SWIFT attribute conversions to Octavius code units.
+        SWIFT units, parsed from dataset attrs.
         """
-        hdf5_group = self.inverse_ptype_map[ptype]
-        hdf5_name = self.dataset_map_overrides.get((ptype, dataset), self.dataset_map[dataset])
-
-        # serial mini-slice reads for analyser
-        if self.subset_indices is not None:
-            read_plan = generate_read_plan(idx_sorted=self.subset_indices)
-
-            with h5py.File(self.snapshot_path, "r") as f:
-                hdf5_dataset = f[hdf5_group][hdf5_name]
-
-                n_particles = len(self.subset_indices)
-
-                # allocate output
-                if dataset in self.column_indices:
-                    output = np.empty(n_particles, dtype=hdf5_dataset.dtype)
-                else:
-                    full_shape = (n_particles,) + hdf5_dataset.shape[1:]
-                    output = np.empty(full_shape, dtype=hdf5_dataset.dtype)
-
-                # iterate over the slices and read them into the output
-                position = 0
-                for read_slice, mask in read_plan:
-                    if dataset in self.column_indices:  # 2D columns
-                        chunk = hdf5_dataset[read_slice, self.column_indices[dataset]]
-                    else:
-                        chunk = hdf5_dataset[read_slice]
-
-                    if mask is not None:
-                        chunk = chunk[mask]
-
-                    output[position : position + len(chunk)] = chunk
-                    position += len(chunk)  # analogous to offsets array
-
-                a_exp = hdf5_dataset.attrs["a-scale exponent"]
-                h_exp = hdf5_dataset.attrs["h-scale exponent"]
-                cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
-
-            output = output.astype(DTYPES.get(dataset, np.float64), copy=False)
-            # convert units
-            if dataset == "age":
-                output = derive_stellar_age(
-                    formation_time=output,
-                    time_gyr=self.simulation_attributes.time_gyr,
-                    cosmology=self.simulation_attributes.cosmology,
-                )
-                return output
-
-            target_units = CODE_UNITS[dataset]
-            target_cgs_units = (1.0 * target_units.unit).cgs.value
-            a_correction = self.simulation_attributes.scale_factor ** (a_exp - target_units.a_exponent)
-            h_correction = self.simulation_attributes.h**h_exp  # code units do not carry h
-
-            unit_factor = (a_correction * h_correction) * (cgs_factor / target_cgs_units)
-
-            if unit_factor != 1.0:
-                output *= unit_factor
-
-            return output
-
-        # pipeline reads
-        slab = self.slabs[ptype]
-        slab_length = slab.stop - slab.start
-
-        with h5py.File(self.snapshot_path, "r") as f:
-            hdf5_dataset = f[hdf5_group][hdf5_name]
-
-            if dataset in self.column_indices:  # for 2D datasets (species fractions, metals)
-                col_idx = self.column_indices[dataset]
-                raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, col_idx]
-
-            else:
-                full_shape = (slab_length,) + hdf5_dataset.shape[
-                    1:
-                ]  # this returns () if flat and tuple addition handles it (shape needed for 3d columns)
-                raw_array = np.empty(full_shape, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk]
-
-            filtered_array = raw_array[self.masks[ptype]].astype(DTYPES.get(dataset, np.float64), copy=False)
-            a_exp, h_exp = hdf5_dataset.attrs["a-scale exponent"], hdf5_dataset.attrs["h-scale exponent"]
-            cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
-
-        if dataset == "age":
-            filtered_array = derive_stellar_age(
-                formation_time=filtered_array,
-                time_gyr=self.simulation_attributes.time_gyr,
-                cosmology=self.simulation_attributes.cosmology,
-            )
-
-            if self.maps is not None:
-                result = redistribute_data(
-                    local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm
-                )
-            else:
-                result = filtered_array
-
-            return result
+        a_exp = hdf5_dataset.attrs["a-scale exponent"]
+        h_exp = hdf5_dataset.attrs["h-scale exponent"]
+        cgs_factor = hdf5_dataset.attrs["Conversion factor to CGS (not including cosmological corrections)"]
 
         target_units = CODE_UNITS[dataset]
         target_cgs_units = (1.0 * target_units.unit).cgs.value
@@ -718,16 +615,7 @@ class SwiftReader(SnapshotReader):
 
         unit_factor = (a_correction * h_correction) * (cgs_factor / target_cgs_units)
 
-        if unit_factor != 1.0:
-            filtered_array *= unit_factor
-
-        # mpi vs serial
-        if self.maps is not None:
-            result = redistribute_data(local_data=filtered_array, redistribution_map=self.maps[ptype], comm=self.comm)
-        else:
-            result = filtered_array
-
-        return result
+        return unit_factor
 
     def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
