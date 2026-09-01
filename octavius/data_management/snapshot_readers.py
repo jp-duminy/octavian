@@ -105,6 +105,20 @@ class SnapshotReader(ABC):
 
         return self._read_raw(ptype, dataset)
 
+    def read_requested_columns(
+        self,
+        ptype: str,
+        datasets: list[str],
+        sorted_snapshot_indices: np.ndarray,
+    ) -> dict[str, np.ndarray]:
+        """
+        Reads requested datasets for a stage.
+        """
+        self.subset_indices = sorted_snapshot_indices
+        result = {dataset: self.read_dataset(ptype, dataset) for dataset in datasets}
+
+        return result
+
     def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
         """
         Reads a HDF5 dataset from the file, handling dtypes, unit conversions, and masks.
