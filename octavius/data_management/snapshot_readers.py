@@ -83,6 +83,7 @@ class SnapshotReader(ABC):
         self.n_io_chunks = n_io_chunks  # set from config
         self.global_indices: dict[str, np.ndarray] | None = None  # instantiate to None so serial path works
         self.maps: dict[str, np.ndarray] | None = None
+        self.subset_indices: np.ndarray | None = None
 
         self.inverse_ptype_map = {v: k for k, v in self.ptype_map.items()}
         self.read_header()  # should set SimulationAttributes & particle_counts on self
@@ -253,6 +254,11 @@ class GizmoReader(SnapshotReader):
         "HaloID": "HaloID",
     }
 
+    column_indices = {
+        "helium_fraction": 1,  # slice of 2D datasets
+        "metallicity": 0,
+    }
+
     dataset_map_overrides: dict[tuple[str, str], str] = {}
 
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
@@ -324,21 +330,14 @@ class GizmoReader(SnapshotReader):
         with h5py.File(self.snapshot_path, "r") as f:
             hdf5_dataset = f[hdf5_group][hdf5_name]
 
-            if dataset == "metallicity":  # need first column for the total metal fraction
+            if dataset in self.column_indices:  # for metallicity columns
+                col_idx = self.column_indices[dataset]
                 raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
 
                 for chunk in split_slab(slab, self.n_io_chunks):
                     offset = chunk.start - slab.start
                     chunk_length = chunk.stop - chunk.start
-                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 0]
-
-            elif dataset == "helium_fraction":  # second column for the helium fraction
-                raw_array = np.empty(slab_length, dtype=hdf5_dataset.dtype)
-
-                for chunk in split_slab(slab, self.n_io_chunks):
-                    offset = chunk.start - slab.start
-                    chunk_length = chunk.stop - chunk.start
-                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, 1]
+                    raw_array[offset : offset + chunk_length] = hdf5_dataset[chunk, col_idx]
 
             else:  # read flat for all others
                 full_shape = (slab_length,) + hdf5_dataset.shape[
