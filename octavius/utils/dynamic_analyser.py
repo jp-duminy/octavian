@@ -31,8 +31,7 @@ from ..data_management import (
     build_reader,
 )
 from ..data_management.pipeline_management import load_internals, Internals, PipelineStage
-from ..photometry import run_photometry, read_filter_names, resolve_band_names
-from ..aggregate_properties import run_core_properties, run_ptype_specific_properties
+
 from .helpers import guarded_divide
 from ..log import get_logger, configure_logger
 
@@ -170,7 +169,7 @@ class OctaviusAnalyser:
         group_indices: list[int]
             The indices into the Octavius catalogue of the galaxies to run on.
         orientation: str | np.ndarray | None
-            Orientation to rotate the galaxies into. ``edge-on`` and ``face-on`` are available, or a bespoke (3, 3) rotation
+            Orientation to rotate the galaxies into. ``edge-on`` and ``side-on`` are available, or a bespoke (3, 3) rotation
             matrix can be passed. If left blank, the default positions will be used.
 
         Returns
@@ -178,6 +177,8 @@ class OctaviusAnalyser:
         result: StageResult
             A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
         """
+        from ..photometry import run_photometry, read_filter_names, resolve_band_names  # avoid circular import
+
         names, lambda_effs = read_filter_names(self._config.photometry_table_filepath)
         config = replace(self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs))
 
@@ -258,6 +259,8 @@ class OctaviusAnalyser:
         result: StageResult
             A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
         """
+        from ..aggregate_properties import run_ptype_specific_properties  # avoid circular import
+
         if group_type not in self._collections:
             raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
 
@@ -310,6 +313,8 @@ class OctaviusAnalyser:
         result: StageResult
             A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
         """
+        from ..aggregate_properties import run_core_properties  # avoid circular import
+
         if group_type not in self._collections:
             raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
 
@@ -644,7 +649,7 @@ def align_orientations(
 
     if orientation == "face-on":
         rotation_vector = [0, 0, 1]
-    elif orientation == "edge-on":
+    elif orientation == "side-on":
         rotation_vector = [1, 0, 0]
     else:
         raise ValueError(f"{orientation} is not currently supported; check typo?")
