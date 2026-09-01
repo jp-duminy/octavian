@@ -223,16 +223,19 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         )
     )
 
-    # photometry is a bit of a maverick in how it runs so doesn't obey the group_store.write_batch() with results dict convention
-    for band_idx, band_name in enumerate(config.bands):
-        galaxies[f"mag_abs_{band_name}"] = mag_abs[:, band_idx]
-        galaxies[f"mag_abs_nodust_{band_name}"] = mag_abs_nodust[:, band_idx]
-        galaxies[f"mag_app_{band_name}"] = mag_app[:, band_idx]
-        galaxies[f"mag_app_nodust_{band_name}"] = mag_app_nodust[:, band_idx]
+    results: dict[str, np.ndarray] = {}
 
-    galaxies["luminosity_fir"] = luminosity_fir
-    galaxies["beta"] = beta
-    galaxies["beta_nodust"] = beta_nodust
+    for band_idx, band_name in enumerate(config.bands):
+        results[f"mag_abs_{band_name}"] = mag_abs[:, band_idx]
+        results[f"mag_abs_nodust_{band_name}"] = mag_abs_nodust[:, band_idx]
+        results[f"mag_app_{band_name}"] = mag_app[:, band_idx]
+        results[f"mag_app_nodust_{band_name}"] = mag_app_nodust[:, band_idx]
+
+    results["luminosity_fir"] = luminosity_fir
+    results["beta"] = beta
+    results["beta_nodust"] = beta_nodust
+
+    galaxies.write_batch(results=results)  # use write_batch for shape checking
 
     logger.info(f"Successfully computed photometric properties for {galaxies.n_groups} galaxies.")
 
