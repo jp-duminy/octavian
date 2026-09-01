@@ -6,12 +6,6 @@ This is for automated CI/CD (did your commit break anything in the analysis?). P
 
 """
 
-# type checking (semantic)
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
 # default libraries
 from pathlib import Path
 from collections.abc import Generator
@@ -27,6 +21,8 @@ import h5py
 from octavius.run_octavius import analyse_snapshot
 from octavius.data_management.conventions import OctaviusConfig
 from octavius.utils.generate_snapshots import generate_gizmo_snapshot, generate_swift_snapshot
+from octavius.utils.dynamic_analyser import build_analyser, OctaviusAnalyser
+from octavius.utils.loader import load_catalogue, OctaviusCatalogue
 
 CONFIG_PATH = Path(__file__).parent.parent / "octavius" / "config.yaml"
 PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
@@ -71,6 +67,13 @@ def mock_catalogue(
 
     output_path = analyse_snapshot(config=config)
     assert output_path.exists()
+
+    cat = load_catalogue(catalogue_path=output_path)  # check a catalogue object is constructable
+    assert isinstance(cat, OctaviusCatalogue)
+    analyser = build_analyser(
+        snapshot_path=tmp_snap, catalogue=cat, config=config
+    )  # check an Analyser object is constructable
+    assert isinstance(analyser, OctaviusAnalyser)
 
     catalogue = h5py.File(output_path, "r")
     yield catalogue  # use yield not return, otherwise you'll run into issues with closing the catalogue

@@ -33,9 +33,11 @@ from .output_validation import (
     validate_mass_budget,
     check_for_nans,
 )
+from octavius.utils import build_analyser, load_catalogue
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config.yaml"
 INTERNALS_PATH = Path(__file__).parent.parent.parent / "octavius" / "internals.yaml"
+SEED = 2317434
 RESULTS = []
 
 
@@ -198,6 +200,67 @@ def validate_against_reference(catalogue: Path, reference: Path, rtol: float = 1
         logger.warning("Reference catalogue comparison fails tolerance; see logs please.")
 
 
+def validate_standalone_analysis(
+    snapshot_path: Path, catalogue: Path, config: OctaviusConfig, rtol: float = 1e-6, atol: float = 1e-10
+) -> None:
+    """
+    Validates the on-the-fly analyser returns the same result as the pipeline.
+    """
+    cat = load_catalogue(catalogue_path=catalogue)
+    analyser = build_analyser(snapshot_path=snapshot_path, catalogue=cat, config=config)
+    rng = np.random.default_rng(seed=SEED)
+
+    random_gal_idx = rng.choice(cat.n_galaxies, size=5, replace=False)
+    random_halo_idx = rng.choice(cat.n_haloes, size=5, replace=False)
+
+    core_datasets = ["velocity_dispersion_baryon", "radius_half_mass_star", "inertia_tensor_gas"]
+    particle_datasets = ["mass_HI", "metallicity_gas_sfr_weighted", "sfr"]
+    phot_datasets = ["mag_app_v", "luminosity_fir", "beta_nodust"]
+
+    stage_checks = [
+        (analyser.compute_core_properties, "galaxies", random_gal_idx, cat.galaxies, core_datasets + ["BoverT_baryon"]),
+        (
+            analyser.compute_core_properties,
+            "haloes",
+            random_halo_idx,
+            cat.haloes,
+            core_datasets + ["virial_temperature"],
+        ),
+        (analyser.compute_ptype_specific_properties, "galaxies", random_gal_idx, cat.galaxies, particle_datasets),
+        (
+            analyser.compute_ptype_specific_properties,
+            "haloes",
+            random_halo_idx,
+            cat.haloes,
+            particle_datasets + ["temperature_gas_mass_weighted_cgm"],
+        ),
+        (analyser.compute_photometry, "galaxies", random_gal_idx, cat.galaxies, phot_datasets),
+    ]
+
+    for stage_fn, group_type, group_indices, collection, datasets in stage_checks:
+        if group_type == "galaxies":
+            result = stage_fn(group_indices=group_indices)
+        else:
+            result = stage_fn(group_indices=group_indices, group_type=group_type)
+
+        for dataset in datasets:
+            pipeline_values = collection.get_dataset(dataset, mask=group_indices)
+            standalone_values = result[dataset]
+            np.testing.assert_allclose(
+                pipeline_values,
+                standalone_values,
+                rtol=rtol,
+                atol=atol,
+                err_msg=f"{dataset} failed for {group_type}.",
+            )
+
+    # rotation check for photometry
+    face_on = analyser.compute_photometry(group_indices=random_gal_idx, orientation="face-on")
+    edge_on = analyser.compute_photometry(group_indices=random_gal_idx, orientation="edge-on")
+
+    assert not np.allclose(face_on["mag_app_v"], edge_on["mag_app_v"]), "Rotated photometry has no effect."
+
+
 @contextmanager
 def record_assertion_result(label: str) -> Generator[None, None, None]:  # the collections import is used for this
     """
@@ -266,6 +329,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1e-10,
         help="Absolute tolerance between reference and output catalogue datasets.",
+    )
+    parser.add_argument(
+        "--standalone",
+        required=False,
+        action="store_true",
+        help="Check whether standalone stages reproduce pipeline results.",
     )
 
     return parser.parse_args()

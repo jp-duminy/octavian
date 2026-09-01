@@ -1,6 +1,9 @@
 from .loader import (
     load_catalogue as load_catalogue,
 )
+from .dynamic_analyser import (
+    build_analyser as build_analyser,
+)
 from .generate_snapshots import (
     generate_gizmo_snapshot as generate_gizmo_snapshot,
     generate_swift_snapshot as generate_swift_snapshot,
