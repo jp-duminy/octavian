@@ -276,6 +276,38 @@ def split_slab(slab: slice, n_io_chunks: int) -> list[slice]:
     return split_slabs
 
 
+def generate_read_plan(idx_sorted: np.ndarray, gap_threshold: int = 64) -> list[tuple[slice, np.ndarray | None]]:
+    """
+    Given a list of idx_sorted, returns slices for contiguous reads from a HDF5 dataset.
+    gap_threshold controls the threshold beyond which groups of sorted indices are merged into a contiguous read
+    then masked (for reducing the number of filesystem reads). Returns:
+
+    - read_plan: a list containing tuples of slices and the corresponding masks.
+    """
+    if len(idx_sorted) == 0:  # early return guard
+        return None
+
+    gaps = np.diff(idx_sorted)  # length of n-1
+    breaks = np.where(gaps > gap_threshold)[0] + 1  # add 1 to compensate
+    groups = np.split(idx_sorted, breaks)
+
+    read_plan: list[tuple[slice, np.ndarray | None]] = []
+
+    for group in groups:
+        read_slice = slice(group[0], group[-1] + 1)
+        slice_length = read_slice.stop - read_slice.start
+
+        if slice_length == len(group):  # no mask needed
+            read_plan.append((read_slice, None))
+
+        else:
+            mask = np.zeros(shape=slice_length, dtype=bool)
+            mask[group - group[0]] = True  # offsets relative to beginning of slice
+            read_plan.append((read_slice, mask))
+
+    return read_plan
+
+
 def assign_local_subhaloes(
     particles: dict[str, ParticleStore],
     subhalo_info: SubhaloInformation | None,
