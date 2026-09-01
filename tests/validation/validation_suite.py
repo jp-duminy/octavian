@@ -56,7 +56,8 @@ def validation_run() -> None:
         config = replace(config, snapshot_path=args.snapshot)
     if args.output_dir:
         config = replace(config, output_dir=args.output_dir)
-    memray_file: Path = args.output_dir / f"memray_rank_{rank}.bin"
+    output_dir = config.output_dir
+    memray_file: Path = output_dir / f"memray_rank_{rank}.bin"
     memray_file.unlink(missing_ok=True)
 
     with memray.Tracker(
@@ -75,6 +76,13 @@ def validation_run() -> None:
                 atol=args.atol,
             )
 
+        if args.standalone:
+            validate_standalone_analysis(
+                snapshot_path=config.snapshot_path,
+                catalogue=catalogue_path,
+                config=config,
+            )
+
     logger = get_logger()
 
     passed = all(success for _, success, _ in RESULTS)
@@ -83,6 +91,7 @@ def validation_run() -> None:
     logger.info("Generating memray flamegraphs.")
     # auto generate the flamegraphs (can take several minutes on large snaps)
     flamegraph_path = memray_file.with_suffix(".html")
+    flamegraph_path.unlink(missing_ok=True)
     subprocess.run(
         ["memray", "flamegraph", str(memray_file), "-o", str(flamegraph_path)],
         check=True,
@@ -210,8 +219,8 @@ def validate_standalone_analysis(
     analyser = build_analyser(snapshot_path=snapshot_path, catalogue=cat, config=config)
     rng = np.random.default_rng(seed=SEED)
 
-    random_gal_idx = rng.choice(cat.n_galaxies, size=5, replace=False)
-    random_halo_idx = rng.choice(cat.n_haloes, size=5, replace=False)
+    random_gal_idx = np.sort(rng.choice(cat.n_galaxies, size=5, replace=False))
+    random_halo_idx = np.sort(rng.choice(cat.n_haloes, size=5, replace=False))
 
     core_datasets = ["velocity_dispersion_baryon", "radius_half_mass_star", "inertia_tensor_gas"]
     particle_datasets = ["mass_HI", "metallicity_gas_sfr_weighted", "sfr"]
@@ -224,7 +233,7 @@ def validate_standalone_analysis(
             "haloes",
             random_halo_idx,
             cat.haloes,
-            core_datasets + ["virial_temperature"],
+            core_datasets + ["temperature_virial"],
         ),
         (analyser.compute_ptype_specific_properties, "galaxies", random_gal_idx, cat.galaxies, particle_datasets),
         (
@@ -238,27 +247,29 @@ def validate_standalone_analysis(
     ]
 
     for stage_fn, group_type, group_indices, collection, datasets in stage_checks:
-        if group_type == "galaxies":
+        if stage_fn == analyser.compute_photometry:
             result = stage_fn(group_indices=group_indices)
         else:
             result = stage_fn(group_indices=group_indices, group_type=group_type)
 
         for dataset in datasets:
-            pipeline_values = collection.get_dataset(dataset, mask=group_indices)
-            standalone_values = result[dataset]
-            np.testing.assert_allclose(
-                pipeline_values,
-                standalone_values,
-                rtol=rtol,
-                atol=atol,
-                err_msg=f"{dataset} failed for {group_type}.",
-            )
+            with record_assertion_result(f"Standalone analysis: {group_type}/{dataset}"):
+                pipeline_values = collection.get_dataset(dataset, mask=group_indices)
+                standalone_values = result[dataset]
+                np.testing.assert_allclose(
+                    pipeline_values,
+                    standalone_values,
+                    rtol=rtol,
+                    atol=atol,
+                    err_msg=f"{dataset} failed for {group_type}.",
+                )
 
-    # rotation check for photometry
-    face_on = analyser.compute_photometry(group_indices=random_gal_idx, orientation="face-on")
-    edge_on = analyser.compute_photometry(group_indices=random_gal_idx, orientation="edge-on")
+    with record_assertion_result(label="Photometry rotation checks"):
+        # rotation check for photometry
+        face_on = analyser.compute_photometry(group_indices=random_gal_idx, orientation="face-on")
+        edge_on = analyser.compute_photometry(group_indices=random_gal_idx, orientation="side-on")
 
-    assert not np.allclose(face_on["mag_app_v"], edge_on["mag_app_v"]), "Rotated photometry has no effect."
+        assert not np.allclose(face_on["mag_app_v"], edge_on["mag_app_v"]), "Rotated photometry has no effect."
 
 
 @contextmanager

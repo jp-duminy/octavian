@@ -186,7 +186,7 @@ class OctaviusAnalyser:
         if group_type not in self._collections:
             raise KeyError(f"'{group_type}' is not present in the catalogue.")
 
-        group_indices = np.array(group_indices)
+        group_indices = np.sort(np.array(group_indices))
         photometry = self._internals.stages["photometry"]
         self._verify_dependencies(stage=photometry, group_type=group_type)
 
@@ -264,7 +264,7 @@ class OctaviusAnalyser:
         if group_type not in self._collections:
             raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
 
-        group_indices = np.array(group_indices)
+        group_indices = np.sort(np.array(group_indices))
         stage = self._internals.stages["properties_ptype_specific"]
         self._verify_dependencies(stage=stage, group_type=group_type)
 
@@ -318,7 +318,7 @@ class OctaviusAnalyser:
         if group_type not in self._collections:
             raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
 
-        group_indices = np.array(group_indices)
+        group_indices = np.sort(np.array(group_indices))
         stage = self._internals.stages["properties_core"]
         self._verify_dependencies(stage=stage, group_type=group_type)
 
