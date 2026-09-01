@@ -68,8 +68,6 @@ def build_analyser(
     -----
     The config can be modified from the one used to create the snapshot. Pipeline-specific parameters will be disregarded.
     """
-    configure_logger(snapshot_path=snapshot_path, rank=0, output_level=config.terminal_output_level)
-
     # initialise data structures
     constants = OctaviusConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
@@ -142,6 +140,7 @@ class OctaviusAnalyser:
         self._config = config
         self._constants = constants
         self._internals = internals
+        configure_logger(snapshot_path=config.snapshot_path.stem, rank=0, output_level=config.terminal_output_level)
 
         self._collections: dict[str, GroupCollection] = {}
         if catalogue.galaxies is not None:
@@ -156,7 +155,7 @@ class OctaviusAnalyser:
         """
         Controls behaviour of print(OctaviusAnalyser)
         """
-        return f"<OctaviusAnalyser> | {self._reader.snapshot_path.stem} |"
+        return f"<OctaviusAnalyser> | {self._reader.snapshot_path.stem}"
 
     def compute_photometry(
         self,
@@ -168,7 +167,7 @@ class OctaviusAnalyser:
 
         Parameters
         ----------
-        group_indices: list[str]
+        group_indices: list[int]
             The indices into the Octavius catalogue of the galaxies to run on.
         orientation: str | np.ndarray | None
             Orientation to rotate the galaxies into. ``edge-on`` and ``face-on`` are available, or a bespoke (3, 3) rotation
@@ -180,7 +179,7 @@ class OctaviusAnalyser:
             A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
         """
         names, lambda_effs = read_filter_names(self._config.photometry_table_filepath)
-        self._config = replace(self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs))
+        config = replace(self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs))
 
         group_type = "galaxies"  # only runs on galaxies
         if group_type not in self._collections:
@@ -237,7 +236,7 @@ class OctaviusAnalyser:
         )
 
         pre_columns = set(galaxies.columns.keys())
-        run_photometry(sim_data, self._config)
+        run_photometry(simulation_data=sim_data, config=config)
         results = _extract_results(
             group_store=galaxies, group_type=group_type, group_indices=group_indices, pre_columns=pre_columns
         )
@@ -250,7 +249,7 @@ class OctaviusAnalyser:
 
         Parameters
         ----------
-        group_indices: list[str]
+        group_indices: list[int]
             The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
             to one type of group (e.g. only galaxies or only haloes).
 
@@ -302,7 +301,7 @@ class OctaviusAnalyser:
 
         Parameters
         ----------
-        group_indices: list[str]
+        group_indices: list[int]
             The indices into the Octavius catalogue of the groups to run on. You should only pass indices corresponding
             to one type of group (e.g. only galaxies or only haloes).
 
@@ -542,7 +541,9 @@ def _build_group_store(
     subset_data: dict[str, SubsetParticleData],
     internals: Internals,
 ) -> GroupStore:
-
+    """
+    Constructs a GroupStore; creates sorted_idx with np.arange().
+    """
     group_config = internals.group_types[group_type]
 
     store = GroupStore(
@@ -564,7 +565,7 @@ def _resolve_linked_groups(
     linking_column: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Resolves groups for stages which require another group to be present (e.g. photometry needs halo gas).Returns:
+    Resolves groups for stages which require another group to be present (e.g. photometry needs halo gas). Returns:
 
     - unique_map_idx: unique indices of mapped groups which need to be loaded (e.g. field haloes)
     - multi_map_link: array where multi_map_link[g] links to mapped group (for representing many-to-one)
