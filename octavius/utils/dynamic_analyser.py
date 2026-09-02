@@ -42,9 +42,9 @@ logger = get_logger()
 
 
 def build_analyser(
-    snapshot_path: Path,
     catalogue: OctaviusCatalogue,
     config: OctaviusConfig,
+    snapshot_path: Path | None = None,
 ) -> OctaviusAnalyser:
     """
     Constructs an ``Analyser`` object for dynamic, on-the-fly analysis of groups in an Octavius catalogue
@@ -52,12 +52,12 @@ def build_analyser(
 
     Parameters
     ----------
-    snapshot_path: pathlib.Path
-        Path object pointing to the original, raw snapshot.
     catalogue: OctaviusCatalogue
         OctaviusCatalogue object corresponding to the snapshot.
     config: OctaviusConfig
         OctaviusConfig object.
+    snapshot_path: Path or None, optional
+        Path object pointing to the original, raw snapshot (overrides config field).
 
     Returns
     -------
@@ -70,6 +70,7 @@ def build_analyser(
     """
     # initialise data structures
     constants = OctaviusConstants(mu=config.MU, frad=config.FRAD)
+    snapshot_path = snapshot_path or config.snapshot_path
     reader = build_reader(snapshot_path=snapshot_path, constants=constants, config=config)
     internals = load_internals(internals_filepath=INTERNALS_FILEPATH, config=config)
 
