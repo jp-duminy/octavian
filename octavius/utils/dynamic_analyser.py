@@ -156,9 +156,20 @@ class OctaviusAnalyser:
         """
         return f"<OctaviusAnalyser> | {self._reader.snapshot_path.stem}"
 
+    def update_config(self, **kwargs) -> None:
+        """
+        Updates the config object with the specified parameters.
+
+        Parameters
+        ----------
+        **kwargs
+            The keyword arguments are replaced in the config.
+        """
+        self._config = replace(self._config, **kwargs)
+
     def compute_photometry(
         self,
-        group_indices: list[int],
+        group_indices: list[int] | np.ndarray,
         orientation: str | np.ndarray | None = None,
     ) -> StageResult:
         """
@@ -178,6 +189,8 @@ class OctaviusAnalyser:
             A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
         """
         from ..photometry import run_photometry, read_filter_names, resolve_band_names  # avoid circular import
+
+        group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
 
         names, lambda_effs = read_filter_names(self._config.photometry_table_filepath)
         config = replace(self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs))
@@ -244,7 +257,7 @@ class OctaviusAnalyser:
 
         return results
 
-    def compute_ptype_specific_properties(self, group_indices: list[int], group_type: str) -> StageResult:
+    def compute_ptype_specific_properties(self, group_indices: list[int] | np.ndarray, group_type: str) -> StageResult:
         """
         Runs the particle-type specific properties routine for the groups (of one group type) specified by group_indices.
 
@@ -261,10 +274,11 @@ class OctaviusAnalyser:
         """
         from ..aggregate_properties import run_ptype_specific_properties  # avoid circular import
 
+        group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
+
         if group_type not in self._collections:
             raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
 
-        group_indices = np.sort(np.array(group_indices))
         stage = self._internals.stages["properties_ptype_specific"]
         self._verify_dependencies(stage=stage, group_type=group_type)
 
@@ -298,7 +312,7 @@ class OctaviusAnalyser:
         )
         return results
 
-    def compute_core_properties(self, group_indices: list[int], group_type: str) -> StageResult:
+    def compute_core_properties(self, group_indices: list[int] | np.ndarray, group_type: str) -> StageResult:
         """
         Runs the core properties routine for the groups (of one group type) specified by group_indices.
 
@@ -315,10 +329,11 @@ class OctaviusAnalyser:
         """
         from ..aggregate_properties import run_core_properties  # avoid circular import
 
+        group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
+
         if group_type not in self._collections:
             raise KeyError(f"Group type '{group_type}' is not present in the catalogue.")
 
-        group_indices = np.sort(np.array(group_indices))
         stage = self._internals.stages["properties_core"]
         self._verify_dependencies(stage=stage, group_type=group_type)
 

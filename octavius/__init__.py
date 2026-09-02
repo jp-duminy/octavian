@@ -5,6 +5,7 @@ from .run_octavius import (
 )
 from .utils import (
     load_catalogue as load_catalogue,
+    build_analyser as build_analyser,
     generate_test_catalogue as generate_test_catalogue,
     generate_swift_snapshot as generate_swift_snapshot,
     generate_gizmo_snapshot as generate_gizmo_snapshot,
@@ -15,6 +16,7 @@ __all__ = [
     "OctaviusConfig",
     "OctaviusConstants",
     "analyse_snapshot",
+    "build_analyser",
     "load_catalogue",
     "generate_test_catalogue",
     "generate_swift_snapshot",
