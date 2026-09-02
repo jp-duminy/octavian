@@ -140,7 +140,7 @@ def test_rank_halo_assignments() -> None:
 
     halo_assignments = HaloAssignments(
         field_ids=halo_ids,
-        n_total_haloes=n_haloes,
+        n_field_haloes=n_haloes,
         sub_ids=None,
         original_field_ids=np.arange(n_haloes, dtype=np.int64),
     )

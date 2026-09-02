@@ -356,7 +356,7 @@ def analyse_snapshot(
 
     rank_halo_assignments = HaloAssignments(
         field_ids=local_halo_ids,
-        n_total_haloes=len(halo_to_rank),
+        n_field_haloes=len(halo_to_rank),
         sub_ids=local_subhalo_ids,
         original_field_ids=original_halo_ids,
     )

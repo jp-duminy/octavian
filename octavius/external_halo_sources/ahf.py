@@ -172,7 +172,7 @@ class AHFHaloSource(HaloSource):
 
         return HaloAssignments(
             field_ids=halo_assignments,
-            n_total_haloes=n_total_haloes,
+            n_field_haloes=n_total_haloes,
             sub_ids=subhalo_assignments,
             original_field_ids=catalogue.original_field_ids,
         )
