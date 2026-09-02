@@ -169,7 +169,7 @@ def generate_rank_halo_assignments(
     for ptype, halo_ids in halo_assignments.field_ids.items():
         valid = halo_ids[halo_ids != -1]  # masks valid HaloIDs here
         ptype_counts[ptype] = np.bincount(
-            valid, minlength=halo_assignments.n_total_haloes
+            valid, minlength=halo_assignments.n_field_haloes
         )  # same logic as sum_per_group in aggregate_helpers.py
 
     haloes_exist = sum(ptype_counts.values()) > 0
@@ -180,9 +180,9 @@ def generate_rank_halo_assignments(
 
     if all_valid_hids.size == 0:  # guard against no-halo snapshots (high-z)
         logger.warning("No valid HaloIDs!")
-        return np.full(shape=halo_assignments.n_total_haloes, fill_value=-1, dtype=np.int64)  # match type check
+        return np.full(shape=halo_assignments.n_field_haloes, fill_value=-1, dtype=np.int64)  # match type check
 
-    n_valid_haloes = halo_assignments.n_total_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
+    n_valid_haloes = halo_assignments.n_field_haloes  # at this point the reader has remapped HaloIDs to 0-indexed
 
     halo_to_rank = np.full(shape=n_valid_haloes, fill_value=-1, dtype=np.int64)
 

@@ -38,7 +38,7 @@ class HaloAssignments:
     """
 
     field_ids: dict[str, np.ndarray]
-    n_total_haloes: int
+    n_field_haloes: int
     sub_ids: dict[str, np.ndarray] | None = None
     original_field_ids: np.ndarray | None = None
 
@@ -69,10 +69,13 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
 
     - HaloSource corresponding to the config source.
     """
-    if config.halo_id_source == "SNAPSHOT":
+    id_source = config.halo_id_source.upper()  # autocapitalise for user convenience
+
+    if id_source == "SNAPSHOT":
         logger.info("Using snapshot-assigned HaloIDs.")
         return SnapshotHaloSource(reader=reader)
-    elif config.halo_id_source == "AHF":
+
+    elif id_source == "AHF":
         from .ahf import AHFHaloSource  # I had to stick this in here to avoid a circular import
 
         prefix = config.halo_id_filepath  # renamed for explicitness
@@ -83,8 +86,17 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
             particles_path=prefix.with_suffix(".AHF_particles"),
             reader=reader,
         )
+
+    elif id_source == "HBT-HERONS":
+        from .hbt_herons import HeronsHaloSource
+
+        logger.info("Using HBT-HERONS halo IDs.")
+        logger.info(f"Finding HBT-HERONS catalogue at {config.halo_id_filepath}")
+
+        return HeronsHaloSource(catalogue_path=config.halo_id_filepath, reader=reader)
+
     else:
-        raise ValueError("Unknown halo ID source, please check config?")
+        raise ValueError(f"Unknown halo catalogue source {id_source}, please check config?")
 
 
 def build_contiguous_id_lookup(ids: np.ndarray) -> np.ndarray:
@@ -169,7 +181,7 @@ class SnapshotHaloSource(HaloSource):
 
         return HaloAssignments(
             field_ids=halo_ids,
-            n_total_haloes=n_total_haloes,
+            n_field_haloes=n_total_haloes,
             sub_ids=None,
             original_field_ids=None,
         )
