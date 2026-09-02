@@ -183,6 +183,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         use_cosmic_ext=config.use_cosmic_extinction,
         use_dust=use_dust,
         use_rotation=use_rotation,
+        keep_spectra=config.keep_spectra,  # use for standalone photometry only
         rotation_matrices=rotation_matrices,
     )
 
@@ -203,24 +204,32 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     )
 
     logger.info("Computing photometric properties for galaxies.")
-    mag_abs, mag_abs_nodust, mag_app, mag_app_nodust, luminosity_fir, beta, beta_nodust = (
-        compute_photometric_properties(
-            star_data=star_data,
-            gas_data=gas_data,
-            ssp_data=ssp_data,
-            filter_data=filter_data,
-            dust_data=dust_data,
-            phot_constants=phot_constants,
-            field_halo_idx=field_halo_idx,
-            gal_com_pos=gal_com_pos,
-            n_galaxies=galaxies.n_groups,
-            delta_nu=delta_nu,
-            wavelengths=wavelengths,
-            uv_start_idx=uv_start_idx,
-            uv_end_idx=uv_end_idx,
-            madau_transmission=madau_transmission,
-            kernel_table=kernel_table,
-        )
+    (
+        mag_abs,
+        mag_abs_nodust,
+        mag_app,
+        mag_app_nodust,
+        luminosity_fir,
+        beta,
+        beta_nodust,
+        spectra_dust,
+        spectra_nodust,
+    ) = compute_photometric_properties(
+        star_data=star_data,
+        gas_data=gas_data,
+        ssp_data=ssp_data,
+        filter_data=filter_data,
+        dust_data=dust_data,
+        phot_constants=phot_constants,
+        field_halo_idx=field_halo_idx,
+        gal_com_pos=gal_com_pos,
+        n_galaxies=galaxies.n_groups,
+        delta_nu=delta_nu,
+        wavelengths=wavelengths,
+        uv_start_idx=uv_start_idx,
+        uv_end_idx=uv_end_idx,
+        madau_transmission=madau_transmission,
+        kernel_table=kernel_table,
     )
 
     results: dict[str, np.ndarray] = {}
@@ -234,6 +243,10 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     results["luminosity_fir"] = luminosity_fir
     results["beta"] = beta
     results["beta_nodust"] = beta_nodust
+
+    if config.keep_spectra:
+        results["spectra"] = spectra_dust
+        results["spectra_nodust"] = spectra_nodust
 
     galaxies.write_batch(results=results)  # use write_batch for shape checking
 

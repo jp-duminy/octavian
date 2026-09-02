@@ -113,6 +113,7 @@ class OctaviusConfig:
     kernel_type: str = "cubic"
     power_law_alpha: float = 1.0
     split_age: float = 0.01
+    keep_spectra: bool = False  # used for standalone photometry, not in YAML file
 
     terminal_output_level: str = "INFO"
     keep_logs: bool = False

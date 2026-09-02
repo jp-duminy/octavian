@@ -293,6 +293,7 @@ PhotometryConstants = namedtuple(
         "use_cosmic_ext",
         "use_dust",
         "use_rotation",
+        "keep_spectra",
         "rotation_matrices",
     ],
 )

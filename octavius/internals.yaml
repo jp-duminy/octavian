@@ -465,7 +465,7 @@ output_columns:
     dtype:       float64
     unit:        "Lsun"
     a_exp:       0
-    description: "Bolometric far-infrared luminosity."
+    description: "Bolometric dust-reprocessed luminosity."
 
   beta:
     dtype:       float64

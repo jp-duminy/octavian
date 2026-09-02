@@ -19,6 +19,7 @@ from pathlib import Path
 
 # other packages
 import numpy as np
+import h5py
 from scipy.spatial.transform import Rotation
 
 # internal imports
@@ -170,6 +171,7 @@ class OctaviusAnalyser:
     def compute_photometry(
         self,
         group_indices: list[int] | np.ndarray,
+        keep_spectra: bool = False,
         orientation: str | np.ndarray | None = None,
     ) -> StageResult:
         """
@@ -179,6 +181,8 @@ class OctaviusAnalyser:
         ----------
         group_indices: list[int]
             The indices into the Octavius catalogue of the galaxies to run on.
+        keep_spectra: bool
+            Whether or not to keep the galaxy spectra (uses more memory). Default: ``False``
         orientation: str | np.ndarray | None
             Orientation to rotate the galaxies into. ``edge-on`` and ``side-on`` are available, or a bespoke (3, 3) rotation
             matrix can be passed. If left blank, the default positions will be used.
@@ -193,7 +197,9 @@ class OctaviusAnalyser:
         group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
 
         names, lambda_effs = read_filter_names(self._config.photometry_table_filepath)
-        config = replace(self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs))
+        config = replace(
+            self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs), keep_spectra=keep_spectra
+        )
 
         group_type = "galaxies"  # only runs on galaxies
         if group_type not in self._collections:
@@ -241,6 +247,12 @@ class OctaviusAnalyser:
 
         if orientation is not None:
             align_orientations(galaxies=galaxies, orientation=orientation)  # modifies in place
+            if isinstance(orientation, str):
+                los_axis = "z" if orientation == "face-on" else "x"
+                config = replace(config, viewing_axis=los_axis)
+                logger.debug(
+                    f"Overriding viewing_axis parameter to '{los_axis}' for requested orientation {orientation}."
+                )
 
         sim_data = SimulationData(
             simulation=self._reader.simulation_attributes,
@@ -254,6 +266,11 @@ class OctaviusAnalyser:
         results = _extract_results(
             group_store=galaxies, group_type=group_type, group_indices=group_indices, pre_columns=pre_columns
         )
+
+        with h5py.File(config.photometry_table_filepath, "r") as f:
+            wavelengths = f["ssp"]["wavelengths"][:]
+
+        results.columns["wavelengths"] = wavelengths
 
         return results
 
@@ -651,16 +668,17 @@ def align_orientations(
     In-place modifies the GroupStores to rotate particles into the requested reference frame (or rotation
     matrix). This will rotate galaxies relative to the z component of their angular momentum.
     """
-    L_vectors = galaxies["L_baryon"]
-    L_mags = np.linalg.norm(L_vectors, axis=1)
-    L_unit_vectors = guarded_divide(L_vectors, L_mags[:, np.newaxis])  # new axis for shape consistency
     n_galaxies = galaxies.n_groups
     rotation_matrices = np.empty(shape=(n_galaxies, 3, 3), dtype=np.float64)
 
-    if isinstance(orientation, np.ndarray):
+    if isinstance(orientation, np.ndarray):  # early return if pre-passed matrix
         rotation_matrices[:] = orientation
         galaxies["_rotation_matrices"] = rotation_matrices
         return
+
+    L_vectors = galaxies["L_baryon"]
+    L_mags = np.linalg.norm(L_vectors, axis=1)
+    L_unit_vectors = guarded_divide(L_vectors, L_mags[:, np.newaxis])  # new axis for shape consistency
 
     if orientation == "face-on":
         rotation_vector = [0, 0, 1]

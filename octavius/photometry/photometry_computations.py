@@ -41,7 +41,7 @@ def compute_photometric_properties(
     # misc
     madau_transmission: np.ndarray,
     kernel_table: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Runs all photometric property computations for galaxies in parallel. Returns:
 
@@ -52,6 +52,8 @@ def compute_photometric_properties(
     - luminosity_fir: (n_galaxies) dust-reprocessed luminosities
     - beta: uv slope
     - beta_nodust: uv slope (no dust correction)
+    - out_spectra_dust: the spectrum with dust attenuation (only if spectra flag is enabled)
+    - out_spectra_nodust: the spectrum with no dust attenuation (only if spectra flag is enabled)
     """
     n_bands = len(filter_data.transmission_norm_abs)
     n_lambdas = len(wavelengths)
@@ -65,6 +67,13 @@ def compute_photometric_properties(
     luminosity_fir = np.full(shape=n_galaxies, fill_value=np.nan)
     beta = np.full(shape=n_galaxies, fill_value=np.nan)
     beta_nodust = np.full(shape=n_galaxies, fill_value=np.nan)
+
+    if phot_constants.keep_spectra:
+        out_spectra_dust = np.empty(shape=(n_galaxies, n_lambdas), dtype=np.float64)
+        out_spectra_nodust = np.empty(shape=(n_galaxies, n_lambdas), dtype=np.float64)
+    else:
+        out_spectra_dust = np.empty(shape=(0, 0), dtype=np.float64)
+        out_spectra_nodust = np.empty(shape=(0, 0), dtype=np.float64)
 
     # misc
     neighbour_offsets = np.array(  # for dust cells
@@ -218,6 +227,10 @@ def compute_photometric_properties(
             uv_end_idx=uv_end_idx,
         )
 
+        if phot_constants.keep_spectra:
+            out_spectra_dust[gal_idx] = spectrum_dust
+            out_spectra_nodust[gal_idx] = spectrum_nodust
+
     return (
         mag_abs,
         mag_abs_nodust,
@@ -226,6 +239,8 @@ def compute_photometric_properties(
         luminosity_fir,
         beta,
         beta_nodust,
+        out_spectra_dust,
+        out_spectra_nodust,
     )
 
 
