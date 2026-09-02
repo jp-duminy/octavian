@@ -155,6 +155,10 @@ class GroupCollection:
         Read a single property dataset with optional unit/physical conversion.
     get_datasets(names, mask, to_units, to_physical, verbose)
         Wrapper around get_dataset for reading multiple property datasets.
+    get_units(name)
+        Get the code units of a dataset as stored in the catalogue.
+    is_comoving(name)
+        Returns whether a dataset in the catalogue is stored in comoving coordinates.
     get_membership(name, group_index, verbose)
         Read a single membership dataset with the option of retrieving it for a single group.
     get_galaxies(halo_index)
@@ -162,7 +166,7 @@ class GroupCollection:
     get_particle_indices(ptype, group_index)
         Retrieve positional indices into the raw simulation snapshot for the particles of a group.
     keys()
-        Lists available aggregate property dataset names.
+        Lists available dataset names.
     """
 
     def __init__(self, data: h5py.Group, parent: OctaviusCatalogue, scale_factor: float) -> None:
@@ -206,7 +210,7 @@ class GroupCollection:
         """
         Prints all datasets available in the catalogue group collection, to save you having to inspect the HDF5 file.
         """
-        print(f"Aggregate properties ({len(self._dataset_paths)} datasets in catalogue)\n")
+        print(f"Available Datasets ({len(self._dataset_paths)} available):\n")
         for short_name, path in sorted(self._dataset_paths.items()):
             dataset = self._data[f"properties/{path}"]
             unit = dataset.attrs["unit"]
@@ -274,6 +278,40 @@ class GroupCollection:
                 print(f"Applied conversion factor of {conversion_factor:.3e} ({dataset.attrs['unit']} -> {to_units}).")
 
         return data
+
+    def get_units(self, name: str) -> str:
+        """
+        Returns the code units of a dataset in the catalogue.
+
+        Parameters
+        ----------
+        name: str
+            The catalogue name of the dataset.
+
+        Returns
+        -------
+        unit: str
+            The units, as a string.
+        """
+        dataset = self._data[f"properties/{self._dataset_paths[name]}"]
+        return dataset.attrs["unit"]
+
+    def is_comoving(self, name: str) -> bool:
+        """
+        Returns ``True`` if a dataset is stored in comoving coordinates.
+
+        Parameters
+        ----------
+        name: str
+            The catalogue name of the dataset.
+
+        Returns
+        -------
+        comoving: bool
+            Whether the dataset is comoving (has a scale factor exponent baked in).
+        """
+        dataset = self._data[f"properties/{self._dataset_paths[name]}"]
+        return dataset.attrs["a_exp"] != 0
 
     def get_datasets(
         self,
