@@ -70,9 +70,7 @@ def mock_catalogue(
 
     cat = load_catalogue(catalogue_path=output_path)  # check a catalogue object is constructable
     assert isinstance(cat, OctaviusCatalogue)
-    analyser = build_analyser(
-        snapshot_path=tmp_snap, catalogue=cat, config=config
-    )  # check an Analyser object is constructable
+    analyser = build_analyser(catalogue=cat, config=config)  # check an Analyser object is constructable
     assert isinstance(analyser, OctaviusAnalyser)
 
     catalogue = h5py.File(output_path, "r")
