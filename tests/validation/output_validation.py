@@ -95,7 +95,7 @@ def validate_halo_membership(f: h5py.File) -> None:
     Tests output catalogue halo membership.
     """
     all_keys = [f"membership/{p}_{s}" for p in PTYPES for s in SUFFIXES] + [
-        "membership/parent",
+        "membership/parent_halo_index",
         "membership/depth",
         "membership/original_ids",
     ]  # TODO: move to validation_columns.py
@@ -116,7 +116,7 @@ def validate_halo_membership(f: h5py.File) -> None:
     if n_empty_subhaloes > 0:
         logger.info(f"{n_empty_subhaloes} empty subhalo rows (permitted).")
 
-    parent = f["halo_data"]["membership/parent"][:]
+    parent = f["halo_data"]["membership/parent_halo_index"][:]
     depth = f["halo_data"]["membership/depth"][:]
     non_field = ~field_mask
     assert np.array_equal(field_mask, depth == 0), "parent == -1 (field-centric) and depth == 0 (sub-centric) disagree."
@@ -213,7 +213,7 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
 
         # tree hierarchy checking: can we recover field haloes, do all roads lead to rome (less poetically, do all subhaloes lead to fields)
         depth = f["halo_data"]["membership/depth"][:]
-        parent = f["halo_data"]["membership/parent"][:]
+        parent = f["halo_data"]["membership/parent_halo_index"][:]
         walker = parent_halo_indices.copy()
         for _ in range(int(depth.max())):
             at_field = depth[walker] == 0
@@ -359,5 +359,5 @@ def _get_field_mask(f: h5py.File, group_data: str) -> np.ndarray:
     """
     Returns a mask to field haloes.
     """
-    parent = f[group_data]["membership/parent"][:]
+    parent = f[group_data]["membership/parent_halo_index"][:]
     return parent == -1
