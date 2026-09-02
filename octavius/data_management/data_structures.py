@@ -100,9 +100,6 @@ def build_particle_stores(
         if halo_assignments.sub_ids is not None:
             store["SubhaloID"] = halo_assignments.sub_ids[ptype]
 
-        for dataset in ["mass", "pos", "vel"]:
-            store[dataset] = reader.read_dataset(ptype=ptype, dataset=dataset)
-
         particles[ptype] = store
 
     return particles

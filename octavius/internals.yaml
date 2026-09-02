@@ -26,7 +26,9 @@ stages:
     applies_to: []
     requires: []
     needs_particle_columns:
-      gas: [rho, sfr, metallicity, helium_fraction, temperature]
+      gas: [pos, vel, rho, sfr, metallicity, helium_fraction, temperature]
+      star: [pos, vel]
+      bh: [pos, vel]
 
   properties_core:
     label: core

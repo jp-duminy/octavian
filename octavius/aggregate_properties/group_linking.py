@@ -41,7 +41,7 @@ def assign_membership(
         return
     galaxies = simulation_data.groups["galaxies"]
     particles = simulation_data.particles
-    available_baryonic = [pt for pt, s in particles.items() if s.is_baryonic]
+    available_baryonic = simulation_data.available_baryonic_ptypes
     n_field_haloes = int((haloes["depth"] == 0).sum()) if "depth" in haloes else haloes.n_groups
 
     field_halo_index = assign_galaxy_field_indices(
