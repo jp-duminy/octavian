@@ -239,7 +239,6 @@ class GroupCollection:
 
         Parameters
         ----------
-
         name: str
             The catalogue name of the dataset.
         mask: ndarray, optional
@@ -253,7 +252,6 @@ class GroupCollection:
 
         Returns
         -------
-
         data: ndarray
             Array with requested conversions applied.
         """
@@ -327,7 +325,6 @@ class GroupCollection:
 
         Parameters
         ----------
-
         names: list[str]
             The catalogue names of the datasets.
         mask: ndarray, optional
@@ -341,7 +338,6 @@ class GroupCollection:
 
         Returns
         -------
-
         data_list: list[np.ndarray]
             List of ndarrays with requested conversions applied in the order specified by names.
         """
@@ -379,7 +375,6 @@ class GroupCollection:
 
         Parameters
         ----------
-
         name: str
             The name of the membership dataset.
         group_index: int, optional
@@ -389,7 +384,6 @@ class GroupCollection:
 
         Returns
         -------
-
         data: ndarray
             The array corresponding to the requested membership dataset.
         """
@@ -410,29 +404,56 @@ class GroupCollection:
         halo_index: int,
     ) -> np.ndarray:
         """
-        Retrieves the indices into the catalogue corresponding to the galaxies which belong to the
+        Retrieves the indices into the catalogue ``galaxy_data`` corresponding to the galaxies which belong to the
         halo at halo_index; will raise an error if used on the galaxies collection.
 
         Parameters
         ----------
-
         halo_index: int
             The HaloID (positional index into halo_data) of the halo for which members must be retrieved.
 
         Returns
         -------
-
         galaxies: np.ndarray
             An array of indices into galaxy_data to retrieve the galaxies' properties.
         """
         if self._group_type == "galaxy":
-            raise ValueError("get_galaxies is only valid on the halo collection.")
+            raise ValueError("get_galaxies() is only valid on the halo collection.")
 
         if halo_index < 0 or halo_index >= self._n_groups:
             raise IndexError(f"HaloID {halo_index} is out of bound: {self._n_groups} haloes exist.")
 
         offsets = self._data["membership/galaxy_offsets"]
         indices = self._data["membership/galaxy_indices"]
+
+        return indices[offsets[halo_index] : offsets[halo_index + 1]]
+
+    def get_subhaloes(
+        self,
+        halo_index: int,
+    ) -> np.ndarray:
+        """
+        Retrieves the indices into the catalogue ``halo_data`` corresponding to all subhaloes which belong to the
+        halo at halo_index (entire hierarchy); will raise an error if used on the galaxies collection.
+
+        Parameters
+        ----------
+        halo_index: int
+            The HaloID (positional index into halo_data) of the halo for which members must be retrieved.
+
+        Returns
+        -------
+        subhaloes: np.ndarray
+            An array of indices into halo_data to retrieve the subhaloes' properties.
+        """
+        if self._group_type == "galaxy":
+            raise ValueError("get_subhaloes() is only valid on the halo collection.")
+
+        if halo_index < 0 or halo_index >= self._n_groups:
+            raise IndexError(f"HaloID {halo_index} is out of bound: {self._n_groups} haloes exist.")
+
+        offsets = self._data["membership/subhalo_offsets"]
+        indices = self._data["membership/subhalo_indices"]
 
         return indices[offsets[halo_index] : offsets[halo_index + 1]]
 
