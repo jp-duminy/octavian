@@ -10,6 +10,9 @@ which would allow this to be safely done, we have the group-level data get broad
 then rank 0 calculates where each rank should write its indices output to, then ranks take turns
 sequentially writing their indices to the output file.
 
+That said, the functions here get really messy. They work but writing this caused a lot of grief
+and if there is a better way to do this, it would be much appreciated.
+
 """
 
 # type checking (semantic)
@@ -30,6 +33,7 @@ import numpy as np
 
 # internal imports
 from .conventions import DTYPES
+from ..data_management.csr import build_group_csr, propagate_membership_csr
 from ..log import get_logger
 
 logger = get_logger()
@@ -39,12 +43,16 @@ SORT_COLUMN_BY_KIND: dict[str, str] = {  # this is necessitated by haloes and ga
     "galaxy": "mass_baryon",
 }
 HALO_POINTER_COLUMNS: frozenset[str] = frozenset(
-    {"parent", "field_halo_index", "parent_halo_index"}
+    {"field_halo_index", "parent_halo_index"}
 )  # for hierarchical membership
 FILL_VALUES: dict[str, int] = {
-    "parent": -1,
+    "parent_halo_index": -1,
     "depth": 0,
 }  # this is so data doesn't get sent through the pipeline if it doesn't exist (but we still need corresponding sentinel values for the tree pointers)
+POST_SORT_COLUMNS: dict[str, frozenset[str]] = {
+    "haloes": frozenset({"central_galaxy_index", "field_halo_index"}),
+    "galaxies": frozenset({"central_galaxy_index"}),
+}
 
 
 @dataclass(slots=True)
@@ -275,6 +283,43 @@ def build_galaxy_membership_arrays(
     return indices, offsets, lengths, central_galaxy_index
 
 
+def build_subhalo_membership_arrays(
+    parent_halo_index: np.ndarray,
+    depth: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Builds the subhalo membership CSR arrays, returning a tuple of:
+
+    - indices: indices into halo_data of haloes' subhaloes
+    - offsets: where the subhaloes of each halo begins in subhalo_indices
+    - lengths: the number of subhaloes in each halo
+    - field_halo_index: the field halo index of each halo
+    """
+    n_haloes = len(parent_halo_index)
+    field_halo_index = np.full(shape=n_haloes, fill_value=-1, dtype=np.int64)  # initialise with sentinel value
+
+    # iterate over each depth level to get field haloes (redundant for many subhaloes but this is cheap)
+    current_level = parent_halo_index.copy()
+    for _ in range(int(depth.max()) if n_haloes > 0 else 0):  # guard on h_haloes > 0 else crashes if no haloes (high-z)
+        at_field = (current_level == -1) | (depth[current_level] == 0)  # subhaloes at field-level
+        current_level = np.where(
+            at_field, current_level, parent_halo_index[current_level]
+        )  # increment the depth counter
+
+    field_halo_index[depth > 0] = current_level[depth > 0]  # let field haloes stay at -1
+
+    exclusive_offsets, exclusive_idx = build_group_csr(group_idx=parent_halo_index, n_groups=n_haloes)
+    inclusive_offsets, inclusive_idx = propagate_membership_csr(
+        offsets=exclusive_offsets,
+        sorted_indices=exclusive_idx,
+        parent_ids=parent_halo_index,
+        n_groups=n_haloes,
+    )
+    inclusive_lengths = np.diff(inclusive_offsets).astype(DTYPES["csr_lengths"])
+
+    return inclusive_idx, inclusive_offsets, inclusive_lengths, field_halo_index
+
+
 def unpack_data(
     all_rank_data: list[RankPackedData],
     internals: Internals,
@@ -292,8 +337,7 @@ def unpack_data(
         group_type: {
             column_name: []
             for column_name in internals.membership_columns.get(group_type, {})
-            if column_name
-            != "central_galaxy_index"  # this is done post-sort (due to hierarchy pointer columns), see build_galaxy_membership_arrays
+            if column_name not in POST_SORT_COLUMNS.get(group_type, frozenset())
         }
         for group_type in internals.group_types
     }
@@ -463,30 +507,55 @@ def write_group_data_to_catalogue(
                 dataset.attrs["description"] = column_meta.description
 
         # now write the galaxy membership arrays (requires halo info available), not in internals.yaml like particle membership
-        if "haloes" in sort_orders and ("galaxies", "parent_halo_index") in resolved:
+        if "haloes" in sort_orders:
             n_haloes = len(sort_orders["haloes"])
-            galaxy_indices, galaxy_offsets, galaxy_lengths, central_galaxy_index = build_galaxy_membership_arrays(
-                resolved[("galaxies", "parent_halo_index")], resolved[("haloes", "parent")], n_haloes
-            )
-
             halo_membership_grp = f_out[internals.group_types["haloes"]["hdf5_group"]]["membership"]
 
-            # write halo-galaxy membership
-            ds = halo_membership_grp.create_dataset("galaxy_indices", data=galaxy_indices, compression=1)
-            ds.attrs["description"] = "Galaxy-level indices into galaxy_data."
+            subhalo_indices, subhalo_offsets, subhalo_lengths, field_halo_index = build_subhalo_membership_arrays(
+                parent_halo_index=resolved[("haloes", "parent_halo_index")],
+                depth=resolved[("haloes", "depth")],
+            )
 
-            ds = halo_membership_grp.create_dataset("galaxy_offsets", data=galaxy_offsets, compression=1)
+            ds = halo_membership_grp.create_dataset("subhalo_indices", data=subhalo_indices, compression=1)
+            ds.attrs["description"] = "Catalogue-level indices into halo_data of child subhaloes."
+
+            ds = halo_membership_grp.create_dataset("subhalo_offsets", data=subhalo_offsets, compression=1)
             ds.attrs["description"] = (
-                "Per-halo offsets into galaxy_indices, where galaxy_indices[offsets[h]:offsets[h+1]] recovers indexes into galaxy_data of galaxies belonging to halo h."
+                "Per-halo offsets into subhalo_indices, where subhalo_indices[offsets[h]:offsets[h+1]] recovers indexes into halo_data of subhaloes belonging to halo h."
             )
 
-            ds = halo_membership_grp.create_dataset("galaxy_lengths", data=galaxy_lengths, compression=1)
+            ds = halo_membership_grp.create_dataset("subhalo_lengths", data=subhalo_lengths, compression=1)
             ds.attrs["description"] = (
-                "Per-halo galaxy_data lengths; galaxy_lengths[h] is the number of galaxies in halo h."
+                "Per-halo halo_data lengths; subhalo_lengths[h] is the number of subhaloes in halo h."
             )
 
-            central_meta = internals.membership_columns["haloes"]["central_galaxy_index"]
-            central_dataset = halo_membership_grp.create_dataset(
-                "central_galaxy_index", data=central_galaxy_index, compression=1
-            )
-            central_dataset.attrs["description"] = central_meta.description
+            field_meta = internals.membership_columns["haloes"]["field_halo_index"]
+            ds = halo_membership_grp.create_dataset("field_halo_index", data=field_halo_index, compression=1)
+            ds.attrs["description"] = field_meta.description
+
+            if ("galaxies", "parent_halo_index") in resolved:
+                galaxy_indices, galaxy_offsets, galaxy_lengths, central_galaxy_index = build_galaxy_membership_arrays(
+                    resolved[("galaxies", "parent_halo_index")], resolved[("haloes", "parent_halo_index")], n_haloes
+                )
+
+                halo_membership_grp = f_out[internals.group_types["haloes"]["hdf5_group"]]["membership"]
+
+                # write halo-galaxy membership
+                ds = halo_membership_grp.create_dataset("galaxy_indices", data=galaxy_indices, compression=1)
+                ds.attrs["description"] = "Galaxy-level indices into galaxy_data."
+
+                ds = halo_membership_grp.create_dataset("galaxy_offsets", data=galaxy_offsets, compression=1)
+                ds.attrs["description"] = (
+                    "Per-halo offsets into galaxy_indices, where galaxy_indices[offsets[h]:offsets[h+1]] recovers indexes into galaxy_data of galaxies belonging to halo h."
+                )
+
+                ds = halo_membership_grp.create_dataset("galaxy_lengths", data=galaxy_lengths, compression=1)
+                ds.attrs["description"] = (
+                    "Per-halo galaxy_data lengths; galaxy_lengths[h] is the number of galaxies in halo h."
+                )
+
+                central_meta = internals.membership_columns["haloes"]["central_galaxy_index"]
+                central_dataset = halo_membership_grp.create_dataset(
+                    "central_galaxy_index", data=central_galaxy_index, compression=1
+                )
+                central_dataset.attrs["description"] = central_meta.description

@@ -484,9 +484,14 @@ output_columns:
 membership_columns:
 
   haloes:
-    parent:
+    parent_halo_index:
       dtype: int64
-      description: "Row index of immediate parent in halo_data (-1 for field haloes)."
+      description: "Catalogue index into halo_data of immediate parent (sub)halo (-1 for field haloes)."
+      unit: ""
+      a_exp:       0
+    field_halo_index:
+      dtype: int64
+      description: "Catalogue index into halo_data of field halo (-1 for field haloes)."
       unit: ""
       a_exp:       0
     depth:
@@ -496,24 +501,24 @@ membership_columns:
       a_exp:       0
     central_galaxy_index:
       dtype: int64
-      description: "Most massive galaxy in halo (inclusive of substructure, -1 if no galaxy)."
+      description: "Catalogue index into galaxy_data of most massive galaxy in halo (inclusive of substructure, -1 if no galaxy)."
       unit: ""
       a_exp:       0
     original_ids:
       dtype: int64
-      description: "Original finder IDs (-1 for snapshot-assigned haloes)."
+      description: "Original halo catalogue IDs (-1 for snapshot-assigned haloes)."
       unit: ""
       a_exp: 0
 
   galaxies:
     field_halo_index: 
       dtype: int64
-      description: "Catalogue index of galaxy's field halo."
+      description: "Catalogue index into halo_data of galaxy's field halo."
       unit: ""
       a_exp:       0
     parent_halo_index: 
       dtype: int64
-      description: "Catalogue index of immediate parent (sub)halo (equal to field_halo_index if no subhalo info); parent decided by plurality."
+      description: "Catalogue index into halo_data of immediate parent (sub)halo (equal to field_halo_index if no subhalo info); parent decided by plurality."
       unit: ""
       a_exp:       0
     parent_membership_fraction:

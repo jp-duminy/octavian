@@ -260,7 +260,7 @@ def build_halo_store(
             )
             store.csr_membership[ptype] = (inclusive_offsets, inclusive_sorted)
 
-        store["parent"] = parent_rows
+        store["parent_halo_index"] = parent_rows
         store["depth"] = np.concatenate([np.zeros(n_haloes, dtype=np.int64), subhalo_info.depth])
 
     else:
@@ -271,7 +271,7 @@ def build_halo_store(
             )
             store.csr_membership[ptype] = (offsets, sorted_indices)
 
-        store["parent"] = np.full(
+        store["parent_halo_index"] = np.full(
             n_haloes, -1, dtype=np.int64
         )  # NOTE: I know this is inefficient but otherwise tests break (catalogue inconsistency)
         store["depth"] = np.zeros(n_haloes, dtype=np.int64)
