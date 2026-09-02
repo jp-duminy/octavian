@@ -13,12 +13,14 @@ if TYPE_CHECKING:
 
 # default libraries
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 
 # other packages
 import numpy as np
 from numba import njit
 
 # internal imports
+from ..data_management import generate_slabs
 from ..log import get_logger
 
 logger = get_logger()
@@ -35,10 +37,10 @@ class HaloAssignments:
     - original_hids: original field halo IDs (from external finder)
     """
 
-    halo_ids: dict[str, np.ndarray]
+    field_ids: dict[str, np.ndarray]
     n_total_haloes: int
-    subhalo_ids: dict[str, np.ndarray] | None = None
-    original_hids: np.ndarray | None = None
+    sub_ids: dict[str, np.ndarray] | None = None
+    original_field_ids: np.ndarray | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -53,12 +55,12 @@ class SubhaloInformation:
     - original_subhids: the original finder IDs
     """
 
-    host_halo_ids: np.ndarray  # top-level HaloID
+    host_field_ids: np.ndarray  # top-level HaloID
     parent_index: np.ndarray  # immediate parent subhalo index
     depth: np.ndarray  # >= 1
     global_index: np.ndarray
     n_bound: np.ndarray
-    original_subhids: np.ndarray | None = None
+    original_sub_ids: np.ndarray | None = None
 
 
 def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSource:
@@ -96,86 +98,154 @@ def build_contiguous_id_lookup(ids: np.ndarray) -> np.ndarray:
     return lookup
 
 
-class HaloSource:
+class HaloSource(ABC):
+    """
+    Abstract base class for external halo catalogues. Should not be instantiated
+    directly, but always inherited.
+    """
+
+    def __init__(self, reader: SnapshotReader) -> None:
+
+        self.reader = reader
+
+    @abstractmethod
     def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
         """
-        Reads particles in raw snapshot their HaloIDs based on the conventions and quirks of the source implementation; returns a HaloAssignments dataclass.
+        Reads halo IDs (particle-level) of snapshot particles based on the conventions and quirks of the source
+        implementation; returns a HaloAssignments dataclass.
         """
-        raise NotImplementedError
+        ...
 
+    @abstractmethod
     def read_subhalo_info(self) -> SubhaloInformation | None:
         """
-        Reads subhalo information from the source, if this exists.
+        Reads subhalo-specific information for constructing hierarchies, if available; returns either a SubhaloInformation
+        dataclass or None if the catalogue does not contain hierarchies.
         """
-        return None
+        ...
 
-    def distribute_raw_halo_ids(
+    @abstractmethod
+    def distribute_field_ids(
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Distributes the global raw IDs (MPI).
+        Distributes particle field halo IDs.
         """
-        raise NotImplementedError
+        ...
 
-    def distribute_raw_subhalo_ids(
+    @abstractmethod
+    def distribute_sub_ids(
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_subhalo_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray] | None:
         """
-        Distributes the global raw subhalo IDs (MPI).
+        Distributes particle subhalo IDs.
         """
-        raise NotImplementedError
+        ...
 
 
 class SnapshotHaloSource(HaloSource):
     """
-    Raw snapshot halo sources (no external finder.) This means HaloIDs for GIZMO and FOFGroupIDs from SWIFT.
+    Reads snapshot-assigned halo IDs (no external catalogue).
+    Currently assumes snapshots do not contain subhalo information, only FOF groups.
     """
 
-    def __init__(self, reader: SnapshotReader):
-
-        self.reader = reader
-
-    def read_halo_ids(self, ptypes: list[str], comm=None, global_ids=None) -> HaloAssignments:
+    def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
         """
-        Iterates over ptypes with the reader to produce HaloAssignments.
+        Simply iterates over ptypes with the reader to produce HaloAssignments.
         """
         halo_ids: dict[str, np.ndarray] = {}
 
-        for pt in ptypes:
-            halo_ids[pt] = self.reader.read_halo_ids(ptype=pt)  # these are already contiguous
+        for ptype in ptypes:
+            halo_ids[ptype] = self.reader.read_halo_ids(ptype=ptype)  # these are already contiguous
 
         max_id = max(int(ids.max()) for ids in halo_ids.values() if len(ids) > 0)
         n_total_haloes = max_id + 1 if max_id >= 0 else 0  # derived, not read (could read from the actual field)
 
         return HaloAssignments(
-            halo_ids=halo_ids,
+            field_ids=halo_ids,
             n_total_haloes=n_total_haloes,
-            subhalo_ids=None,
-            original_hids=None,
-        )  # on-the-fly currently does not do subhaloes
+            sub_ids=None,
+            original_field_ids=None,
+        )
 
-    def distribute_raw_halo_ids(self, slabs: dict[str, slice], comm=None, global_ids=None) -> dict[str, np.ndarray]:
+    def distribute_field_ids(
+        self, slabs: dict[str, slice], comm: Comm | None, global_ids: dict[str, np.ndarray] | None = None
+    ) -> dict[str, np.ndarray]:
         """
         Iterates over ptypes to produce slabs of HaloIDs per-ptype.
         """
         raw_ids: dict[str, np.ndarray] = {}
 
-        for pt in self.reader.available_ptypes():
-            raw_ids[pt] = self.reader.read_halo_ids(ptype=pt, slab=slabs[pt])  # these are already contiguous
+        for ptype in self.reader.available_ptypes():
+            raw_ids[ptype] = self.reader.read_halo_ids(ptype=ptype, slab=slabs[ptype])  # these are already contiguous
 
         return raw_ids
 
-    def distribute_raw_subhalo_ids(self, slabs: dict[str, slice], comm=None, global_subhalo_ids=None) -> None:
+    def read_subhalo_info(self) -> SubhaloInformation | None:
         """
-        Exists for compatibility with AHF.
+        No subhaloes on SnapshotHaloSource.
         """
         return None
+
+    def distribute_sub_ids(
+        self,
+        slabs: dict[str, slice],
+        comm: Comm | None,
+        global_subhalo_ids: dict[str, np.ndarray] | None = None,
+    ) -> dict[str, np.ndarray] | None:
+        """
+        No subhaloes on SnapshotHaloSource.
+        """
+        return None
+
+
+def distribute_ids(
+    slabs: dict[str, slice],
+    particle_counts: dict[str, int],
+    comm: Comm | None,
+    global_ids: dict[str, np.ndarray] | None = None,
+) -> dict[str, np.ndarray]:
+    """
+    Distributes rank 0's raw halo ID information to the other ranks so they know
+    the HaloIDs of the particles on their slab. Returns:
+
+    - local_halo_ids: dict keyed per-ptype containing the rank's HaloID arrays
+    """
+    if comm is None or comm.size == 1:  # serial / mpiexec -n 1 guard
+        return {ptype: ids[slabs[ptype]].copy() for ptype, ids in global_ids.items()}
+
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    local_halo_ids: dict[str, np.ndarray] = {}
+
+    if rank == 0:
+        all_slabs = {
+            dest: generate_slabs(rank=dest, n_ranks=size, particle_counts=particle_counts) for dest in range(size)
+        }
+
+    # NOTE: done with send/receive as MPI-3 comm.scatter is capped to < int32 elements (https://github.com/PyLops/pylops-mpi/issues/115)
+    for ptype_index, ptype in enumerate(global_ids if rank == 0 else slabs):
+        slab = slabs[ptype]
+        slab_length = slab.stop - slab.start
+
+        if rank == 0:
+            local_halo_ids[ptype] = global_ids[ptype][slab].copy()  # .copy() instead of sending to itself
+            # sequentially send IDs to other ranks
+            for dest in range(1, size):
+                comm.Send(global_ids[ptype][all_slabs[dest][ptype]], dest=dest, tag=ptype_index)
+
+        else:
+            memory_block = np.empty(slab_length, dtype=np.int64)
+            comm.Recv(memory_block, source=0, tag=ptype_index)  # ranks wait to receive their local IDs
+            local_halo_ids[ptype] = memory_block  # memory block is now filled with global IDs from comm.Send
+
+    return local_halo_ids
 
 
 @njit

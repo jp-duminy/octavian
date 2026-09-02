@@ -166,7 +166,7 @@ def generate_rank_halo_assignments(
     logger.info(f"Computing halo assignments for {n_ranks} ranks.")
     ptype_counts = {}
 
-    for ptype, halo_ids in halo_assignments.halo_ids.items():
+    for ptype, halo_ids in halo_assignments.field_ids.items():
         valid = halo_ids[halo_ids != -1]  # masks valid HaloIDs here
         ptype_counts[ptype] = np.bincount(
             valid, minlength=halo_assignments.n_total_haloes
@@ -326,13 +326,13 @@ def assign_local_subhaloes(
 
     max_hid = max(int(hids.max()) for hids in non_empty)
     present_on_rank = np.zeros(
-        shape=(max(max_hid, subhalo_info.host_halo_ids.max()) + 1), dtype=bool
+        shape=(max(max_hid, subhalo_info.host_field_ids.max()) + 1), dtype=bool
     )  # max HaloID on rank and max host halo ID can be different due to field haloes with no substructure (sizing it to either/or introduced this edge case and dropped a subhalo during writing)
     for ptype in particles:
         hids = particles[ptype]["HaloID"]
         present_on_rank[hids[hids != -1]] = True  # this works because hids are contiguous and 0-indexed
 
-    keep = present_on_rank[subhalo_info.host_halo_ids]
+    keep = present_on_rank[subhalo_info.host_field_ids]
 
     global_to_local_map = np.full(len(subhalo_info.depth), -1, dtype=np.int64)  # depth is proxy for n_subhaloes
     global_to_local_map[np.flatnonzero(keep)] = np.arange(
@@ -355,12 +355,12 @@ def assign_local_subhaloes(
 
     new_subhalo_info = replace(
         subhalo_info,  # NOTE: n_total_haloes should not be replaced
-        host_halo_ids=subhalo_info.host_halo_ids[keep],
+        host_field_ids=subhalo_info.host_field_ids[keep],
         global_index=subhalo_info.global_index[keep],
         parent_index=new_parent_index,
         depth=subhalo_info.depth[keep],
         n_bound=subhalo_info.n_bound[keep],
-        original_subhids=subhalo_info.original_subhids[keep],
+        original_sub_ids=subhalo_info.original_sub_ids[keep],
     )
 
     return new_subhalo_info

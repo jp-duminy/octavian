@@ -25,7 +25,7 @@ store["SubhaloID"] = np.array([0, 1, 2, 0, -1, -1], dtype=np.int64)
 subhalo_test_particles = {"star": store}
 
 test_subhalo_info = SubhaloInformation(
-    host_halo_ids=np.array([0, 2, 3, 5, 0], dtype=np.int64),
+    host_field_ids=np.array([0, 2, 3, 5, 0], dtype=np.int64),
     parent_index=np.array([-1, -1, -1, -1, 0], dtype=np.int64),
     depth=np.array([1, 1, 1, 1, 2], dtype=np.int64),
     global_index=np.array([0, 1, 2, 3, 4], dtype=np.int64),
@@ -38,12 +38,12 @@ store["SubhaloID"] = np.array([0, 1, 2, 0, -1, -1], dtype=np.int64)
 subhalo_test_particles = {"star": store}
 
 test_subhalo_info = SubhaloInformation(
-    host_halo_ids=np.array([0, 2, 3, 5, 0], dtype=np.int64),
+    host_field_ids=np.array([0, 2, 3, 5, 0], dtype=np.int64),
     parent_index=np.array([-1, -1, -1, -1, 0], dtype=np.int64),
     depth=np.array([1, 1, 1, 1, 2], dtype=np.int64),
     global_index=np.array([0, 1, 2, 3, 4], dtype=np.int64),
     n_bound=np.array([10, 5, 8, 3, 4], dtype=np.int64),
-    original_subhids=np.array([0, 1, 2, 3, 4], dtype=np.int64),
+    original_sub_ids=np.array([0, 1, 2, 3, 4], dtype=np.int64),
 )
 
 # this rank owns HaloIDs 0, 1, 2, 3 and has one sentinel particle
@@ -64,7 +64,7 @@ def test_local_subhaloes() -> None:
     result = assign_local_subhaloes(particles=subhalo_test_particles, subhalo_info=test_subhalo_info)
 
     # expected derived from above (keep mask on initial arrays)
-    assert np.array_equal(result.host_halo_ids, np.array([0, 2, 3, 0], dtype=np.int64)), (
+    assert np.array_equal(result.host_field_ids, np.array([0, 2, 3, 0], dtype=np.int64)), (
         "assign_local_subhaloes failed: host IDs do not match."
     )
     assert np.array_equal(result.depth, np.array([1, 1, 1, 2], dtype=np.int64)), (
@@ -139,10 +139,10 @@ def test_rank_halo_assignments() -> None:
     }
 
     halo_assignments = HaloAssignments(
-        halo_ids=halo_ids,
+        field_ids=halo_ids,
         n_total_haloes=n_haloes,
-        subhalo_ids=None,
-        original_hids=np.arange(n_haloes, dtype=np.int64),
+        sub_ids=None,
+        original_field_ids=np.arange(n_haloes, dtype=np.int64),
     )
 
     # fill a config with some random defaults

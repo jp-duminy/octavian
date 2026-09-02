@@ -94,11 +94,11 @@ def build_particle_stores(
     particles: dict[str, ParticleStore] = {}
 
     for ptype in requested:
-        halo_ids = halo_assignments.halo_ids[ptype]
+        halo_ids = halo_assignments.field_ids[ptype]
         store = ParticleStore(ptype=ptype, n_particles=len(halo_ids), is_baryonic=ptype in internals.baryonic_ptypes)
         store["HaloID"] = halo_ids
-        if halo_assignments.subhalo_ids is not None:
-            store["SubhaloID"] = halo_assignments.subhalo_ids[ptype]
+        if halo_assignments.sub_ids is not None:
+            store["SubhaloID"] = halo_assignments.sub_ids[ptype]
 
         for dataset in ["mass", "pos", "vel"]:
             store[dataset] = reader.read_dataset(ptype=ptype, dataset=dataset)
@@ -250,7 +250,7 @@ def build_halo_store(
         parent_rows = np.full(n_haloes + n_subhaloes, -1, dtype=np.int64)
         depth_1_mask = subhalo_info.depth == 1
         deeper_mask = subhalo_info.depth > 1
-        parent_rows[n_haloes:][depth_1_mask] = field_to_row[subhalo_info.host_halo_ids[depth_1_mask]]
+        parent_rows[n_haloes:][depth_1_mask] = field_to_row[subhalo_info.host_field_ids[depth_1_mask]]
         parent_rows[n_haloes:][deeper_mask] = subhalo_info.parent_index[deeper_mask] + n_haloes
 
         for ptype in particles:
@@ -286,8 +286,8 @@ def build_halo_store(
     )
     if subhalo_info is not None:
         sub_originals = (
-            subhalo_info.original_subhids
-            if subhalo_info.original_subhids is not None
+            subhalo_info.original_sub_ids
+            if subhalo_info.original_sub_ids is not None
             else np.full(shape=n_subhaloes, fill_value=-1, dtype=np.int64)
         )
         store["original_ids"] = np.concatenate([field_originals, sub_originals])

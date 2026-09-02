@@ -37,10 +37,10 @@ from .halo_data_structures import (
     HaloAssignments,
     SubhaloInformation,
     HaloSource,
+    distribute_ids,
     compute_depths,
     apply_lookup,
 )
-from ..data_management import generate_slabs
 
 
 class AHFCatalogue(NamedTuple):  # for code readability
@@ -70,14 +70,15 @@ class AHFHaloSource(HaloSource):
 
     def __init__(self, haloes_path: Path, particles_path: Path, reader: SnapshotReader) -> None:
 
+        super().__init__(reader=reader)
         self.haloes_path = haloes_path
         self.particles_path = particles_path
-        self.reader = reader
 
     @cached_property  # cached_property allows AHFHaloSource to parse catalogues once while meeting the inheritance requirements of a HaloSource class
     def _haloes_catalogue(self) -> AHFCatalogue:
         """
-        Parses and stores AHF_halos file information, deriving raw ahf ids, parent indices, subhalo depths, and lookup arrays.
+        Parses and stores AHF_halos file information, deriving raw ahf ids, parent indices,
+        subhalo depths, and lookup arrays.
         """
         raw_ahf_ids, raw_host_ids, n_particles = parse_ahf_haloes(self.haloes_path)
 
@@ -123,7 +124,7 @@ class AHFHaloSource(HaloSource):
     def _particles(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Parses AHF_particles and deduplicates inclusive membership.
-        Returns (unique_pids, field_halo_indices, deepest_halo_indices), sorted by unique_pids.
+        Returns (unique_particle_ids, deepest_catalogue_indices), sorted by unique_pids.
         """
         particles_array = np.loadtxt(self.particles_path, skiprows=1, dtype=np.int64)
         depths = self._haloes_catalogue.depths
@@ -134,12 +135,14 @@ class AHFHaloSource(HaloSource):
 
     def read_halo_ids(self, ptypes: list[str]) -> HaloAssignments:
         """
-        Interfaces with the provided SnapshotReader and parses the .AHF_halos/AHF_particles files to match snapshot particle IDs with their AHF equivalents and produce the final assignments made by AHF. Returns:
+        Interfaces with the provided SnapshotReader and parses the .AHF_halos/AHF_particles files
+        to match snapshot particle IDs with their AHF equivalents and produce the final assignments
+        made by AHF. Returns:
 
         - HaloAssignments dataclass.
         """
         catalogue = self._haloes_catalogue
-        unique_pids, deepest_halo_indices = self._particles
+        unique_pids, deepest_catalogue_indices = self._particles
 
         halo_assignments: dict[str, np.ndarray] = {}
         subhalo_assignments: dict[str, np.ndarray] = {}
@@ -151,7 +154,7 @@ class AHFHaloSource(HaloSource):
                 snapshot_pids=snapshot_pids,
                 unique_ahf_pids=unique_pids,
                 field_of=catalogue.field_of,
-                deepest_halo_indices=deepest_halo_indices,
+                deepest_catalogue_indices=deepest_catalogue_indices,
                 depths=catalogue.depths,
             )
 
@@ -163,15 +166,15 @@ class AHFHaloSource(HaloSource):
         sub_info = self.read_subhalo_info()
         for ptype, sub_ids in subhalo_assignments.items():
             in_sub = sub_ids != -1
-            assert np.array_equal(sub_info.host_halo_ids[sub_ids[in_sub]], halo_assignments[ptype][in_sub]), (
+            assert np.array_equal(sub_info.host_field_ids[sub_ids[in_sub]], halo_assignments[ptype][in_sub]), (
                 f"{ptype}: particle HaloID disagrees with its subhalo's host tree."
             )
 
         return HaloAssignments(
-            halo_ids=halo_assignments,
+            field_ids=halo_assignments,
             n_total_haloes=n_total_haloes,
-            subhalo_ids=subhalo_assignments,
-            original_hids=catalogue.original_field_ids,
+            sub_ids=subhalo_assignments,
+            original_field_ids=catalogue.original_field_ids,
         )
 
     def read_subhalo_info(self) -> SubhaloInformation:
@@ -192,70 +195,45 @@ class AHFHaloSource(HaloSource):
         host_halo_ids = catalogue.field_lookup[catalogue.field_of[sub_mask]]
 
         return SubhaloInformation(
-            host_halo_ids=host_halo_ids,
+            host_field_ids=host_halo_ids,
             parent_index=parent_index,
             global_index=np.arange(sub_mask.sum(), dtype=np.int64),
             depth=catalogue.depths[sub_mask],
             n_bound=catalogue.n_particles[sub_mask],
-            original_subhids=catalogue.original_sub_ids,
+            original_sub_ids=catalogue.original_sub_ids,
         )
 
-    def distribute_raw_halo_ids(
+    def distribute_field_ids(
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Distributes rank 0's raw halo ID information to the other ranks so they know the HaloIDs of the particles on their slab. Returns:
-
-        - local_halo_ids: dict keyed per-ptype containing the rank's HaloID arrays
-
-        # TODO: can move to comm.Scatter on MPI-4 architectures rather than sequential send/receive.
+        Wrapper around distribute_ids() for field halo IDs.
         """
-        if comm is None or comm.size == 1:
-            return {ptype: ids[slabs[ptype]].copy() for ptype, ids in global_ids.items()}
+        return distribute_ids(
+            slabs=slabs,
+            particle_counts=self.reader.particle_counts,
+            comm=comm,
+            global_ids=global_ids,
+        )
 
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-        local_halo_ids: dict[str, np.ndarray] = {}
-
-        if rank == 0:
-            all_slabs = {
-                dest: generate_slabs(rank=dest, n_ranks=size, particle_counts=self.reader.particle_counts)
-                for dest in range(size)
-            }
-
-        for ptype_index, ptype in enumerate(
-            global_ids if rank == 0 else slabs
-        ):  # NOTE: done with send/receive as comm.scatter is capped to < int32 elements (https://github.com/PyLops/pylops-mpi/issues/115) kept for backwards-compatibility with MPI-3 as I am unsure what versions clusters use
-            slab = slabs[ptype]
-            slab_length = slab.stop - slab.start
-
-            if rank == 0:
-                local_halo_ids[ptype] = global_ids[ptype][slab].copy()  # .copy() instead of sending to itself
-
-                for dest in range(1, size):
-                    comm.Send(global_ids[ptype][all_slabs[dest][ptype]], dest=dest, tag=ptype_index)
-            else:
-                memory_block = np.empty(slab_length, dtype=np.int64)
-                comm.Recv(memory_block, source=0, tag=ptype_index)
-                local_halo_ids[ptype] = memory_block
-
-        return local_halo_ids
-
-    def distribute_raw_subhalo_ids(
+    def distribute_sub_ids(
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_subhalo_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Wrapper around distribute_raw_halo_ids, but for subhaloes (made so SnapshotHaloSource and AHFHaloSource can match). Returns:
-
-        - local_subhalo_ids: dict keyed per-ptype containing the rank's SubhaloID arrays
+        Wrapper around distribute_ids() for subhalo IDs.
         """
-        return self.distribute_raw_halo_ids(slabs=slabs, comm=comm, global_ids=global_subhalo_ids)
+        return distribute_ids(
+            slabs=slabs,
+            particle_counts=self.reader.particle_counts,
+            comm=comm,
+            global_ids=global_subhalo_ids,
+        )
 
 
 def parse_ahf_haloes(ahf_haloes_path: Path) -> tuple[np.ndarray, ...]:
@@ -273,7 +251,8 @@ def parse_ahf_haloes(ahf_haloes_path: Path) -> tuple[np.ndarray, ...]:
 @njit
 def parse_ahf_particles(ahf_particle_array: np.ndarray, n_haloes: int) -> tuple[np.ndarray, ...]:
     """
-    Iterates on an .AHF_particles file which has been converted into an (n, 2) array by np.loadtxt, returning a tuple of (pids, halo_ids).
+    Iterates on an .AHF_particles file which has been converted into an (n, 2) array by
+    np.loadtxt, returning a tuple of (pids, halo_ids).
     """
     n_particles = len(ahf_particle_array) - n_haloes
 
@@ -282,12 +261,14 @@ def parse_ahf_particles(ahf_particle_array: np.ndarray, n_haloes: int) -> tuple[
 
     current_halo = -1
     write_idx = 0
-    # these appear in a columnar structure where for each halo you have an initial n_particles | HaloID row followed by rows of PID | hostID till next halo
+    # these appear in a columnar structure where for each halo you have:
+    # initial n_particles | HaloID row
+    # followed by rows of PID | PartType till next halo
 
     for row_idx in range(len(ahf_particle_array)):
         if (
             ahf_particle_array[row_idx, 1] > 5
-        ):  # maximum ptype is 5 (GIZMO convention), so assuming this doesn't change we know we hit a halo
+        ):  # maximum PartType is 5 in standard convention; use this as a trick to figure out whether we are looking at a halo ID
             current_halo += 1  # NOTE: AHF haloes also have comically large IDs (6 quintillion or so)
 
         else:
@@ -304,7 +285,11 @@ def deduplicate_ahf_particles(
     depths: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Resolves the duplicate appearances of particles in AHF haloes by assigning them to their deepest membership, which follows the convention of then propagating child subhalo membership into parents; returns a tuple of unique particle ids, field halo indices, and (deepest) subhalo indices.
+    Resolves the duplicate appearances of particles in AHF haloes by assigning them to
+    their deepest membership. Returns:
+
+    - sorted_pids: unique particle IDs
+    - sorted_halo_indices: corresponding deepest catalogue halo index
     """
     particle_depths = depths[halo_indices]
 
@@ -315,7 +300,8 @@ def deduplicate_ahf_particles(
     sorted_pids = pids[sort_order]
     sorted_halo_indices = halo_indices[sort_order]
 
-    last_appearance = np.empty(len(sorted_pids), dtype=np.bool_)
+    # sort is depth-first; therefore, the final appearance of a particle is its deepest assignment
+    last_appearance = np.empty(shape=len(sorted_pids), dtype=np.bool_)
     last_appearance[-1] = True
     last_appearance[:-1] = sorted_pids[:-1] != sorted_pids[1:]
 
@@ -326,33 +312,38 @@ def match_ahf_particle_ids(
     snapshot_pids: np.ndarray,
     unique_ahf_pids: np.ndarray,
     field_of: np.ndarray,
-    deepest_halo_indices: np.ndarray,
+    deepest_catalogue_indices: np.ndarray,
     depths: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Matches ahf particle ids to their counterparts in the raw snapshot, returning an array of HaloIDs and SubhaloIDs.
+    Matches AHF particle ids to their counterparts in the raw snapshot, returning an array of HaloIDs and SubhaloIDs.
+
+    - aligned_field_ids: field halo IDs of particles, aligned with snapshot_pids
+    - aligned_sub_ids: subhalo IDs of particles, aligned with snapshot_pids
     """
-    insertion_idx = np.searchsorted(unique_ahf_pids, snapshot_pids)
+    # find where particle IDs match
+    insertion_idx = np.searchsorted(unique_ahf_pids, snapshot_pids)  # match snapshot to AHF, not the other way around
     insertion_idx = np.minimum(
         insertion_idx, len(unique_ahf_pids) - 1
     )  # prevent OOB when max(snapshot_pids) > max(ahf_pids)
-    matched = unique_ahf_pids[insertion_idx] == snapshot_pids
+    matched = unique_ahf_pids[insertion_idx] == snapshot_pids  # indices into AHF particle IDs which match
 
-    aligned_hids = np.full(shape=len(snapshot_pids), fill_value=-1, dtype=np.int64)
-    aligned_subhids = np.full(shape=len(snapshot_pids), fill_value=-1, dtype=np.int64)
+    aligned_field_ids = np.full(shape=len(snapshot_pids), fill_value=-1, dtype=np.int64)
+    aligned_sub_ids = np.full(shape=len(snapshot_pids), fill_value=-1, dtype=np.int64)
 
     matched_insertion = insertion_idx[matched]
-    deepest = deepest_halo_indices[matched_insertion]
+    deepest = deepest_catalogue_indices[matched_insertion]
 
-    aligned_hids[matched] = field_of[deepest]
-    aligned_subhids[matched] = np.where(depths[deepest] > 0, deepest, -1)
+    aligned_field_ids[matched] = field_of[deepest]  # assign field IDs via the field halo of their deepest subhalo
+    aligned_sub_ids[matched] = np.where(depths[deepest] > 0, deepest, -1)  # subhalo ID is the ID of the deepest subhalo
 
-    return aligned_hids, aligned_subhids
+    return aligned_field_ids, aligned_sub_ids
 
 
 def remap_ahf_ids(ahf_ids: np.ndarray, raw_host_ids: np.ndarray) -> np.ndarray:
     """
-    Map the comically-large AHF IDs to positional indices (necessary otherwise you will allocate an unfathomably large array of several exobytes).
+    Map the comically-large AHF IDs to positional indices (necessary otherwise you will allocate an
+    unfathomably large array of several exobytes).
     """
     sort_order = np.argsort(ahf_ids, stable=True)
     sorted_ids = ahf_ids[sort_order]

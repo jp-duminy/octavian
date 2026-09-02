@@ -75,6 +75,7 @@ class SnapshotReader(ABC):
     )
     column_indices: dict[str, int] = NotImplemented  # 2D arrays which need indexing
     id_map: dict[str, str] = NotImplemented  # for halo IDs and particle IDs
+    particle_counts: dict[str, int] = NotImplemented
     derived_columns: dict[str, Callable] = {}
 
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
