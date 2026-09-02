@@ -100,8 +100,9 @@ examples/index
 
 ```{toctree}
 :hidden:
+:caption: API Reference
 
-api
+api/index
 ```
 
 ```{toctree}

@@ -36,12 +36,12 @@ FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_id_filepath", "photo
 @dataclass(frozen=True, slots=True)
 class OctaviusConfig:
     """
-    Octavius config object containing user-configured physics/runtime parameters. This can either be directly parsed from a .yaml file with the class method (recommended), or created directly.
+    Octavius config object containing user-configured physics/runtime parameters. This can either be directly parsed from a YAML file with the class method (recommended), or created directly.
 
     Methods
     -------
     from_yaml()
-        Parses a .yaml file into the config (recommended usage).
+        Parses a YAML file into the config (recommended usage).
 
     Notes
     -----
@@ -125,7 +125,8 @@ class OctaviusConfig:
     @classmethod
     def from_yaml(cls, config_path: Path) -> OctaviusConfig:
         """
-        Parses a config .yaml parameter file into the dataclass used internally. Names of entries themselves and the file layout must not be changed.
+        Parses an octavius_config.yaml parameter file into the dataclass used internally.
+        Names of entries themselves and the file layout must not be changed.
 
         Parameters
         ----------

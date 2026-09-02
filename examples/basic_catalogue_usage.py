@@ -1,6 +1,6 @@
 """
 
-Showcasing standard ways of accessing data in the catalogues.
+Standard ways of accessing data in the catalogues.
 
 """
 

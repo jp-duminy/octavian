@@ -11,10 +11,10 @@ import numpy as np
 import octavius as oc
 
 comm = MPI.COMM_WORLD
-
 config_path = Path("/path/to/config.yaml")
-config = oc.OctaviusConfig.from_yaml(config_path=config_path)
 
+# instantiate data structures
+config = oc.OctaviusConfig.from_yaml(config_path=config_path)
 catalogue_path = oc.analyse_snapshot(config=config)  # analyse_snapshot() is natively MPI-aware
 
 # we will now plot the galactic stellar mass function

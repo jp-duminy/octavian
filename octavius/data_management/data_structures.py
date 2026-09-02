@@ -125,7 +125,7 @@ class GroupStore:
         self.kind = kind
 
         max_id = group_ids.max() if self.n_groups > 0 else 0
-        if max_id == 0:
+        if self.n_groups == 0:
             logger.debug(f"Empty GroupStore for {group_key}")
 
         self.id_to_idx = np.full(shape=max_id + 1, fill_value=-1, dtype=DTYPES["particle_id"])

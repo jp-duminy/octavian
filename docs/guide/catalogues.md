@@ -1,5 +1,7 @@
 # Catalogues
 
+For rerunning analysis routines on a catalogue, see [standalone analysis.](standalone_analysis.md)
+
 ## Overview
 
 Octavius outputs lightweight HDF5 analysis catalogues and provides a convenient object-oriented API for accessing their contents. In principle, the `OctaviusCatalogue` object returned from `load_catalogue()` covers all use cases; however, for ease-of-access, the file is structured such that it can be easily accessed with `h5py` directly.
