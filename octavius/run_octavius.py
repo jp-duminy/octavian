@@ -184,7 +184,7 @@ def execute_pipeline(
             subhalo_key="SubhaloID",
             group_kind=internals.group_types["haloes"]["kind"],
             subhalo_info=subhalo_info,
-            original_halo_ids=halo_assignments.original_hids,
+            original_halo_ids=halo_assignments.original_field_ids,
         )
 
         if fof6d_result.n_galaxies > 0:
@@ -301,7 +301,7 @@ def analyse_snapshot(
         halo_to_rank = generate_rank_halo_assignments(
             halo_assignments=all_halo_assignments, config=config, n_ranks=size
         )
-        original_halo_ids = all_halo_assignments.original_hids
+        original_halo_ids = all_halo_assignments.original_field_ids
         halo_to_rank_length = len(halo_to_rank)
         assert halo_to_rank.dtype == np.int64, (
             "Bcast is receiving wrong dtype (bit corruption)."
@@ -330,35 +330,35 @@ def analyse_snapshot(
         slabs = generate_slabs(rank=rank, n_ranks=size, particle_counts=reader.particle_counts)
 
         # rank 0 tells other ranks what the (Sub)HaloIDs of the particles on their slabs are
-        raw_halo_ids = halo_source.distribute_raw_halo_ids(
-            slabs=slabs, comm=comm, global_ids=all_halo_assignments.halo_ids if rank == 0 else None
+        field_ids = halo_source.distribute_field_ids(
+            slabs=slabs, comm=comm, global_ids=all_halo_assignments.field_ids if rank == 0 else None
         )
-        raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(
-            slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.subhalo_ids if rank == 0 else None
+        sub_ids = halo_source.distribute_sub_ids(
+            slabs=slabs, comm=comm, global_subhalo_ids=all_halo_assignments.sub_ids if rank == 0 else None
         )
 
     else:
         slabs = generate_slabs(rank=0, n_ranks=1, particle_counts=reader.particle_counts)
-        raw_halo_ids = halo_source.distribute_raw_halo_ids(slabs=slabs)
-        raw_subhalo_ids = halo_source.distribute_raw_subhalo_ids(slabs=slabs)
+        field_ids = halo_source.distribute_field_ids(slabs=slabs)
+        sub_ids = halo_source.distribute_sub_ids(slabs=slabs)
 
     # ranks determine the mapping from their slab to other ranks, and the mask for their own allocation of their slab
     masks: dict[str, np.ndarray] = {}
     maps: dict[str, RedistributionMap] = {}
     local_halo_ids: dict[str, np.ndarray] = {}
-    local_subhalo_ids: dict[str, np.ndarray] | None = {} if raw_subhalo_ids is not None else None
+    local_subhalo_ids: dict[str, np.ndarray] | None = {} if sub_ids is not None else None
 
-    for ptype in raw_halo_ids:
-        maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, raw_halo_ids[ptype], comm)
-        local_halo_ids[ptype] = redistribute_data(raw_halo_ids[ptype][masks[ptype]], maps[ptype], comm)
-        if raw_subhalo_ids is not None:
-            local_subhalo_ids[ptype] = redistribute_data(raw_subhalo_ids[ptype][masks[ptype]], maps[ptype], comm)
+    for ptype in field_ids:
+        maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, field_ids[ptype], comm)
+        local_halo_ids[ptype] = redistribute_data(field_ids[ptype][masks[ptype]], maps[ptype], comm)
+        if sub_ids is not None:
+            local_subhalo_ids[ptype] = redistribute_data(sub_ids[ptype][masks[ptype]], maps[ptype], comm)
 
     rank_halo_assignments = HaloAssignments(
-        halo_ids=local_halo_ids,
+        field_ids=local_halo_ids,
         n_total_haloes=len(halo_to_rank),
-        subhalo_ids=local_subhalo_ids,
-        original_hids=original_halo_ids,
+        sub_ids=local_subhalo_ids,
+        original_field_ids=original_halo_ids,
     )
 
     reader.set_maps(  # store this info on the reader for reading datasets
@@ -367,8 +367,8 @@ def analyse_snapshot(
 
     # readers now know where all the data goes, so clear rank 0's HaloID allocation
     all_halo_assignments = None
-    raw_halo_ids = None
-    raw_subhalo_ids = None
+    field_ids = None
+    sub_ids = None
 
     # analysis pipeline
     timings: dict[str, float] = {}

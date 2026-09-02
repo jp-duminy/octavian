@@ -108,7 +108,7 @@ class HeronsHaloSource(HaloSource):
             subhalo_assignments[ptype] = apply_lookup(ids=subhalo_ids, lookup=self.subhid_lookup)
 
         return HaloAssignments(
-            halo_ids=halo_assignments, subhalo_ids=subhalo_assignments
+            field_ids=halo_assignments, sub_ids=subhalo_assignments
         )  # FIXME: now 4 fields on HaloAssignments
 
     def read_subhalo_info(self) -> SubhaloInformation:
@@ -117,7 +117,7 @@ class HeronsHaloSource(HaloSource):
         """
         track_ids, host_halo_ids, n_bound = self._properties
         return SubhaloInformation(
-            host_halo_ids=apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
+            host_field_ids=apply_lookup(ids=host_halo_ids, lookup=self.hid_lookup),
             track_ids=track_ids,
             n_bound=n_bound,
         )  # FIXME: now 6 fields on SubhaloInformation
