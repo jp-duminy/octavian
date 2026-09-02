@@ -12,6 +12,8 @@ Octavius includes a full photometry pipeline which can compute absolute and appa
 Octavius accounts for dust but does not do full radiative transfer, which should be delegated to a tool like `powderday`.
 :::
 
+The [standalone analyser](../guide/standalone_analysis.md) enhances the functionality of photometry, allowing you to rotate galaxies and directly access their SEDs. Please refer to {ref}`photometry-specific section <particle-specific-properties>` for more information.
+
 ## FSPS Data File
 
 The photometry pipeline requires a bespoke HDF5 data file known as the photometry table which is generated via `FSPS`. The provided method `generate_photometry_table()` includes basic access to the choice of IMF (`default: Chabrier`) and whether to use nebular emission (`default: True`); for full control over the parameters, an `fsps.StellarPopulation` can be passed directly to the provided `generate_photometry_table_from_sp()` method. Any invalid parameter choices will raise an error. 
@@ -32,7 +34,12 @@ Photometry includes the most user-configured parameters of the other stages in t
 - Increase the granularity of the interpolated approximation of the kernel LOS integral
 - Control the type of kernel used
 
-Please see the [configuration documentation](../guide/configuration.md) for more information.
+Standalone photometry allows you to:
+
+- Rotate galaxies
+- Return SEDs
+
+Please see the {ref}`configuration documentation <photometry-parameters>` for more information.
 
 ## Note on Performance
 
@@ -58,3 +65,9 @@ Others:
 - `luminosity_fir`: the far-infrared luminosity
 - `beta`: the UV spectral slope $\beta$ with dust extinction
 - `beta_nodust`: the UV spectral slope $\beta$ (no dust extinction)
+
+If running standalone photometry, three new datasets will exist:
+
+- `spectra`: SEDs in $L_\odot \, Hz^{-1}$ with dust extinction
+- `spectra_nodust`: SEDs in $L_\odot \, Hz^{-1}$ (no dust extinction)
+- `wavelengths`: the corresponding wavelengths in $\AA$

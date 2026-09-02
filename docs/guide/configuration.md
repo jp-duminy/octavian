@@ -2,7 +2,7 @@
 
 ## Usage
 
-The pipeline is configured through a .yaml file, which grants flexible control over many aspects of the analysis. You can generate a file with default options from the command line via:
+The pipeline is configured through a YAML file, which grants flexible control over many aspects of the analysis. You can generate a file with default options from the command line via:
 
 ```bash
 octavius init
@@ -21,7 +21,7 @@ from pathlib import Path
 from octavius import OctaviusConfig
 
 config_path = Path("/path/to/config.yaml")
-config = OctaviusConfig.from_yaml(config_path)  # from .yaml
+config = OctaviusConfig.from_yaml(config_path)  # from YAML
 config = OctaviusConfig(...)  # type parameters manually
 ```
 
@@ -101,13 +101,14 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `density_radii`: a list of the radii, in kiloparsecs, at which local environment properties are computed. (default: `[300, 1000, 3000]`)
 
+(photometry-parameters)=
 ## Photometry Parameters
 
 `bands`: the FSPS-supported bands in which to compute magnitudes. Please run `fsps.list_filters()` to see the list of available options, or inspect the datasets in the Octavius photometry data file. For filters with multiple bands, e.g. `sdss_u`, `sdss_v` you can simply specify `sdss` and all of its bands will be run. The `v` filter is always enabled for $A_v$ computation. Furthermore, you can specify `all` for magnitudes in all available bands, or `uvoir` for magnitudes in all bands bluewards of five microns. (default: `["all"]`)
 
 `photometry_table_filepath`: the filepath to the Octavius photometry HDF5 datafile (can be left blank if not running photometry).
 
-`extinction_law`: Specify the extinction law to use. Octavius currently supports `power_law`, `calzetti`, `conroy`, `cardelli`, `smc`, `lmc`. In addition, two composite extinction laws are provided: `mix_calz_mw` uses Cardelli for galaxies with $\log_{10}(sSFR) < 0.1 Gyr^-1$, Calzetti for $\log_{10}(sSFR) > 1.0 Gyr^-1$ and a linear mix in between; `composite` adds a further metallicity dependence, using `mix_calz_mw` for $Z > Z_{\odot}$, `smc` for $Z < 0.1 Z_{\odot}$, and a linear combination in between. (default: `composite`).
+`extinction_law`: Specify the extinction law to use. Octavius currently supports `power_law`, `calzetti`, `conroy`, `cardelli`, `smc`, `lmc`. In addition, two composite extinction laws are provided: `mix_calz_mw` uses Cardelli for galaxies with $\log_{10}(\mathrm{sSFR}) < 0.1 \, \mathrm{Gyr}^{-1}$, Calzetti for $\log_{10}(\mathrm{sSFR}) > 1.0 \, \mathrm{Gyr}^{-1}$, and a linear mix in between; `composite` adds a further metallicity dependence, using `mix_calz_mw` for $Z > Z_{\odot}$, `smc` for $Z < 0.1 Z_{\odot}$, and a linear combination in between. (default: `composite`).
 
 `viewing_axis`: Specifies the Cartesian axis along which galaxies are viewed (options: `x`, `y`, `z`).
 

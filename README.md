@@ -24,7 +24,7 @@
 
 # Octavius: The Next-Generation Simulation Analysis Toolkit
 
-Octavius is a high-performance, fully-parallelised code designed to produce analysis catalogues of SPH simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it slots cleanly into analysis workflows. 
+Octavius is a high-performance, fully-parallel code designed to produce analysis catalogues of SPH simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it slots cleanly into analysis workflows. 
 
 Catalogues are stored as HDF5 files containing physical properties and membership mapping for both haloes and galaxies, along with cosmological information from the snapshot.
 
@@ -49,7 +49,8 @@ The package is (currently) pinned to relatively recent dependencies and it is th
 - Computes over fifty properties for haloes and galaxies (including subhaloes)
 - Photometry in all FSPS-compatible bands with dust attenuation (no radiative transfer)
 - User-friendly catalogues contain membership mapping
-- Unit-tested analysis pipeline
+- On-the-fly analysis tools
+- Comprehensive unit and regression tests
 
 ## Quickstart Guide
 
@@ -67,11 +68,11 @@ The analysis can then be called either from the command line, or a Python script
 
 ```python
     from pathlib import Path
-    from octavius import analyse_snapshot, OctaviusConfig
+    import octavius as oc
 
     config_filepath = Path("/path/to/config.yaml")
-    config = OctaviusConfig.from_yaml(config_filepath)
-    catalogue_path = analyse_snapshot(config)  # analyse_snapshot() is natively MPI-aware and can be run in serial too
+    config = oc.OctaviusConfig.from_yaml(config_filepath)
+    catalogue_path = oc.analyse_snapshot(config)
 ```
 
 It is recommended to use the command-line method for larger snapshots and more complex workflows, as it is more flexible. For more information, please run:
@@ -84,31 +85,35 @@ An object-oriented API is provided for loading and conveniently interfacing with
 
 ```python
     from pathlib import Path
-    from octavius import load_catalogue
+    import octavius as oc
 
-    catalogue_filepath = Path("/path/to/catalogue.hdf5")
+    catalogue_path = Path("/path/to/catalogue.hdf5")
 
-    cat = load_catalogue(catalogue_filepath)
-
-    star_mass_grams = cat.galaxies.get_dataset("mass_star", to_units="g")  # array of galaxy stellar masses in grams
+    catalogue = oc.load_catalogue(catalogue_path)
+    # get array of galaxy stellar masses in grams
+    star_mass_grams = catalogue.galaxies.get_dataset("mass_star", to_units="g")
 ```
 
-Photometry requires a bespoke data file which requires [FSPS](https://github.com/dfm/python-fsps) to generate. The table can take a while to generate, and stores all necessary data for photometry; there is no runtime dependency on FSPS.
+Furthermore, a standalone analyser is provided to run analysis routines on subsets of haloes and galaxies from the catalogue. This reduces complex workflows to a a few lines in a Python script:
 
 ```python
     from pathlib import Path
-    from octavius import generate_photometry_table, generate_photometry_table_from_sp
+    import octavius as oc
 
-    photometry_table_filepath = Path("/path/to/table.hdf5")
+    snapshot_path = Path("/path/to/snapshot.hdf5")
+    config_path = Path("/path/to/config.yaml")
 
-    generate_photometry_table(photometry_table_filepath)  # default method with basic options 
+    config = oc.OctaviusConfig.from_yaml(config_path)
 
-    import fsps
-    sp = fsps.StellarPopulation(...)  # full control over FSPS options
-    generate_photometry_table_from_sp(photometry_table_filepath, sp)
+    catalogue_path = oc.analyse_snapshot(config)
+    catalogue = oc.load_catalogue(catalogue_path)
+
+    analyser = oc.build_analyser(catalogue=catalogue, config=config)
+    # compute face-on photometry for galaxies 4, 22, 37
+    photometry_data = analyser.compute_photometry(group_indices=[4, 22, 37], orientation="face-on")  
 ```
 
-Octavius is written mostly in [numba](https://numba.readthedocs.io/en/stable/), which relies on JIT compilation; this can add a minute or two of overhead when first run, but thereafter, the compiled functions are cached.
+Octavius is mostly written in [numba](https://numba.readthedocs.io/en/stable/), a just-in-time compiler for Python code; this can add a minute or two of overhead when first run, but thereafter, the compiled functions are cached.
 
 ## Dependencies
 
@@ -147,4 +152,4 @@ Contributions and bug reports are warmly encouraged. The package is currently pi
 - JP Duminy, University of Edinburgh
 - Jakub Szpila, Nicolaus Copernicus Astronomical Center
 
-<small>Last updated by JP Duminy, 29/08/2026.</small>
+<small>Last updated by JP Duminy, 02/09/2026.</small>

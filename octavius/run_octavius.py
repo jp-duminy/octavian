@@ -238,8 +238,8 @@ def analyse_snapshot(
     """
     Runs the full Octavius analysis pipeline. This function will automatically discern whether it is being
     run in serial or parallel configuration. It is importable and can be run standalone in a Python script;
-    for batch processing, it is recommended users instead use the Octavius command line functionality called
-    on run_octavius.py instead.
+    for batch processing and larger snapshots, it is recommended users instead use the Octavius command line
+    functionality instead.
 
     Parameters
     ----------

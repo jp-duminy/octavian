@@ -56,7 +56,7 @@ def build_analyser(
         OctaviusCatalogue object corresponding to the snapshot.
     config: OctaviusConfig
         OctaviusConfig object.
-    snapshot_path: Path or None, optional
+    snapshot_path: pathlib.Path or None
         Path object pointing to the original, raw snapshot (overrides config field).
 
     Returns

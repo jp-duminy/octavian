@@ -57,9 +57,14 @@ html_static_path = ["_static"]
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "h5py": ("https://docs.h5py.org/en/stable/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
 }
+
 nitpick_ignore = [
     ("py:class", "fsps.StellarPopulation"),
     ("py:class", "h5py._hl.group.Group"),
     ("py:class", "dict[str"),
+    ("py:class", "SnapshotReader"),
+    ("py:class", "octavius.data_management.pipeline_management.Internals"),
+    ("py:class", "np.ndarray"),
 ]

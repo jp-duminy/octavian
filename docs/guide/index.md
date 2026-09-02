@@ -2,9 +2,11 @@
 
 This section contains more detailed information on configuring the pipeline, working with catalogues, and information for `caesar` users.
 
+[Configuration](configuration.md): how to configure Octavius with YAML files to achieve desired results.
+
 [Catalogues](catalogues.md): how to load catalogues and work with their datasets.
 
-[Configuration](configuration.md): how to configure Octavius with YAML files to achieve desired results.
+[Standalone Analysis](standalone_analysis.md): how to analyse groups from the catalogue using the pipeline routines.
 
 [Caesar Users Guide](caesar_users_guide.md): a page for users of `caesar` looking to try its hopeful successor.
 
@@ -13,5 +15,6 @@ This section contains more detailed information on configuring the pipeline, wor
 
 configuration
 catalogues
+standalone_analysis
 caesar_users_guide
 ```
