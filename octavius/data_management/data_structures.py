@@ -131,6 +131,13 @@ class GroupStore:
         if original_ids is not None:
             self.columns["original_id"] = original_ids
 
+    @property
+    def ptypes(self) -> list[str]:
+        """
+        List of ptypes which this group actually contains.
+        """
+        return list(self.csr_membership.keys())
+
     def __getitem__(self, key: str) -> np.ndarray:
         """
         Use GroupStore["key"] to access array.
@@ -186,6 +193,7 @@ class GroupStore:
 
 def build_galaxy_store(
     particles: dict[str, ParticleStore],
+    baryonic_ptypes: list[str],
     galaxy_key: str,  # NOTE: this doesn't need to be an argument but I prefer it for explicit purposes
     group_kind: str,
 ) -> GroupStore:
@@ -199,7 +207,7 @@ def build_galaxy_store(
 
     store = GroupStore(group_ids=unique_ids, group_key=galaxy_key, kind=group_kind)
 
-    for ptype in particles:
+    for ptype in baryonic_ptypes:
         offsets, sorted_indices = build_group_csr(
             group_idx=store.get_indexer(group_id=particles[ptype][galaxy_key]), n_groups=store.n_groups
         )

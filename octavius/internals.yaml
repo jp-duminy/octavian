@@ -42,7 +42,7 @@ stages:
       - columns: ["L_{ptype}", "velocity_dispersion_{ptype}", "L_azimuth_{ptype}", "L_elevation_{ptype}", "inertia_tensor_{ptype}", "radius_max_{ptype}"]
         over: {ptype: [gas, star, dm, bh]}
       - columns: ["BoverT_{ptype}", "kappa_rot_{ptype}"]
-        over: {ptype: [gas, star, dm, bh]}
+        over: {ptype: [gas, star, bh]}
         applies_to: [galaxies]
       - columns: ["mass_{combined}", "L_{combined}", "velocity_dispersion_{combined}", "L_azimuth_{combined}", "L_elevation_{combined}", "inertia_tensor_{combined}", "radius_max_{combined}"]
         over: {combined: [total, baryon]}
@@ -205,14 +205,14 @@ output_columns:
     description:  "Moment of inertia tensor."
 
   BoverT_{ptype}:
-    over:        {ptype: [gas, star, dm, bh, baryon]}
+    over:        {ptype: [gas, star, bh, baryon]}
     dtype:       float64
     unit:        ""
     a_exp:       0
     description: "Bulge-to-total (ptype) mass ratio; the bulge mass is kinematically defined as twice the mass which is rotating contrary to the bulk motion."
 
   kappa_rot_{ptype}:
-    over:        {ptype: [gas, star, dm, bh, baryon]}
+    over:        {ptype: [gas, star, bh, baryon]}
     dtype:       float64
     unit:        ""
     a_exp:       0

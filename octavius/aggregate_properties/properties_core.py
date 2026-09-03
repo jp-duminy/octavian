@@ -125,7 +125,7 @@ def run_core_ptype_pass(
     ptype_cache: dict[str, tuple[np.ndarray, ...]] = {}  # for things we don't want to recompute on the second loop
     n_groups = store.n_groups
 
-    for ptype in particles:
+    for ptype in store.ptypes:
         data = particles[ptype]
         offsets, idx_sorted = store.get_particle_csr(ptype=ptype)
 
@@ -166,7 +166,7 @@ def run_core_ptype_pass(
     quantile_names = list(config.radial_quantiles)
     quantiles = np.array(list(config.radial_quantiles.values()), dtype=np.float64)
 
-    for ptype in particles:  # second pass does kinematics which require collective group centres
+    for ptype in store.ptypes:  # second pass does kinematics which require collective group centres
         data = particles[ptype]
         offsets, idx_sorted, counts_and_mass = ptype_cache[ptype]
         com_vel = store[f"_vel_{ptype}"]
@@ -260,7 +260,7 @@ def run_halo_stages(
 
     all_radii_list, all_masses_list, all_group_idx_list = [], [], []  # ghastly concatenation
 
-    for ptype in particles:
+    for ptype in haloes.ptypes:
         data = particles[ptype]
         offsets, idx_sorted = haloes.get_particle_csr(ptype=ptype)
 
