@@ -260,7 +260,7 @@ def distribute_ids(
     return local_halo_ids
 
 
-@njit
+@njit(cache=True)
 def compute_depths(parent_ids: np.ndarray, max_allowed_depth: int = 15) -> np.ndarray:
     """
     Uses the parent_id array to return a corresponding depths array where depth=1 means its immediate parent is the field halo.

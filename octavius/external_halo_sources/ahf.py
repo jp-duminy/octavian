@@ -248,7 +248,7 @@ def parse_ahf_haloes(ahf_haloes_path: Path) -> tuple[np.ndarray, ...]:
     return ahf_ids, raw_host_ids, n_particles
 
 
-@njit
+@njit(cache=True)
 def parse_ahf_particles(ahf_particle_array: np.ndarray, n_haloes: int) -> tuple[np.ndarray, ...]:
     """
     Iterates on an .AHF_particles file which has been converted into an (n, 2) array by
@@ -358,7 +358,7 @@ def remap_ahf_ids(ahf_ids: np.ndarray, raw_host_ids: np.ndarray) -> np.ndarray:
     return parent_indices
 
 
-@njit
+@njit(cache=True)
 def compute_field_index(parent_ids: np.ndarray) -> np.ndarray:
     """
     Follows the same logic as compute_depths but instead returns the index of the field halo.

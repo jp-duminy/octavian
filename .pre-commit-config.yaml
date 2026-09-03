@@ -1,9 +1,18 @@
 # run pre-commit install in terminal to activate this; update with whatever the repo link syntax is
 
 repos:
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.20
     hooks:
       - id: ruff-check
         args: [--fix] # this will automatically do unused/bad imports or weird syntax for you but delete this if you'd rather do it manually
       - id: ruff-format
+
+  - repo: local
+    hooks:
+    - id: njit-cache
+      name: Check any function with the @njit decorator also has cache=True enabled
+      entry: bash -c 'grep -rn "@njit\b" --include="*.py" | grep -v "cache=True" && echo "Found @njit function with no cache=True flag; this flag should be added to all compiled functions." && exit 1 || exit 0'
+      language: system
+      pass_filenames: false
