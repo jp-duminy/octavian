@@ -116,20 +116,33 @@ def validate_halo_membership(f: h5py.File) -> None:
     if n_empty_subhaloes > 0:
         logger.info(f"{n_empty_subhaloes} empty subhalo rows (permitted).")
 
-    parent = f["halo_data"]["membership/parent_halo_index"][:]
+    parent_halo_indices = f["halo_data"]["membership/parent_halo_index"][:]
+    field_halo_indices = f["halo_data"]["membership/field_halo_index"][:]
     depth = f["halo_data"]["membership/depth"][:]
     non_field = ~field_mask
     assert np.array_equal(field_mask, depth == 0), "parent == -1 (field-centric) and depth == 0 (sub-centric) disagree."
-    assert np.all((parent[non_field] >= 0) & (parent[non_field] < len(parent))), "Subhalo parent index out of range."
-    assert np.all(depth[non_field] == depth[parent[non_field]] + 1), (
+    assert np.all(
+        (parent_halo_indices[non_field] >= 0) & (parent_halo_indices[non_field] < len(parent_halo_indices))
+    ), "Subhalo parent index out of range."
+    assert np.all(depth[non_field] == depth[parent_halo_indices[non_field]] + 1), (
         "Chain depth does not match from fields to child-field mapping."
     )
 
     for ptype in PTYPES:
         lengths = f["halo_data"][f"membership/{ptype}_lengths"][:]
-        assert np.all(lengths[non_field] <= lengths[parent[non_field]]), (
+        assert np.all(lengths[non_field] <= lengths[parent_halo_indices[non_field]]), (
             f"{ptype}: subhalo has more particles than its parent."
         )
+
+    non_field = depth > 0
+    n_haloes = len(f["halo_data"]["HaloID"])
+    walker = np.arange(n_haloes)
+    for _ in range(int(np.max(depth))):
+        not_root = depth[walker] > 0
+        walker[not_root] = parent_halo_indices[walker[not_root]]
+    assert np.array_equal(walker[non_field], field_halo_indices[non_field]), (
+        "Walking parent_halo_index chain does not arrive at field_halo_index."
+    )
 
     logger.info("Halo membership is self-consistent.")
 
@@ -230,9 +243,52 @@ def validate_galaxy_mapping(f: h5py.File) -> None:
     logger.info("Particle group membership is self-consistent.")
 
 
+def validate_subhalo_mapping(f: h5py.File) -> None:
+    """
+    Validate galaxy-halo relationships are sensible.
+    """
+    field_halo_indices = f["halo_data"]["membership/field_halo_index"][:]
+    parent_halo_indices = f["halo_data"]["membership/parent_halo_index"][:]
+    depth = f["halo_data"]["membership/depth"][:]
+    subhalo_lengths = f["halo_data"]["membership/subhalo_lengths"][:]
+    logger = get_logger()
+
+    if np.max(depth) == 0:  # if no subhaloes are in catalogue
+        assert np.all(subhalo_lengths == 0), (
+            "Subhaloes are not in catalogue (all depths 0) but haloes have valid subhalo membership."
+        )
+        return
+
+    n_not_field = np.sum(depth > 0)
+    valid_fields = field_halo_indices[field_halo_indices >= 0]
+    assert np.sum(subhalo_lengths) >= n_not_field, "subhalo_lengths is shorter than the number of subhaloes."
+    assert len(valid_fields) == n_not_field, "Number of valid field_halo_index does not match number of subhaloes."
+    assert np.all(depth[valid_fields] == 0), "field_halo_index points to a non-field row."
+    assert np.sum(field_halo_indices == -1) == np.sum(depth == 0), "Number of field haloes is not self-consistent."
+    logger.info("Subhalo hierarchies are self-consistent.")
+
+    # check parent halo indices are valid
+    n_haloes = len(f["halo_data"]["HaloID"])
+    assert np.all(parent_halo_indices < n_haloes), "parent_halo_index is larger than the number of haloes."
+
+    subhalo_offsets = f["halo_data"]["membership/subhalo_offsets"][:]
+    subhalo_indices = f["halo_data"]["membership/subhalo_indices"][:]
+
+    assert np.array_equal(subhalo_lengths, np.diff(subhalo_offsets)), "subhalo_lengths does not match subhalo_offsets."
+    assert len(subhalo_offsets) == n_haloes + 1, (
+        f"subhalo_offsets is length {len(subhalo_offsets)}, expected {n_haloes + 1}"
+    )
+    assert np.all((subhalo_indices >= 0) & (subhalo_indices < n_haloes)), (
+        "Subhalo indices are invalid, pointing to non-existent entries."
+    )
+    assert np.all(depth[subhalo_indices] > 0), "subhalo_indices contains field haloes."
+
+    logger.info("Subhalo membership arrays are self-consistent.")
+
+
 def validate_group_counts(f: h5py.File, group_data: str) -> None:
     """
-    Quick check validating merge_catalogues and CGP agree on group counts.
+    Quick check validating the catalogue and aggregate properties agree on group counts.
     """
     logger = get_logger()
 
