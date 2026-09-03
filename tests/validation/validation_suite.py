@@ -27,8 +27,8 @@ from octavius.data_management.conventions import OctaviusConfig
 from octavius.log import get_logger
 from .output_validation import (
     validate_galaxy_mapping,
+    validate_subhalo_mapping,
     validate_galaxy_membership,
-    validate_group_counts,
     validate_halo_membership,
     validate_mass_budget,
     check_for_nans,
@@ -295,14 +295,15 @@ def conduct_output_catalogue_validation(catalogue: Path) -> None:
     with h5py.File(catalogue, "r") as f:
         with record_assertion_result("Halo membership arrays"):
             validate_halo_membership(f=f)
-            validate_group_counts(f=f, group_data="halo_data")
 
         with record_assertion_result("Galaxy membership arrays"):
             validate_galaxy_membership(f=f)
-            validate_group_counts(f=f, group_data="galaxy_data")
 
         with record_assertion_result("Galaxy-halo mapping"):
             validate_galaxy_mapping(f=f)
+
+        with record_assertion_result("Subhalo-halo mapping"):
+            validate_subhalo_mapping(f=f)
 
         with record_assertion_result("Dataset NaN validation"):
             check_for_nans(f=f)

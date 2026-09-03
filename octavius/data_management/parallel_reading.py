@@ -285,7 +285,7 @@ def generate_read_plan(idx_sorted: np.ndarray, gap_threshold: int = 64) -> list[
     - read_plan: a list containing tuples of slices and the corresponding masks.
     """
     if len(idx_sorted) == 0:  # early return guard
-        return None
+        return []  # match type annotation
 
     gaps = np.diff(idx_sorted)  # length of n-1
     breaks = np.where(gaps > gap_threshold)[0] + 1  # add 1 to compensate
