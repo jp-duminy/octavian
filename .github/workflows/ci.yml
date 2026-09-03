@@ -10,10 +10,24 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - run: sudo apt-get update && sudo apt-get install -y libopenmpi-dev
-      - run: pip install -e ".[test]"
-      - run: pytest tests/ -v
+      
+      - name: Install MPI
+        run: sudo apt-get update && sudo apt-get install -y libopenmpi-dev  # for mpiexec
+      
+      - name: Install Octavius
+        run: pip install -e ".[test]"
+
+      - name: Run tests
+        run: pytest --cov --cov-report=xml
+
+      - name: Upload code coverage results
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

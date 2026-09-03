@@ -18,7 +18,7 @@ import pytest
 import h5py
 
 # internal imports
-from octavius.run_octavius import analyse_snapshot
+from octavius.run_octavius import analyse_snapshot, generate_config
 from octavius.data_management.conventions import OctaviusConfig
 from octavius.utils.generate_snapshots import generate_gizmo_snapshot, generate_swift_snapshot
 from octavius.utils.dynamic_analyser import build_analyser, OctaviusAnalyser
@@ -41,6 +41,9 @@ def mock_catalogue(
     tmp_dir = tmp_path_factory.mktemp("pipeline")
     tmp_snap = tmp_dir / "test_snapshot.hdf5"
     sim_type = request.param
+    generate_config(output_dir=tmp_dir)
+    tmp_config = tmp_dir / "octavius_config.yaml"
+    assert tmp_config.exists()
 
     if sim_type == "GIZMO":
         generate_gizmo_snapshot(path=tmp_snap)
@@ -71,6 +74,17 @@ def mock_catalogue(
     cat = load_catalogue(catalogue_path=output_path)  # check a catalogue object is constructable
     assert isinstance(cat, OctaviusCatalogue)
     analyser = build_analyser(catalogue=cat, config=config)  # check an Analyser object is constructable
+
+    result_c = analyser.compute_core_properties(group_type="haloes", group_indices=[0])
+    assert len(result_c.columns) > 0
+
+    result_pt = analyser.compute_ptype_specific_properties(group_type="haloes", group_indices=[0])
+    assert len(result_pt.columns) > 0
+
+    result_phot = analyser.compute_photometry(group_indices=[0], keep_spectra=True, orientation="side-on")
+    assert len(result_phot.columns) > 0
+
+    cat.close()
     assert isinstance(analyser, OctaviusAnalyser)
 
     catalogue = h5py.File(output_path, "r")
