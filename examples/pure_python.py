@@ -21,7 +21,7 @@ config = oc.OctaviusConfig(
     simulation_type="SWIFT",
     halo_id_source="SNAPSHOT",
     cores_per_rank=-1,  # if not using MPI, set to -1 to use all available cores
-    photometry_table_filepath=photometry_table_path,
+    photometry_table_path=photometry_table_path,
 )
 
 # analyse snapshot

@@ -2,7 +2,11 @@ Configuration
 =============
 
 .. autoclass:: octavius.OctaviusConfig
-   :members: from_yaml
-   :no-undoc-members:
+   :no-members:
+
+   .. automethod:: from_yaml
+      :no-index:
+
+.. autofunction:: octavius.generate_config
 
 .. autoclass:: octavius.OctaviusConstants

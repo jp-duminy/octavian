@@ -31,7 +31,7 @@ The catalogue will inherit the name of the snapshot prefixed with `octavius_`, a
 
 ## General Options
 
-`simulation_type`: the format of the snapshot (GIZMO/SWIFT-KIARA).
+`simulation_type`: the format of the snapshot (`GIZMO` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE`). Note, `GIZMO` currently only supports SIMBA snapshots.
 
 `halo_id_source`: where the halo catalogue should be parsed from (SNAPSHOT/AHF).
 
@@ -39,7 +39,7 @@ The catalogue will inherit the name of the snapshot prefixed with `octavius_`, a
 
 `output_dir`: the directory to which you would like outputs routed.
 
-`halo_id_filepath`: the filepath of the halo catalogue (can be left blank if using snapshot IDs). AHF users should specify the stem of the filename before the `.AHF_` extension.
+`halo_catalogue_path`: the filepath of the halo catalogue (can be left blank if using snapshot IDs). AHF users should specify the stem of the filename before the `.AHF_` extension.
 
 `compress_catalogue`: whether to apply lossless GZIP compression to the catalogue (default: `True`).
 
@@ -106,7 +106,7 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `bands`: the FSPS-supported bands in which to compute magnitudes. Please run `fsps.list_filters()` to see the list of available options, or inspect the datasets in the Octavius photometry data file. For filters with multiple bands, e.g. `sdss_u`, `sdss_v` you can simply specify `sdss` and all of its bands will be run. The `v` filter is always enabled for $A_v$ computation. Furthermore, you can specify `all` for magnitudes in all available bands, or `uvoir` for magnitudes in all bands bluewards of five microns. (default: `["all"]`)
 
-`photometry_table_filepath`: the filepath to the Octavius photometry HDF5 datafile (can be left blank if not running photometry).
+`photometry_table_path`: the filepath to the Octavius photometry HDF5 datafile (can be left blank if not running photometry).
 
 `extinction_law`: Specify the extinction law to use. Octavius currently supports `power_law`, `calzetti`, `conroy`, `cardelli`, `smc`, `lmc`. In addition, two composite extinction laws are provided: `mix_calz_mw` uses Cardelli for galaxies with $\log_{10}(\mathrm{sSFR}) < 0.1 \, \mathrm{Gyr}^{-1}$, Calzetti for $\log_{10}(\mathrm{sSFR}) > 1.0 \, \mathrm{Gyr}^{-1}$, and a linear mix in between; `composite` adds a further metallicity dependence, using `mix_calz_mw` for $Z > Z_{\odot}$, `smc` for $Z < 0.1 Z_{\odot}$, and a linear combination in between. (default: `composite`).
 

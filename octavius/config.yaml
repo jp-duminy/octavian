@@ -1,9 +1,9 @@
-simulation_type:    SWIFT-KIARA             # see docs
-halo_id_source:     SNAPSHOT                # see docs
-snapshot_path:      /path/to/snapshot.hdf5
-output_dir:         /path/to/output_directory
-halo_id_filepath:   /path/to/catalogue_file  # leave blank if using SNAPSHOT haloes
-compress_catalogue: true
+simulation_type:          SWIFT-KIARA             # see docs
+halo_id_source:           SNAPSHOT                # see docs
+snapshot_path:            /path/to/snapshot.hdf5
+output_dir:               /path/to/output_directory
+halo_catalogue_path:      /path/to/catalogue_file  # leave blank if using SNAPSHOT haloes
+compress_catalogue:       true
 
 
 stages:
@@ -51,7 +51,7 @@ properties:
 
 photometry:
   bands:                      ["sdss", "all", "v"]  # auto expands filters (e.g. "sdss" will give sdss_u, sdss_g etc)
-  photometry_table_filepath:  /path/to/photometry_table.hdf5
+  photometry_table_path:      /path/to/photometry_table.hdf5
   extinction_law:             composite
   viewing_axis:               z
   use_dust:                   true

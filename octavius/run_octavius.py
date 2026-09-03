@@ -244,7 +244,8 @@ def analyse_snapshot(
     Parameters
     ----------
     config: OctaviusConfig
-        OctaviusConfig object. You can call the from_yaml(yaml_filepath) method on it to parse a config.yaml file, or type the parameters manually.
+        Configuration object. You can call the from_yaml(yaml_filepath) method on it
+        to parse a config.yaml file, or type the parameters manually.
 
     Returns
     -------
@@ -253,7 +254,8 @@ def analyse_snapshot(
 
     Notes
     -----
-    The snapshot filepath in the config can also be specified through command line arguments. Please run --help for more information.
+    The snapshot filepath in the config can also be specified through command line arguments.
+    Please run --help for more information.
     """
     comm = get_mpi_communicator()
     rank = comm.Get_rank() if comm else 0  # top-level rank parallelism
@@ -287,7 +289,7 @@ def analyse_snapshot(
 
     # initialise snapshot/halo readers, constants, internal metadata
     if config.stages.get("photometry", False):
-        names, lambda_effs = read_filter_names(config.photometry_table_filepath)
+        names, lambda_effs = read_filter_names(config.photometry_table_path)
         config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctaviusConstants(mu=config.MU, frad=config.FRAD)
@@ -490,7 +492,7 @@ def main() -> None:
             raise ValueError("Please provide a snapshot path.")
         if config.output_dir is None:
             raise ValueError("Please provide an output directory path.")
-        if config.halo_id_source != "SNAPSHOT" and config.halo_id_filepath is None:
+        if config.halo_id_source != "SNAPSHOT" and config.halo_catalogue_path is None:
             raise ValueError(
                 "The requested halo ID source also requires a file containing ID assignments to be specified in halo_id_filepath."
             )

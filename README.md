@@ -13,6 +13,7 @@
 [![DOI](https://zenodo.org/badge/1136349333.svg)](https://doi.org/10.5281/zenodo.22166418)
 [![Python](https://img.shields.io/pypi/pyversions/octavius)](https://pypi.org/project/octavius/)
 [![CI](https://github.com/jp-duminy/octavius/actions/workflows/ci.yml/badge.svg)](https://github.com/jp-duminy/octavius/actions)
+[![codecov](https://codecov.io/gh/jp-duminy/octavius/graph/badge.svg?token=71Y900J2OY)](https://codecov.io/gh/jp-duminy/octavius)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENCE)
 [![Docs](https://readthedocs.org/projects/octavius/badge/?version=latest)](https://octavius.readthedocs.io/)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
@@ -43,13 +44,14 @@ The package is (currently) pinned to relatively recent dependencies and it is th
 ## Features
 
 - Supports SWIFT and GIZMO snapshots
-- Supports AHF halo catalogues (coming soon: HBT HERONS)
+- Supports AHF and HBT-HERONS halo catalogues
 - Produces snapshot-agnostic catalogues
 - Built-in galaxy finding with a 6D friends-of-friends algorithm
 - Computes over fifty properties for haloes and galaxies (including subhaloes)
 - Photometry in all FSPS-compatible bands with dust attenuation (no radiative transfer)
-- User-friendly catalogues contain membership mapping
-- On-the-fly analysis tools
+- User-friendly API for working with analysis catalogues
+- Comprehensive membership mapping, including hierarchies
+- Standalone analysis tools (on-the-fly pipeline stages)
 - Comprehensive unit and regression tests
 
 ## Quickstart Guide

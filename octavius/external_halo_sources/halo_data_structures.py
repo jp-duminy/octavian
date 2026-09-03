@@ -78,7 +78,7 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
     elif id_source == "AHF":
         from .ahf import AHFHaloSource  # I had to stick this in here to avoid a circular import
 
-        prefix = config.halo_id_filepath  # renamed for explicitness
+        prefix = config.halo_catalogue_path  # renamed for explicitness
         logger.info("Using AHF-assigned HaloIDs.")
         logger.info(f"Finding AHF catalogues at {prefix}")
         return AHFHaloSource(
@@ -91,9 +91,9 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
         from .hbt_herons import HeronsHaloSource
 
         logger.info("Using HBT-HERONS halo IDs.")
-        logger.info(f"Finding HBT-HERONS catalogue at {config.halo_id_filepath}")
+        logger.info(f"Finding HBT-HERONS catalogue at {config.halo_catalogue_path}")
 
-        return HeronsHaloSource(catalogue_path=config.halo_id_filepath, reader=reader)
+        return HeronsHaloSource(catalogue_path=config.halo_catalogue_path, reader=reader)
 
     else:
         raise ValueError(f"Unknown halo catalogue source {id_source}, please check config?")

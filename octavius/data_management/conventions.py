@@ -30,7 +30,7 @@ logger = get_logger()
 
 # for config parsing
 CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "properties", "photometry", "parallelism", "logging"})
-FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_id_filepath", "photometry_table_filepath"})
+FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,14 +113,14 @@ class OctaviusConfig:
     kernel_type: str = "cubic"
     power_law_alpha: float = 1.0
     split_age: float = 0.01
-    keep_spectra: bool = False  # used for standalone photometry, not in YAML file
+    _keep_spectra: bool = False  # used for standalone photometry, not in YAML file
 
     terminal_output_level: str = "INFO"
     keep_logs: bool = False
 
     compress_catalogue: bool = True
-    halo_id_filepath: Path | None = None
-    photometry_table_filepath: Path | None = None
+    halo_catalogue_path: Path | None = None
+    photometry_table_path: Path | None = None
 
     @classmethod
     def from_yaml(cls, config_path: Path) -> OctaviusConfig:

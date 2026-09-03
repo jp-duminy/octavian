@@ -352,10 +352,10 @@ The codebase uses SPH conventions such as kernels and smoothing lengths entirely
 
 External halo catalogues are supported by Octavius through a few abstractions which let the pipeline support them in the agnostic format. As with snapshot readers, it is recommended to refer to the existing code as a reference for implementing a new source. Octavius supports both catalogues which only contain field haloes, and catalogues with subhalo information: the properties computed for haloes will always be fully-inclusive. 
 
-In a similar vein to the snapshot readers, you must parse the catalogue using generic methods on an inherited class called `HaloSource`. The two dataclasses of relevance here are `HaloAssignments` and `SubhaloInformation`; all are defined in `external_halo_sources/halo_data_structures.py`. In this case, it can be harder to fit a catalogue-specific format into the generic abstractions. Suppose we want to support the esoteric Gilgamesh halo catalogues:
+In a similar vein to the snapshot readers, you must parse the catalogue using generic methods on an inherited abstract base class named `HaloSource`. The two dataclasses of relevance here are `HaloAssignments` and `SubhaloInformation`; all are defined in `external_halo_sources/halo_data_structures.py`. In this case, it can be harder to fit a catalogue-specific format into the generic abstractions. Suppose we want to support the esoteric Gilgamesh halo catalogues:
 
 :::{note}
-The `halo_ids` and `subhalo_ids` on `HaloAssignments` should refer to the top-level field halo ID assignment and the deepest-level subhalo ID assignment respectively. The other fields exist to fill in the hierarchy.
+The `field_ids` and `sub_ids` on `HaloAssignments` should refer to the top-level field halo ID assignment and the deepest-level subhalo ID assignment respectively. The other fields exist to fill in the hierarchy, which will be done for you by the pipeline.
 :::
 
 ```python
@@ -370,33 +370,35 @@ class GilgameshHaloSource(HaloSource):  # inherit HaloSource
         """
         pass
 
-    def read_subhalo_info(self) -> SubhaloInformation | None:
-        """
-        Reads subhalo information from the source, if this exists.
-        """
-        pass
-
-    def distribute_raw_halo_ids(
+    def distribute_field_ids(  # if writing a snapshot ID parser, can return None
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_ids: dict[str, np.ndarray] | None = None,
     ) -> dict[str, np.ndarray]:
         """
-        Distributes the global raw IDs via MPI.
+        Distributes field halo IDs to other ranks.
         """
         pass
 
-    def distribute_raw_subhalo_ids(
+    def read_subhalo_info(self) -> SubhaloInformation | None:
+        """
+        Reads subhalo information from the source, if this exists.
+        """
+        pass
+
+    def distribute_sub_ids(  # if writing a snapshot ID parser, can return None
         self,
         slabs: dict[str, slice],
         comm: Comm | None,
         global_subhalo_ids: dict[str, np.ndarray] | None = None,
-    ) -> dict[str, np.ndarray] | None:
+    ) -> dict[str, np.ndarray]:
         """
-        Distributes the global raw subhalo IDs via MPI.
+        Distributes subhalo IDs to other ranks.
         """
         pass
+
+
 ```
 
 Implementing these methods is too catalogue-specific to provide a generic guide. However, the existing halo sources may be a useful reference. Once you are satisfied with your parser, all you need to do is add it to the `build_halo_source()` function:
@@ -409,10 +411,9 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
     ...
     elif config.halo_id_source == "GILGAMESH":
         from .gilgamesh import GilgameshHaloSource  # avoid circular import
-        logger.info("Using GILGAMESH-assigned HaloIDs.")
-        logger.info(f"Finding AHF catalogues at {config.halo_id_filepath}")
+        logger.info("Using GILGAMESH-assigned halo IDs.")
         return GilgameshHaloSource(
-            catalogue_path=config.halo_id_filepath
+            catalogue_path=config.halo_catalogue_path
         )
     ...
 ```
