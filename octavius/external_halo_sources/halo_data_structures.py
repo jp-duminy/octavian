@@ -95,6 +95,16 @@ def build_halo_source(config: OctaviusConfig, reader: SnapshotReader) -> HaloSou
 
         return HeronsHaloSource(catalogue_path=config.halo_catalogue_path, reader=reader)
 
+    elif id_source == "SUBFIND":
+        from .subfind import SubfindHaloSource
+
+        assert config.simulation_type == "TNG", f"{config.simulation_type} not supported with SUBFIND."
+
+        logger.info("Using SUBFIND halo assignments.")
+        logger.info(f"Finding SUBFIND catalogue at {config.halo_catalogue_path}")
+
+        return SubfindHaloSource(catalogue_path=config.halo_catalogue_path, reader=reader)
+
     else:
         raise ValueError(f"Unknown halo catalogue source {id_source}, please check config?")
 
