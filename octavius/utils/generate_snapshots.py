@@ -238,6 +238,93 @@ def generate_swift_snapshot(path: Path, model: str = "KIARA") -> None:
         _create_swift_dataset(bh, "AccretionRates", bh_specific["bhmdot"])
 
 
+def generate_tng_snapshot(path: Path) -> None:
+    """
+    Procedurally generates an IllustrisTNG snapshot filled with junk data. The catalogue is self-consistent,
+    but its data only exists to be accessed for file validation, not any sort of physics checks.
+
+    Parameters
+    ----------
+    path: pathlib.Path
+        Path object pointing to where the TNG snapshot should be written.
+    """
+    gas_base = _generate_base_datasets(n_particles=N_GAS, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    dm_base = _generate_base_datasets(n_particles=N_DM, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    star_base = _generate_base_datasets(n_particles=N_STAR, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    bh_base = _generate_base_datasets(n_particles=N_BH, halo_centres=halo_centres, halo_velocities=halo_velocities)
+
+    gas_specific = _generate_gas_datasets(n_gas=N_GAS)
+    star_specific = _generate_star_datasets(n_star=N_STAR)
+    bh_specific = _generate_bh_datasets(n_bh=N_BH)
+
+    # metallicity is (n, 10) for TNG
+    gas_metals = rng.uniform(0.0, 0.05, size=(N_GAS, 10)).astype(np.float64)
+    star_metals = rng.uniform(0.0, 0.05, size=(N_STAR, 10)).astype(np.float64)
+
+    # dm mass goes in a mass table value
+    dm_mass_value = np.median(dm_base["mass"]) * h
+
+    with h5py.File(path, "w") as f:
+        # header (same as SIMBA)
+        header = f.create_group("Header")
+        header.attrs["HubbleParam"] = h
+        header.attrs["BoxSize"] = boxsize * h  # reader divides by h
+        header.attrs["Omega0"] = omega_matter
+        header.attrs["OmegaLambda"] = omega_lambda
+        header.attrs["Time"] = scale_factor
+        header.attrs["Redshift"] = redshift
+        header.attrs["NumPart_Total"] = np.array([N_GAS, N_DM, 0, 0, N_STAR, N_BH], dtype=np.uint32)
+        header.attrs["NumPart_Total_HighWord"] = np.array([0, 0, 0, 0, 0, 0], dtype=np.uint32)
+        header.attrs["MassTable"] = np.array([0.0, dm_mass_value, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
+
+        # gas
+        gas = f.create_group("PartType0")
+        gas.create_dataset("Coordinates", data=gas_base["pos"] * h)
+        gas.create_dataset("Velocities", data=gas_base["vel"])
+        gas.create_dataset("Masses", data=gas_base["mass"] * h)
+        gas.create_dataset("Potential", data=gas_base["potential"])
+        gas.create_dataset("ParticleIDs", data=np.arange(N_GAS, dtype=np.int64))
+
+        gas.create_dataset("InternalEnergy", data=gas_specific["internal_energy"])
+        gas.create_dataset("ElectronAbundance", data=gas_specific["electron_abundance"])
+        gas.create_dataset("Density", data=gas_specific["rho"] / h**2)
+        gas.create_dataset("NeutralHydrogenAbundance", data=gas_specific["fHI"])
+        gas.create_dataset("StarFormationRate", data=gas_specific["sfr"])
+        gas.create_dataset("GFM_Metallicity", data=gas_metals[:, 0])  # scalar total metallicity
+        gas.create_dataset("GFM_Metals", data=gas_metals)  # 10-element composition
+        gas.create_dataset("SubfindHsml", data=gas_specific["smoothing_length"])
+
+        # no masses for dm
+        dm = f.create_group("PartType1")
+        dm.create_dataset("Coordinates", data=dm_base["pos"] * h)
+        dm.create_dataset("Velocities", data=dm_base["vel"])
+        dm.create_dataset("Potential", data=dm_base["potential"])
+        dm.create_dataset("ParticleIDs", data=np.arange(N_DM, dtype=np.int64) + N_GAS)
+
+        # star
+        star = f.create_group("PartType4")
+        star.create_dataset("Coordinates", data=star_base["pos"] * h)
+        star.create_dataset("Velocities", data=star_base["vel"])
+        star.create_dataset("Masses", data=star_base["mass"] * h)
+        star.create_dataset("Potential", data=star_base["potential"])
+        star.create_dataset("ParticleIDs", data=np.arange(N_STAR, dtype=np.int64) + N_GAS + N_DM)
+
+        star.create_dataset("GFM_StellarFormationTime", data=star_specific["age"])
+        star.create_dataset("GFM_Metallicity", data=star_metals[:, 0])
+        star.create_dataset("GFM_Metals", data=star_metals)
+
+        # bh
+        bh = f.create_group("PartType5")
+        bh.create_dataset("Coordinates", data=bh_base["pos"] * h)
+        bh.create_dataset("Velocities", data=bh_base["vel"])
+        bh.create_dataset("Masses", data=bh_base["mass"])
+        bh.create_dataset("Potential", data=bh_base["potential"])
+        bh.create_dataset("ParticleIDs", data=np.arange(N_BH, dtype=np.int64) + N_GAS + N_DM + N_STAR)
+
+        bh.create_dataset("BH_Mass", data=bh_specific["bhmass"] * h)
+        bh.create_dataset("BH_Mdot", data=bh_specific["bhmdot"] * h)
+
+
 def _generate_base_datasets(
     n_particles: int,
     halo_centres: np.ndarray,
