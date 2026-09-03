@@ -190,6 +190,7 @@ def execute_pipeline(
         if fof6d_result.n_galaxies > 0:
             groups["galaxies"] = build_galaxy_store(
                 particles=particles,
+                baryonic_ptypes=[pt for pt, store in particles.items() if store.is_baryonic],
                 galaxy_key=internals.group_types["galaxies"]["key"],
                 group_kind=internals.group_types["galaxies"]["kind"],
             )
