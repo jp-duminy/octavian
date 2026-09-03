@@ -59,7 +59,7 @@ def mock_catalogue(
         snapshot_path=tmp_snap,
         output_dir=tmp_dir,
         halo_id_source="SNAPSHOT",
-        photometry_table_filepath=PHOTOMETRY_TABLE_PATH,
+        photometry_table_path=PHOTOMETRY_TABLE_PATH,
         bands=["v"],  # the test table only has the V filter to reduce filesize
         min_dm_per_halo=0,
         min_stars_per_galaxy=2,  # these parameter choices are just so it runs

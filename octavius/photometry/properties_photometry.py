@@ -52,7 +52,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     if "galaxies" not in simulation_data.groups:
         logger.info("Skipping photometry: no galaxies found.")
         return
-    photometry_table = read_photometry_table(table_path=config.photometry_table_filepath)
+    photometry_table = read_photometry_table(table_path=config.photometry_table_path)
     constants = simulation_data.constants
     sim = simulation_data.simulation
     kernel_table = build_interpolation_table(n_bins=config.interpolation_bins, kernel_type=config.kernel_type)
@@ -183,7 +183,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
         use_cosmic_ext=config.use_cosmic_extinction,
         use_dust=use_dust,
         use_rotation=use_rotation,
-        keep_spectra=config.keep_spectra,  # use for standalone photometry only
+        keep_spectra=config._keep_spectra,  # use for standalone photometry only
         rotation_matrices=rotation_matrices,
     )
 
@@ -244,7 +244,7 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     results["beta"] = beta
     results["beta_nodust"] = beta_nodust
 
-    if config.keep_spectra:
+    if config._keep_spectra:
         results["spectra"] = spectra_dust
         results["spectra_nodust"] = spectra_nodust
 

@@ -102,7 +102,7 @@ child_gal_mass_grams = cat.galaxies.get_dataset("mass_star", mask=galaxy_idx, to
 It is worth noting not all haloes have galaxies. This brings us to the important concept of a _sentinel value_, which indicates a membership mapping does not exist. The sentinel value is -1 everywhere; you should therefore take care to mask out any -1 values in membership arrays, as index -1 is valid in idiomatic numpy and will **incorrectly return the last element of an array** instead of nothing.
 
 ```python
-parent_halo_idx = cat.haloes.get_membership("parent")  # parent halo index (-1 for field haloes)
+parent_halo_idx = cat.haloes.get_membership("parent_halo_index")  # parent halo index (-1 for field haloes)
 parent_halo_idx = parent_halo_idx[parent_halo_idx > 0]  # mask out -1 sentinel value
 ```
 

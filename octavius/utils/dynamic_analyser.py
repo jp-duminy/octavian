@@ -200,9 +200,9 @@ class OctaviusAnalyser:
 
         group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
 
-        names, lambda_effs = read_filter_names(self._config.photometry_table_filepath)
-        config = replace(
-            self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs), keep_spectra=keep_spectra
+        names, lambda_effs = read_filter_names(self._config.photometry_table_path)
+        config = replace(  # HACK: insert _keep_spectra from user parameters
+            self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs), _keep_spectra=keep_spectra
         )
 
         group_type = "galaxies"  # only runs on galaxies
@@ -271,7 +271,7 @@ class OctaviusAnalyser:
             group_store=galaxies, group_type=group_type, group_indices=group_indices, pre_columns=pre_columns
         )
 
-        with h5py.File(config.photometry_table_filepath, "r") as f:
+        with h5py.File(config.photometry_table_path, "r") as f:
             wavelengths = f["ssp"]["wavelengths"][:]
 
         results.columns["wavelengths"] = wavelengths

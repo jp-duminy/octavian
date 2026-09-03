@@ -76,15 +76,19 @@ This is a glossary of commonly-used terminology throughout the codebase and docu
 
 - `caesar`: the predecessor analysis toolkit to Octavius.
 
+- `EAGLE`: a subgrid physics model for simulations.
+
 - `FOF`: the friends-of-friends algorithm used to identify clusters of particles.
 
-- `GIZMO`: physics framework used for simulations.
+- `GIZMO`: a multi-purpose hydrodynamics solver code.
 
 - `HBT-HERONS`: an external history-based halo finder.
 
 - `MPI`: message passing interface, a standard for parallel computing.
 
 - `Rank`: a unique worker process running under MPI.
+
+- `SIMBA`: a subgrid physics model for simulations.
 
 - `SWIFT`: gravity and SPH solver framework used for simulations.
 

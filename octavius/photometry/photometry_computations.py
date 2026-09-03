@@ -68,6 +68,7 @@ def compute_photometric_properties(
     beta = np.full(shape=n_galaxies, fill_value=np.nan)
     beta_nodust = np.full(shape=n_galaxies, fill_value=np.nan)
 
+    # HACK: enable standalone photometry spectra by allocating (0, 0) empty array and disabling in pipeline
     if phot_constants.keep_spectra:
         out_spectra_dust = np.empty(shape=(n_galaxies, n_lambdas), dtype=np.float64)
         out_spectra_nodust = np.empty(shape=(n_galaxies, n_lambdas), dtype=np.float64)
