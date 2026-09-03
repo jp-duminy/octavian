@@ -438,8 +438,6 @@ def generate_config(output_dir: Path = Path(".")) -> None:
     output_dir: pathlib.Path
         Path object pointing to the output directory where the config.yaml file should be generated.
         Default: the current working directory.
-    filename: str
-        The desired filename. Default: octavius_config.
 
     Notes
     -----

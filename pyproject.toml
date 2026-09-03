@@ -87,6 +87,17 @@ filterwarnings = [
     "ignore::DeprecationWarning:numba",
     "ignore::DeprecationWarning:h5py",
 ]
+[tool.coverage.report]
+exclude_lines = [
+    "@njit",
+    "@njit\\(.*\\)",
+]
+
+omit = [
+    "octavius/external_halo_sources/ahf.py",
+    "octavius/external_halo_sources/hbt_herons.py",
+    "octavius/photometry/photometry_tables.py",
+]
 
 [tool.ruff]
 line-length = 120
