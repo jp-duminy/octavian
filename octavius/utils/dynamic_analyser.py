@@ -20,6 +20,7 @@ from pathlib import Path
 # other packages
 import numpy as np
 import h5py
+import numba
 from scipy.spatial.transform import Rotation
 
 # internal imports
@@ -141,6 +142,8 @@ class OctaviusAnalyser:
         self._config = config
         self._constants = constants
         self._internals = internals
+
+        numba.set_num_threads(config.cores_per_rank)
         configure_logger(snapshot_path=config.snapshot_path.stem, rank=0, output_level=config.terminal_output_level)
 
         self._collections: dict[str, GroupCollection] = {}
