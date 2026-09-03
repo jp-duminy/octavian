@@ -149,7 +149,7 @@ def test_rank_halo_assignments() -> None:
     test_config = OctaviusConfig(
         snapshot_path=Path("null"),
         output_dir=Path("null"),
-        simulation_type="GIZMO",
+        simulation_type="SIMBA",
         halo_id_source="SNAPSHOT",
         cores_per_rank=1,
     )

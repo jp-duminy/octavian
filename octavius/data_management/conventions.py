@@ -208,6 +208,8 @@ class OctaviusConstants:
     Z_SUN_WATSON: float = 0.0189  # watson 2011
     Z_SUN_ASPLUND: float = 0.0134  # asplund 2009
     AV_TO_NH: float = 2.2e21  # watson 2011
+    BLITZ_ALPHA: float = 0.92
+    BLITZ_P0: float = 2.3e-4
 
     # derived unit conversions
     G_VCIRC: float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
@@ -334,9 +336,9 @@ DTYPES = {
 }
 
 
-def gizmo_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
+def gadget_unit_conversion_factor(dataset: str, h: float, a: float) -> float:
     """
-    Gizmo snapshot unit conversion factors (pulled from config.yaml)
+    Factors for converting standard GADGET units to internal code units.
     Please see http://www.tapir.caltech.edu/~phopkins/Site/GIZMO_files/gizmo_documentation.html#snaps-units
     Astropy for automatic dimensional analysis.
     """

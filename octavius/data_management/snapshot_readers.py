@@ -36,7 +36,7 @@ from .conventions import (
     DTYPES,
     CODE_UNITS,
     SimulationAttributes,
-    gizmo_unit_conversion_factor,
+    gadget_unit_conversion_factor,
 )
 from ..log import get_logger
 
@@ -334,9 +334,9 @@ class SnapshotReader(ABC):
         ...
 
 
-class GizmoReader(SnapshotReader):
+class GadgetReader(SnapshotReader):
     """
-    Gizmo (SIMBA) snapshot reader; assumes default units.
+    Parses GADGET-style snapshots. Should only be inherited, never directly instantiated.
     """
 
     ptype_map = {
@@ -345,44 +345,30 @@ class GizmoReader(SnapshotReader):
         "PartType4": "star",
         "PartType5": "bh",
     }
-
     dataset_map = {
         "pos": "Coordinates",
         "vel": "Velocities",
         "mass": "Masses",
         "potential": "Potential",
+        "HI_abundance": "NeutralHydrogenAbundance",
         "internal_energy": "InternalEnergy",
         "electron_abundance": "ElectronAbundance",
         "rho": "Density",
-        "HI_abundance": "NeutralHydrogenAbundance",
-        "H2_fraction": "FractionH2",
-        "sfr": "StarFormationRate",
-        "age": "StellarFormationTime",  # NOTE: we compute age from formationtime, but using "age" is for reader agnosticity
-        "metallicity": "Metallicity",
-        "helium_fraction": "Metallicity",  # helium fraction is metallicity[:, 1] (metallicity is nx11 array)
         "bhmass": "BH_Mass",
         "bhmdot": "BH_Mdot",
-        "dust_mass": "Dust_Masses",
-        "smoothing_length": "SmoothingLength",
     }
 
     id_map = {
         "particle_id": "ParticleIDs",
-        "HaloID": "HaloID",
-    }
-
-    column_indices = {
-        "helium_fraction": 1,  # slice of 2D datasets
-        "metallicity": 0,
     }
 
     dataset_map_overrides: dict[tuple[str, str], str] = {}
 
-    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int):
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
         self.unit_conversions = {
-            dataset: gizmo_unit_conversion_factor(
+            dataset: gadget_unit_conversion_factor(
                 dataset, self.simulation_attributes.h, self.simulation_attributes.scale_factor
             )
             for dataset in self.dataset_map
@@ -390,8 +376,6 @@ class GizmoReader(SnapshotReader):
         }
         self.derived_columns: dict[str, Callable] = {
             "temperature": self._derive_temperature,
-            "fHI": self._derive_fHI,
-            "fH2": self._derive_fH2,
         }
 
     def read_header(self) -> SimulationAttributes:
@@ -443,35 +427,6 @@ class GizmoReader(SnapshotReader):
 
         return conversion_factor
 
-    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
-        """
-        Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavius's -1.
-        """
-        hdf5_group = self.inverse_ptype_map[ptype]
-        halo_id_name = self.id_map["HaloID"]  # equivalent for GIZMO but best practice to use the dict
-
-        if slab.start is None:  # SnapshotHaloSource calls this without slab arg
-            slab = slice(0, self.particle_counts[ptype])
-
-        slab_length = slab.stop - slab.start
-
-        with h5py.File(self.snapshot_path, "r") as f:
-            halo_hdf5_dataset = f[hdf5_group][halo_id_name]
-            raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
-
-            for chunk in split_slab(slab, self.n_io_chunks):
-                offset = chunk.start - slab.start
-                chunk_length = chunk.stop - chunk.start
-                raw_halo_ids[offset : offset + chunk_length] = halo_hdf5_dataset[chunk]
-
-            raw_halo_ids = raw_halo_ids.astype(
-                DTYPES.get("HaloID", np.int64), copy=False
-            )  # change dtype here otherwise you get int overflow
-
-        raw_halo_ids -= 1  # shift IDs left to compensate with Octavius sentinel
-
-        return raw_halo_ids
-
     def _derive_temperature(self, ptype: str = "gas") -> np.ndarray:
         """
         Reads data to calculate temperature according to method described
@@ -496,26 +451,6 @@ class GizmoReader(SnapshotReader):
         )
 
         return temperature
-
-    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Converts the NeutralHydrogenAbundance (nHI/nH) to fHI (fraction of mass which is hydrogen)
-        """
-        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")
-        helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
-        metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
-
-        return (1.0 - helium_fraction - metallicity) * neutral_fraction
-
-    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Converts the FractionH2 (mH2/mH) to H2 mass fraction of total particle mass.
-        """
-        molecular_fraction = self._read_raw(ptype=ptype, dataset="H2_fraction")
-        helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
-        metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
-
-        return (1.0 - helium_fraction - metallicity) * molecular_fraction
 
 
 class SwiftReader(SnapshotReader):
@@ -806,8 +741,228 @@ class ColibreReader(SwiftReader):
         return (1.0 - helium_fraction - metallicity) * 2.0 * species_H2  # diatomic
 
 
+class SimbaReader(GadgetReader):
+    """
+    SIMBA (GIZMO) snapshot reader; assumes default units. Works on gadget framework from inherited
+    conventions.
+    """
+
+    dataset_map = {
+        **GadgetReader.dataset_map,
+        "H2_fraction": "FractionH2",
+        "sfr": "StarFormationRate",
+        "age": "StellarFormationTime",  # NOTE: we compute age from formationtime, but using "age" is for reader agnosticity
+        "metallicity": "Metallicity",
+        "helium_fraction": "Metallicity",  # helium fraction is metallicity[:, 1] (metallicity is nx11 array)
+        "dust_mass": "Dust_Masses",
+        "smoothing_length": "SmoothingLength",
+    }
+
+    id_map = {
+        **GadgetReader.id_map,
+        "HaloID": "HaloID",
+    }
+
+    column_indices = {
+        "helium_fraction": 1,  # slice of 2D datasets
+        "metallicity": 0,
+    }
+
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
+
+        super().__init__(snapshot_path, constants, n_io_chunks)
+        self.derived_columns["fHI"] = self._derive_fHI
+        self.derived_columns["fH2"] = self._derive_fH2
+
+    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
+        """
+        Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavius's -1.
+        """
+        hdf5_group = self.inverse_ptype_map[ptype]
+        halo_id_name = self.id_map["HaloID"]  # equivalent for GIZMO but best practice to use the dict
+
+        if slab.start is None:  # SnapshotHaloSource calls this without slab arg
+            slab = slice(0, self.particle_counts[ptype])
+
+        slab_length = slab.stop - slab.start
+
+        with h5py.File(self.snapshot_path, "r") as f:
+            halo_hdf5_dataset = f[hdf5_group][halo_id_name]
+            raw_halo_ids = np.empty(shape=slab_length, dtype=halo_hdf5_dataset.dtype)
+
+            for chunk in split_slab(slab, self.n_io_chunks):
+                offset = chunk.start - slab.start
+                chunk_length = chunk.stop - chunk.start
+                raw_halo_ids[offset : offset + chunk_length] = halo_hdf5_dataset[chunk]
+
+            raw_halo_ids = raw_halo_ids.astype(
+                DTYPES.get("HaloID", np.int64), copy=False
+            )  # change dtype here otherwise you get int overflow
+
+        raw_halo_ids -= 1  # shift IDs left to compensate with Octavius sentinel
+
+        return raw_halo_ids
+
+    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Converts the NeutralHydrogenAbundance (nHI/nH) to fHI (fraction of mass which is hydrogen)
+        """
+        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")
+        helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
+        metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
+
+        return (1.0 - helium_fraction - metallicity) * neutral_fraction
+
+    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Converts the FractionH2 (mH2/mH) to H2 mass fraction of total particle mass.
+        """
+        molecular_fraction = self._read_raw(ptype=ptype, dataset="H2_fraction")
+        helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
+        metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
+
+        return (1.0 - helium_fraction - metallicity) * molecular_fraction
+
+
+class TNGReader(GadgetReader):
+    """
+    TNG snapshot reader; assumes default GADGET units.
+    """
+
+    dataset_map = {
+        **GadgetReader.dataset_map,
+        "sfr": "StarFormationRate",
+        "age": "GFM_StellarFormationTime",
+        "metallicity": "GFM_Metallicity",
+        "helium_fraction": "GFM_Metals",
+        "smoothing_length": "SubfindHsml",
+    }
+
+    id_map = {
+        **GadgetReader.id_map,
+        "HaloID": "",
+    }
+
+    column_indices = {
+        "helium_fraction": 1,  # slice of 2D datasets
+    }
+
+    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
+
+        super().__init__(snapshot_path, constants, n_io_chunks)
+        self.derived_columns["fH2"] = self._derive_fH2
+        self.derived_columns["fHI"] = self._derive_fHI
+
+    def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
+        """
+        Overrides read_dataset() for DM masses.
+        """
+        if ptype == "dm" and dataset == "mass":
+            return self._derive_dm_mass()
+
+        return super().read_dataset(ptype, dataset)
+
+    def has_dataset(self, ptype: str, dataset: str) -> bool:
+        """
+        Overrides has_dataset() for DM masses.
+        """
+        if ptype == "dm" and dataset == "mass":
+            return True
+        return super().has_dataset(ptype, dataset)
+
+    def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
+        """
+        Do not exist in TNG snapshots.
+        """
+        ptype, slab = ptype, slab
+        raise ValueError("Snapshot halo IDs do not exist in TNG snapshots.")
+
+    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Derives fHI using Blitz & Rosolowsky (2006).
+        """
+        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")  # TODO: change name convention
+        electron_abundance = self._read_raw(ptype=ptype, dataset="electron_abundance")
+        internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
+        helium_fraction = self._read_raw("gas", "helium_fraction")
+        metallicity = self._read_raw("gas", "metallicity")
+        hydrogen_fraction = 1.0 - helium_fraction - metallicity
+
+        temperature = calculate_temperature(
+            internal_energy=internal_energy,
+            electron_abundance=electron_abundance,
+            helium_fraction=helium_fraction,
+            constants=self.constants,
+        )
+        rho = self._read_raw(ptype=ptype, dataset="rho")
+
+        nH = rho * hydrogen_fraction / self.constants.PROTON_MASS_G
+
+        n_total = nH * (1 + electron_abundance + (helium_fraction / (4 * (hydrogen_fraction))))
+
+        thermal_pressure = n_total * temperature  # in units of kB
+        R_mol = (thermal_pressure / self.constants.BLITZ_P0) ** self.constants.BLITZ_ALPHA  # blitz P0 bakes in kB
+
+        fHI = hydrogen_fraction * neutral_fraction / (1 + R_mol)
+
+        return fHI
+
+    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Derives fH2 using Blitz & Rosolowsky (2006).
+        """
+        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")
+        electron_abundance = self._read_raw(ptype=ptype, dataset="electron_abundance")
+        internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
+        helium_fraction = self._read_raw("gas", "helium_fraction")
+        metallicity = self._read_raw("gas", "metallicity")
+        hydrogen_fraction = 1.0 - helium_fraction - metallicity
+
+        temperature = calculate_temperature(
+            internal_energy=internal_energy,
+            electron_abundance=electron_abundance,
+            helium_fraction=helium_fraction,
+            constants=self.constants,
+        )
+        rho = self._read_raw(ptype=ptype, dataset="rho")
+
+        nH = rho * hydrogen_fraction / self.constants.PROTON_MASS_G
+
+        n_total = nH * (1 + electron_abundance + (helium_fraction / (4 * (hydrogen_fraction))))
+
+        thermal_pressure = n_total * temperature  # in units of kB
+        R_mol = (thermal_pressure / self.constants.BLITZ_P0) ** self.constants.BLITZ_ALPHA  # blitz P0 bakes in kB
+
+        fH2 = hydrogen_fraction * neutral_fraction * R_mol / (1.0 + R_mol)
+
+        return fH2
+
+    def _derive_dm_mass(self) -> np.ndarray:
+        """
+        Derives the DM mass from header mass table.
+        """
+        with h5py.File(self.snapshot_path, "r") as f:
+            dm_mass_raw = f["Header"].attrs["MassTable"][1]
+
+        dm_mass = dm_mass_raw * self.unit_conversions["mass"]
+
+        if self.subset_indices is not None:
+            return np.full(shape=len(self.subset_indices), fill_value=dm_mass, dtype=np.float64)
+
+        slab = self.slabs["dm"]
+        slab_length = slab.stop - slab.start
+        dm_masses = np.full(slab_length, dm_mass, dtype=np.float64)
+        dm_masses = dm_masses[self.masks["dm"]]
+
+        if self.maps is not None:
+            dm_masses = redistribute_data(local_data=dm_masses, redistribution_map=self.maps["dm"], comm=self.comm)
+
+        return dm_masses
+
+
 READER_MAP: dict[str, type[SnapshotReader]] = {
-    "GIZMO": GizmoReader,
+    "SIMBA": SimbaReader,
+    "TNG": TNGReader,
     "SWIFT-KIARA": KiaraReader,
     "SWIFT-EAGLE": EagleReader,
     "SWIFT-COLIBRE": ColibreReader,
