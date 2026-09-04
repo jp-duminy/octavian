@@ -362,8 +362,6 @@ CODE_UNITS = {
     "rhocrit": DatasetUnits(unit=(u.M_sun / u.kpc**3)),
     "helium_fraction": DatasetUnits(unit=u.dimensionless_unscaled),
     "electron_abundance": DatasetUnits(unit=u.dimensionless_unscaled),
-    "fHI": DatasetUnits(unit=u.dimensionless_unscaled),
-    "fH2": DatasetUnits(unit=u.dimensionless_unscaled),
     "sfr": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
     "bhmass": DatasetUnits(unit=u.M_sun),  # solar masses
     "bhmdot": DatasetUnits(unit=(u.M_sun / u.yr)),  # solar masses/yr
@@ -382,8 +380,8 @@ DTYPES = {
     "internal_energy": np.float64,
     "sfr": np.float64,
     "metallicity": np.float64,
-    "fHI": np.float64,
-    "fH2": np.float64,
+    "mass_H1": np.float64,
+    "mass_H2": np.float64,
     "potential": np.float64,
     "age": np.float64,
     "bhmass": np.float64,

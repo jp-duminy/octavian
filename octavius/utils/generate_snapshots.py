@@ -75,7 +75,7 @@ def generate_simba_snapshot(path: Path) -> None:
     star_base = _generate_base_datasets(n_particles=N_STAR, halo_centres=halo_centres, halo_velocities=halo_velocities)
     bh_base = _generate_base_datasets(n_particles=N_BH, halo_centres=halo_centres, halo_velocities=halo_velocities)
 
-    gas_specific = _generate_gas_datasets(n_gas=N_GAS)
+    gas_specific = _generate_gas_datasets(n_gas=N_GAS, gas_mass=gas_base["mass"])
     star_specific = _generate_star_datasets(n_star=N_STAR)
     bh_specific = _generate_bh_datasets(n_bh=N_BH)
 
@@ -102,9 +102,9 @@ def generate_simba_snapshot(path: Path) -> None:
         gas.create_dataset("InternalEnergy", data=gas_specific["internal_energy"])
         gas.create_dataset("ElectronAbundance", data=gas_specific["electron_abundance"])
         gas.create_dataset("Density", data=gas_specific["rho"] / h**2)
-        gas.create_dataset("NeutralHydrogenAbundance", data=gas_specific["fHI"])
+        gas.create_dataset("NeutralHydrogenAbundance", data=gas_specific["mass_HI"] / gas_base["mass"])
         gas.create_dataset("StarFormationRate", data=gas_specific["sfr"])
-        gas.create_dataset("FractionH2", data=gas_specific["fH2"])
+        gas.create_dataset("FractionH2", data=gas_specific["mass_H2"] / gas_base["mass"])
         gas.create_dataset("Metallicity", data=gas_specific["metallicity"])
         gas.create_dataset("Dust_Masses", data=gas_specific["dust_mass"])
         gas.create_dataset("SmoothingLength", data=gas_specific["smoothing_length"])
@@ -159,7 +159,7 @@ def generate_swift_snapshot(path: Path, model: str = "KIARA") -> None:
     star_base = _generate_base_datasets(n_particles=N_STAR, halo_centres=halo_centres, halo_velocities=halo_velocities)
     bh_base = _generate_base_datasets(n_particles=N_BH, halo_centres=halo_centres, halo_velocities=halo_velocities)
 
-    gas_specific = _generate_gas_datasets(n_gas=N_GAS)
+    gas_specific = _generate_gas_datasets(n_gas=N_GAS, gas_mass=gas_base["mass"])
     star_specific = _generate_star_datasets(n_star=N_STAR)
     bh_specific = _generate_bh_datasets(n_bh=N_BH)
 
@@ -205,7 +205,7 @@ def generate_swift_snapshot(path: Path, model: str = "KIARA") -> None:
         _create_swift_dataset(gas, "Temperatures", gas_specific["temperature"])
 
         # specific flavoured gas datasets
-        _generate_swift_gas_datasets(gas_group=gas, gas_base=gas_base, gas_specific=gas_specific, model=model)
+        _generate_swift_gas_datasets(gas_group=gas, gas_specific=gas_specific, model=model)
 
         # dm
         dm = f.create_group("PartType1")
@@ -262,7 +262,7 @@ def generate_tng_snapshot(path: Path, subfind_path: Path) -> None:
     bh_base = _generate_base_datasets(n_particles=N_BH, halo_centres=halo_centres, halo_velocities=halo_velocities)
     bh_base = _tng_sort_particles(base=bh_base)
 
-    gas_specific = _generate_gas_datasets(n_gas=N_GAS)
+    gas_specific = _generate_gas_datasets(n_gas=N_GAS, gas_mass=gas_base["mass"])
     star_specific = _generate_star_datasets(n_star=N_STAR)
     bh_specific = _generate_bh_datasets(n_bh=N_BH)
 
@@ -297,7 +297,7 @@ def generate_tng_snapshot(path: Path, subfind_path: Path) -> None:
         gas.create_dataset("InternalEnergy", data=gas_specific["internal_energy"])
         gas.create_dataset("ElectronAbundance", data=gas_specific["electron_abundance"])
         gas.create_dataset("Density", data=gas_specific["rho"] / h**2)
-        gas.create_dataset("NeutralHydrogenAbundance", data=gas_specific["fHI"])
+        gas.create_dataset("NeutralHydrogenAbundance", data=gas_specific["mass_HI"] / gas_base["mass"])
         gas.create_dataset("StarFormationRate", data=gas_specific["sfr"])
         gas.create_dataset("GFM_Metallicity", data=gas_metals[:, 0])  # scalar total metallicity
         gas.create_dataset("GFM_Metals", data=gas_metals)  # 10-element composition
@@ -388,7 +388,7 @@ def _generate_star_datasets(n_star: int) -> dict[str, np.ndarray]:
     }
 
 
-def _generate_gas_datasets(n_gas: int) -> dict[str, np.ndarray]:
+def _generate_gas_datasets(n_gas: int, gas_mass: np.ndarray) -> dict[str, np.ndarray]:
     """
     Generates gas-specific datasets.
     """
@@ -396,10 +396,10 @@ def _generate_gas_datasets(n_gas: int) -> dict[str, np.ndarray]:
         "internal_energy": rng.uniform(1e3, 1e5, size=n_gas).astype(np.float64),
         "electron_abundance": rng.uniform(0.0, 1.16, size=n_gas).astype(np.float64),
         "rho": rng.uniform(1e-6, 1e-2, size=n_gas).astype(np.float64),
-        "fHI": rng.uniform(0.0, 1.0, size=n_gas).astype(np.float64),
+        "mass_HI": rng.uniform(0.0, 1.0, size=n_gas).astype(np.float64) * gas_mass,
+        "mass_H2": rng.uniform(0.0, 1.0, size=n_gas).astype(np.float64) * gas_mass,
         "sfr": rng.uniform(0.0, 10.0, size=n_gas).astype(np.float64),
         "metallicity": rng.uniform(0.0, 0.05, size=(n_gas, 11)).astype(np.float64),
-        "fH2": rng.uniform(0.0, 1.0, size=n_gas).astype(np.float64),
         "dust_mass": rng.uniform(1e-5, 1e-3, size=n_gas).astype(np.float64),
         "smoothing_length": rng.uniform(1.0, 10.0, size=n_gas).astype(np.float64),
         "temperature": rng.uniform(1e3, 1e6, size=n_gas).astype(np.float64),
@@ -410,7 +410,6 @@ def _generate_gas_datasets(n_gas: int) -> dict[str, np.ndarray]:
 
 def _generate_swift_gas_datasets(
     gas_group: h5py.Group,
-    gas_base: dict[str, np.ndarray],
     gas_specific: dict[str, np.ndarray],
     model: str,
 ) -> None:
@@ -418,13 +417,13 @@ def _generate_swift_gas_datasets(
     Fills in the gas datasets which are specific to a certain SWIFT model.
     """
     if model == "KIARA":
-        _create_swift_dataset(gas_group, "AtomicHydrogenMasses", gas_specific["fHI"] * gas_base["mass"])
-        _create_swift_dataset(gas_group, "MolecularHydrogenMasses", gas_specific["fH2"] * gas_base["mass"])
+        _create_swift_dataset(gas_group, "AtomicHydrogenMasses", gas_specific["mass_HI"])
+        _create_swift_dataset(gas_group, "MolecularHydrogenMasses", gas_specific["mass_H2"])
         _create_swift_dataset(gas_group, "DustMasses", gas_specific["dust_mass"])
 
     elif model == "EAGLE":
-        _create_swift_dataset(gas_group, "AtomicHydrogenMasses", gas_specific["fHI"] * gas_base["mass"])
-        _create_swift_dataset(gas_group, "MolecularHydrogenMasses", gas_specific["fH2"] * gas_base["mass"])
+        _create_swift_dataset(gas_group, "AtomicHydrogenMasses", gas_specific["mass_HI"])
+        _create_swift_dataset(gas_group, "MolecularHydrogenMasses", gas_specific["mass_H2"])
 
     elif model == "COLIBRE":
         _create_swift_dataset(gas_group, "SpeciesFractions", gas_specific["species_fractions"])
