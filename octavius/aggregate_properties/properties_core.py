@@ -74,7 +74,14 @@ def run_core_properties(simulation_data: SimulationData, config: OctaviusConfig)
         available_ptypes = simulation_data.available_ptypes
         available_baryonic = simulation_data.available_baryonic_ptypes
 
-        if kind == "halo":
+        # if user wants minpot as the halo centre
+        if kind == "halo" and config.halo_centre == "MIN_POT":
+            has_potential = all("potential" in ps.columns for ps in particles.values())
+            if not has_potential:
+                raise ValueError(
+                    f"'halo_centre' is set to {config.halo_centre} but potentials are not in the snapshot."
+                )
+
             global_minimum = _prepare_global_minimum_potential(
                 particles=particles,
                 group_store=group_store,
@@ -149,8 +156,21 @@ def run_core_ptype_pass(
         ptype_cache[ptype] = (offsets, idx_sorted, counts_and_mass)
 
     if store.kind == "halo":
-        ref_pos = store["minpot_pos"]
-        ref_vel = store["minpot_vel"]
+        if config.halo_centre == "MIN_POT":
+            ref_pos = store["minpot_pos"]
+            ref_vel = store["minpot_vel"]
+        else:
+            total_com = _combine_centre_of_mass(
+                group_store=store,
+                combined_mass=sum(store[f"mass_{pt}"] for pt in particles),
+                collective_name="total",
+                constituent_ptypes=list(particles.keys()),
+                boxsize=sim.boxsize,
+            )
+            ref_pos = total_com["com_pos_total"]
+            ref_vel = total_com["com_vel_total"]
+        store.write_batch(results={"_centre_pos": ref_pos, "_centre_vel": ref_vel})
+
     else:
         available_baryonic = [pt for pt in particles if particles[pt].is_baryonic]
         baryon_com = _combine_centre_of_mass(
@@ -256,7 +276,7 @@ def run_halo_stages(
     Halo-specific virial/mass profile quantities.
     """
     n_groups = haloes.n_groups
-    ref_pos = haloes["minpot_pos"]
+    ref_pos = haloes["_centre_pos"]
 
     all_radii_list, all_masses_list, all_group_idx_list = [], [], []  # ghastly concatenation
 
@@ -430,7 +450,7 @@ def run_combined_radial_quantiles(
     quantiles = np.array(list(config.radial_quantiles.values()), dtype=np.float64)
 
     if store.kind == "halo":
-        baryon_ref = store["minpot_pos"]
+        baryon_ref = store["_centre_pos"]
     else:
         baryon_ref = store["com_pos_baryon"]
 
@@ -451,7 +471,7 @@ def run_combined_radial_quantiles(
             particles=particles,
             store=store,
             ptypes=available_ptypes,
-            ref_pos=store["minpot_pos"],
+            ref_pos=store["_centre_pos"],
             sim=sim,
             quantiles=quantiles,
             quantile_names=quantile_names,

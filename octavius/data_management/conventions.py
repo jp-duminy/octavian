@@ -28,6 +28,7 @@ CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "properties", "phot
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
 VALID_SIM_TYPES = frozenset({"SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
 VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND"})
+VALID_HALO_CENTRES = frozenset({"MIN_POT", "COM"})
 VALID_EXT_LAWS = frozenset({"composite", "power_law", "cardelli", "conroy", "calzetti", "mix_calz_mw", "smc", "lmc"})
 VALID_VIEW_AXES = frozenset({"x", "y", "z"})
 ALWAYS_POSITIVE = frozenset(
@@ -39,6 +40,7 @@ VALID_ENTRIES: dict[str, frozenset[str]] = {
     "halo_id_source": VALID_HALO_CATS,
     "extinction_law": VALID_EXT_LAWS,
     "viewing_axis": VALID_VIEW_AXES,
+    "halo_centre": VALID_HALO_CENTRES,
 }
 
 VALID_COMBOS: dict[str, frozenset[str]] = {
@@ -115,6 +117,7 @@ class OctaviusConfig:
     aperture_size: list[int] = field(default_factory=lambda: [30])
     virial_factors: list[int] = field(default_factory=lambda: [200, 500, 2500])
     density_radii: list[int] = field(default_factory=lambda: [300, 1000, 3000])
+    halo_centre: str = "MIN_POT"
 
     b: float = 0.02
     velocity_factor: float = 1.0
@@ -145,6 +148,7 @@ class OctaviusConfig:
         object.__setattr__(self, "simulation_type", self.simulation_type.upper())
         object.__setattr__(self, "halo_id_source", self.halo_id_source.upper())
         object.__setattr__(self, "terminal_output_level", self.terminal_output_level.upper())
+        object.__setattr__(self, "halo_centre", self.halo_centre.upper())
 
         # str fields which only have certain allowed inputs
         for field_name, valid_entries in VALID_ENTRIES.items():
