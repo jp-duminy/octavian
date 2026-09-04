@@ -1,6 +1,7 @@
 """
 
-Procedurally generate SWIFT/GIZMO snapshots with junk data for pipeline testing and producing synthetic test catalogues.
+Procedurally generate supported snapshots with junk data for pipeline testing and
+producing synthetic test catalogues.
 
 """
 
@@ -58,15 +59,15 @@ halo_centres = rng.uniform(100, boxsize - 100, size=(N_HALOES, 3))
 halo_velocities = rng.normal(loc=0, scale=100, size=(N_HALOES, 3))
 
 
-def generate_gizmo_snapshot(path: Path) -> None:
+def generate_simba_snapshot(path: Path) -> None:
     """
-    Procedurally generates a GIZMO snapshot filled with junk data. The catalogue is self-consistent,
+    Procedurally generates a SIMBA snapshot filled with junk data. The catalogue is self-consistent,
     but its data only exists to be accessed for file validation, not any sort of physics checks.
 
     Parameters
     ----------
     path: pathlib.Path
-        Path object pointing to where the GIZMO snapshot should be written.
+        Path object pointing to where the SIMBA snapshot should be written.
     """
     # generate the junk data
     gas_base = _generate_base_datasets(n_particles=N_GAS, halo_centres=halo_centres, halo_velocities=halo_velocities)
@@ -238,7 +239,7 @@ def generate_swift_snapshot(path: Path, model: str = "KIARA") -> None:
         _create_swift_dataset(bh, "AccretionRates", bh_specific["bhmdot"])
 
 
-def generate_tng_snapshot(path: Path) -> None:
+def generate_tng_snapshot(path: Path, subfind_path: Path) -> None:
     """
     Procedurally generates an IllustrisTNG snapshot filled with junk data. The catalogue is self-consistent,
     but its data only exists to be accessed for file validation, not any sort of physics checks.
@@ -248,10 +249,18 @@ def generate_tng_snapshot(path: Path) -> None:
     path: pathlib.Path
         Path object pointing to where the TNG snapshot should be written.
     """
+    # generate base datasets then re-order for the SUBFIND matching
     gas_base = _generate_base_datasets(n_particles=N_GAS, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    gas_base = _tng_sort_particles(base=gas_base)
+
     dm_base = _generate_base_datasets(n_particles=N_DM, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    dm_base = _tng_sort_particles(base=dm_base)
+
     star_base = _generate_base_datasets(n_particles=N_STAR, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    star_base = _tng_sort_particles(base=star_base)
+
     bh_base = _generate_base_datasets(n_particles=N_BH, halo_centres=halo_centres, halo_velocities=halo_velocities)
+    bh_base = _tng_sort_particles(base=bh_base)
 
     gas_specific = _generate_gas_datasets(n_gas=N_GAS)
     star_specific = _generate_star_datasets(n_star=N_STAR)
@@ -323,6 +332,16 @@ def generate_tng_snapshot(path: Path) -> None:
 
         bh.create_dataset("BH_Mass", data=bh_specific["bhmass"] * h)
         bh.create_dataset("BH_Mdot", data=bh_specific["bhmdot"] * h)
+
+    if subfind_path is not None:  # TNG has no on-the-fly IDs so make a subfind catalogue
+        group_len_ptype = np.zeros(shape=(4, 6), dtype=np.int32)  #
+        for ptype_idx, base in [(0, gas_base), (1, dm_base), (4, star_base), (5, bh_base)]:
+            ids = base["HaloID"]  # not a real TNG dataset
+            in_halo = ids[ids >= 0]
+            counts = np.bincount(in_halo, minlength=N_HALOES)
+            group_len_ptype[:N_HALOES, ptype_idx] = counts
+
+        _write_subfind_catalogue(subfind_path=subfind_path, group_len_ptype=group_len_ptype)
 
 
 def _generate_base_datasets(
@@ -443,3 +462,52 @@ def _create_swift_halo_ids(group: h5py.Group, halo_ids: np.ndarray) -> None:
     swift_ids = halo_ids.copy() + 1  # shift to 1-indexed
     swift_ids[halo_ids == -1] = 2147483647
     group.create_dataset("FOFGroupIDs", data=swift_ids.astype(np.int32))
+
+
+def _write_subfind_catalogue(subfind_path: Path, group_len_ptype: np.ndarray) -> None:
+    """
+    Writes a SUBFIND catalogue to subfind_path.
+    """
+    # hard code these because otherwise this is a massive faff
+    group_first_sub = np.array([0, 3, 5, -1], dtype=np.int32)
+    group_n_subs = np.array([3, 2, 1, 0], dtype=np.int32)
+    sub_gr_nr = np.array([0, 0, 0, 1, 1, 2], dtype=np.int32)
+    sub_parent = np.array([0, 0, 1, 0, 0, 0], dtype=np.int32)
+    subhalo_fracs = [
+        [0.40, 0.25, 0.20],
+        [0.55, 0.30],
+        [0.85],
+    ]
+
+    # now build the associated datasets
+    subhalo_len_ptype = np.zeros(shape=(6, 6), dtype=np.int32)  # 6 ptypes present in subfind catalogues
+    for g in range(N_HALOES):
+        for ptype_idx in range(6):  # 6 ptypes in the TNG snapshots
+            group_count = group_len_ptype[g, ptype_idx]
+            if group_count == 0:
+                continue
+            for s, frac in enumerate(subhalo_fracs[g]):
+                global_sub_idx = group_first_sub[g] + s
+                subhalo_len_ptype[global_sub_idx, ptype_idx] = int(group_count * frac)
+
+    with h5py.File(subfind_path, "w") as f:  # NOTE: don't need to read the header
+        group = f.create_group(name="Group")
+        group.create_dataset(name="GroupLenType", data=group_len_ptype)
+        group.create_dataset(name="GroupFirstSub", data=group_first_sub)
+        group.create_dataset(name="GroupNsubs", data=group_n_subs)
+
+        subhalo = f.create_group(name="Subhalo")
+        subhalo.create_dataset(name="SubhaloLenType", data=subhalo_len_ptype)
+        subhalo.create_dataset(name="SubhaloGrNr", data=sub_gr_nr)
+        subhalo.create_dataset(name="SubhaloParent", data=sub_parent)
+
+
+def _tng_sort_particles(base: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """
+    For TNG specifically: sort particles by their halo ID so we can generate the
+    synthetic SUBFIND catalogue and have it work.
+    """
+    halo_ids = base["HaloID"].copy()
+    halo_ids[halo_ids == -1] = N_HALOES  # move unassigned to the end
+    order = np.argsort(halo_ids, kind="stable")
+    return {key: arr[order] for key, arr in base.items()}

@@ -399,7 +399,7 @@ class GadgetReader(SnapshotReader):
                 for hdf5_key, ptype_name in self.ptype_map.items()
             }
 
-        flat_lambda_cdm = FlatLambdaCDM(H0=100 * h, Om0=omega_matter)  # always flatlambdacdm for gizmo
+        flat_lambda_cdm = FlatLambdaCDM(H0=100 * h, Om0=omega_matter)  # always flatlambdacdm for GADGET
 
         self.simulation_attributes = derive_simulation_attributes(
             cosmology=flat_lambda_cdm,
@@ -779,7 +779,7 @@ class SimbaReader(GadgetReader):
         Reads snapshot-sourced HaloIDs. GIZMO uses 0 as the sentinel value; we map to Octavius's -1.
         """
         hdf5_group = self.inverse_ptype_map[ptype]
-        halo_id_name = self.id_map["HaloID"]  # equivalent for GIZMO but best practice to use the dict
+        halo_id_name = self.id_map["HaloID"]  # equivalent for SIMBA but best practice to use the dict
 
         if slab.start is None:  # SnapshotHaloSource calls this without slab arg
             slab = slice(0, self.particle_counts[ptype])
