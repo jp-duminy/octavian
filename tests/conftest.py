@@ -9,7 +9,6 @@ This is for automated CI/CD (did your commit break anything in the analysis?). P
 # default libraries
 from pathlib import Path
 from collections.abc import Generator
-from dataclasses import replace  # for modifying frozen dataclasses
 
 # testing
 import pytest
@@ -54,13 +53,12 @@ def mock_catalogue(
     elif sim_type == "TNG":
         generate_tng_snapshot(path=tmp_snap, subfind_path=tmp_halo_cat)
 
-    config = OctaviusConfig.from_yaml(config_path=CONFIG_PATH)
-
-    config = replace(  # replace default config with pytest params
-        config,
+    config = OctaviusConfig.from_yaml(
+        config_path=CONFIG_PATH,
         simulation_type=sim_type,
         snapshot_path=tmp_snap,
         output_dir=tmp_dir,
+        cores_per_rank=1,
         halo_id_source="SUBFIND" if sim_type == "TNG" else "SNAPSHOT",
         halo_catalogue_path=tmp_halo_cat if sim_type == "TNG" else None,
         photometry_table_path=PHOTOMETRY_TABLE_PATH,

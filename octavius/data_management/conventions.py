@@ -5,14 +5,9 @@ snapshot unit conversions and physical constants. Also defines the snapshot read
 
 """
 
-# type checking (semantic)
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
 # default packages
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field  #
+from typing import Any
 from yaml import safe_load
 from pathlib import Path
 
@@ -144,12 +139,14 @@ class OctaviusConfig:
 
     def __post_init__(self) -> None:
         """
-        Post-initialisation validation of sensible config parameters.
+        Post-initialisation validation of both sensible and valid config parameters to prevent errors at runtime.
         """
+        # uppercase the fields which are expected to be uppercase
         object.__setattr__(self, "simulation_type", self.simulation_type.upper())
         object.__setattr__(self, "halo_id_source", self.halo_id_source.upper())
         object.__setattr__(self, "terminal_output_level", self.terminal_output_level.upper())
 
+        # str fields which only have certain allowed inputs
         for field_name, valid_entries in VALID_ENTRIES.items():
             user_entered = getattr(self, field_name)
             if user_entered not in valid_entries:
@@ -157,6 +154,7 @@ class OctaviusConfig:
                     f"'{user_entered}' is not a valid choice; please select from {', '.join(valid_entries)}."
                 )
 
+        # fields which cannot be negative
         for field_name in ALWAYS_POSITIVE:
             user_entered = getattr(self, field_name)
 
@@ -168,6 +166,7 @@ class OctaviusConfig:
                 if user_entered <= 0:
                     raise ValueError(f"'{field_name}' must be positive.")
 
+        # valid permutations of simulation & halo catalogue
         sim_prefix = self.simulation_type.split("-")[0]
         valid_sources = VALID_COMBOS.get(sim_prefix)
         if valid_sources is not None and self.halo_id_source not in valid_sources:
@@ -176,8 +175,15 @@ class OctaviusConfig:
                 f"please select from {', '.join(sorted(valid_sources))}."
             )
 
+        # HACK: auto-expand photometry bands for user convenience
+        if self.stages.get("photometry", False) and self.photometry_table_path is not None:
+            from ..photometry.photometry_tables import resolve_band_names, read_filter_names  # avoid circular import
+
+            names, lambda_effs = read_filter_names(self.photometry_table_path)
+            object.__setattr__(self, "bands", resolve_band_names(self.bands, names, lambda_effs))
+
     @classmethod
-    def from_yaml(cls, config_path: Path) -> OctaviusConfig:
+    def from_yaml(cls, config_path: Path, **overrides: Any) -> OctaviusConfig:
         """
         Parses an octavius_config.yaml parameter file into the dataclass used internally.
         Names of entries themselves and the file layout must not be changed.
@@ -186,6 +192,8 @@ class OctaviusConfig:
         ----------
         config_path: pathlib.Path
             Path object pointing to the config file.
+        **overrides: Any
+            Any overrides to config fields specified in the YAML.
 
         Returns
         -------
@@ -200,6 +208,8 @@ class OctaviusConfig:
         for key in FILEPATHS:
             if key in flat and flat[key] is not None:
                 flat[key] = Path(flat[key]).expanduser()
+
+        flat.update(overrides)
 
         return cls(**flat)  # keyword unpacking saves us from a 35 argument instantiation
 
