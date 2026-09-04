@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from astropy.cosmology import FLRW
     from .conventions import OctaviusConstants
 
+# default packages
+from dataclasses import dataclass
+
 # other packages
 import numpy as np
 import astropy.units as u
@@ -20,41 +23,6 @@ from .data_structures import SimulationAttributes
 from ..log import get_logger
 
 logger = get_logger()
-
-
-def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: FLRW) -> np.ndarray:
-    """
-    Converts stellar formation time (stored as a scale factor by gizmo/swift) into stellar age in GYr.
-    """
-    redshifts = 1.0 / formation_time - 1.0
-    return time_gyr - cosmology.age(redshifts).to_value(u.Gyr)  # see astropy for integration details
-
-
-def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctaviusConstants, XH: float) -> np.ndarray:
-    """
-    Calculates nH from the simulation parameters and user config.yaml.
-    """
-    return rho_cgs * XH / constants.PROTON_MASS_G
-
-
-def calculate_temperature(
-    internal_energy: np.ndarray,
-    electron_abundance: np.ndarray,
-    helium_fraction: np.ndarray,
-    constants: OctaviusConstants,
-    gamma: float = 5 / 3,
-) -> np.ndarray:
-    """
-    Calculates temperature from internal energy and electron abundance.
-    """
-    y_helium = helium_fraction / (4 * (1 - helium_fraction))
-    mu = (1 + 4 * y_helium) / (1 + y_helium + electron_abundance)
-
-    mean_molecular_weight = mu * constants.PROTON_MASS_G
-
-    temperature = mean_molecular_weight * (gamma - 1) * internal_energy / constants.BOLTZMANN_CGS
-
-    return temperature
 
 
 def calculate_mean_interparticle_separation(
@@ -121,3 +89,85 @@ def derive_simulation_attributes(
         omega_matter_z=omega_matter_z,
         r200_factor=r200_factor,
     )
+
+
+def derive_stellar_age(formation_time: np.ndarray, time_gyr: float, cosmology: FLRW) -> np.ndarray:
+    """
+    Converts stellar formation time (stored as a scale factor by gizmo/swift) into stellar age in GYr.
+    """
+    redshifts = 1.0 / formation_time - 1.0
+    return time_gyr - cosmology.age(redshifts).to_value(u.Gyr)  # see astropy for integration details
+
+
+def calculate_hydrogen_number_density(rho_cgs: np.ndarray, constants: OctaviusConstants, XH: float) -> np.ndarray:
+    """
+    Calculates nH from the simulation parameters and user config.yaml.
+    """
+    return rho_cgs * XH / constants.PROTON_MASS_G
+
+
+def calculate_temperature(
+    internal_energy: np.ndarray,
+    electron_abundance: np.ndarray,
+    helium_fraction: np.ndarray,
+    constants: OctaviusConstants,
+    gamma: float = 5 / 3,
+) -> np.ndarray:
+    """
+    Calculates temperature from internal energy and electron abundance.
+    """
+    y_helium = helium_fraction / (4 * (1 - helium_fraction))
+    mu = (1 + 4 * y_helium) / (1 + y_helium + electron_abundance)
+
+    mean_molecular_weight = mu * constants.PROTON_MASS_G
+
+    temperature = mean_molecular_weight * (gamma - 1) * internal_energy / constants.BOLTZMANN_CGS
+
+    return temperature
+
+
+@dataclass(frozen=True, slots=True)
+class TNGConstants:
+    """
+    TNG-specific derivation constants, mostly from Stevens et al. (2019).
+    """
+
+    BLITZ_ALPHA: float = 0.92  # table 2 in Blitz-Rosolowsky (2006)
+    BLITZ_P0: float = 4.3e4  # table 2 in Blitz-Rosolowsky (2006)
+    A_0: float = 573.0
+    A_EXP: float = -0.8
+    T_SN: float = 5.73e7
+    T_COLD: float = 1.0e3
+    NH_THRESH: float = 0.1065  # https://www.tng-project.org/data/forum/topic/970/star-formation-threshold-density/
+
+
+def calculate_tng_x_neutral(
+    internal_energy: np.ndarray,
+    sfr: np.ndarray,
+    neutral_fraction: np.ndarray,
+    rho: np.ndarray,
+    hydrogen_fraction: np.ndarray,
+    constants: OctaviusConstants,
+    tng_constants: TNGConstants,
+) -> np.ndarray:
+    """
+    Calculates gas fractions for TNG simulations according to Stevens et al. (2019) prescriptions
+    in the appendix.
+    """
+    star_forming = sfr > 0
+
+    mu_cold = 4.0 / (1.0 + 3.0 * hydrogen_fraction[star_forming])
+    u_cold = constants.BOLTZMANN_CGS * tng_constants.T_COLD / ((5 / 3 - 1) * mu_cold * constants.PROTON_MASS_G)
+    u_SN = constants.BOLTZMANN_CGS * tng_constants.T_SN / ((5 / 3 - 1) * mu_cold * constants.PROTON_MASS_G)
+
+    nH_sf = rho[star_forming] * hydrogen_fraction[star_forming] / constants.PROTON_MASS_G
+    A_ = tng_constants.A_0 * (nH_sf / tng_constants.NH_THRESH) ** (tng_constants.A_EXP)
+    u_hot = u_cold + u_SN / (1.0 + A_)
+
+    x_neutral = np.empty_like(neutral_fraction)
+
+    cold_fraction = (u_hot - internal_energy[star_forming]) / (u_hot - u_cold)
+    x_neutral[star_forming] = np.clip(cold_fraction, 0.0, 1.0)
+    x_neutral[~star_forming] = neutral_fraction[~star_forming]
+
+    return x_neutral

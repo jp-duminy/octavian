@@ -276,8 +276,6 @@ class OctaviusConstants:
     Z_SUN_WATSON: float = 0.0189  # watson 2011
     Z_SUN_ASPLUND: float = 0.0134  # asplund 2009
     AV_TO_NH: float = 2.2e21  # watson 2011
-    BLITZ_ALPHA: float = 0.92
-    BLITZ_P0: float = 2.3e-4
 
     # derived unit conversions
     G_VCIRC: float = codata.G.to(u.km**2 * u.kpc / (u.M_sun * u.s**2)).value
