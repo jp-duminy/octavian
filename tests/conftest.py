@@ -20,7 +20,7 @@ import h5py
 # internal imports
 from octavius.run_octavius import analyse_snapshot, generate_config
 from octavius.data_management.conventions import OctaviusConfig
-from octavius.utils.generate_snapshots import generate_gizmo_snapshot, generate_swift_snapshot
+from octavius.utils.generate_snapshots import generate_simba_snapshot, generate_swift_snapshot, generate_tng_snapshot
 from octavius.utils.dynamic_analyser import build_analyser, OctaviusAnalyser
 from octavius.utils.loader import load_catalogue, OctaviusCatalogue
 
@@ -28,7 +28,7 @@ CONFIG_PATH = Path(__file__).parent.parent / "octavius" / "config.yaml"
 PHOTOMETRY_TABLE_PATH = Path(__file__).parent / "data" / "test_photometry_table.hdf5"
 INTERNALS_PATH = Path(__file__).parent.parent / "octavius" / "internals.yaml"
 
-FORMATS = ["SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE"]
+FORMATS = ["SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"]
 
 
 @pytest.fixture(scope="session", params=FORMATS)
@@ -40,25 +40,29 @@ def mock_catalogue(
     """
     tmp_dir = tmp_path_factory.mktemp("pipeline")
     tmp_snap = tmp_dir / "test_snapshot.hdf5"
+    tmp_halo_cat = tmp_dir / "test_halo_catalogue.hdf5"
     sim_type = request.param
-    generate_config(output_dir=tmp_dir)
+    generate_config(output_dir=tmp_dir)  # testing this standalone method
     tmp_config = tmp_dir / "octavius_config.yaml"
     assert tmp_config.exists()
 
     if sim_type == "SIMBA":
-        generate_gizmo_snapshot(path=tmp_snap)
+        generate_simba_snapshot(path=tmp_snap)
     elif "SWIFT" in sim_type:
         model = sim_type.split(sep="-")[1]  # slightly hacky
         generate_swift_snapshot(path=tmp_snap, model=model)
+    elif sim_type == "TNG":
+        generate_tng_snapshot(path=tmp_snap, subfind_path=tmp_halo_cat)
 
     config = OctaviusConfig.from_yaml(config_path=CONFIG_PATH)
 
-    config = replace(
+    config = replace(  # replace default config with pytest params
         config,
         simulation_type=sim_type,
         snapshot_path=tmp_snap,
         output_dir=tmp_dir,
-        halo_id_source="SNAPSHOT",
+        halo_id_source="SUBFIND" if sim_type == "TNG" else "SNAPSHOT",
+        halo_catalogue_path=tmp_halo_cat if sim_type == "TNG" else None,
         photometry_table_path=PHOTOMETRY_TABLE_PATH,
         bands=["v"],  # the test table only has the V filter to reduce filesize
         min_dm_per_halo=0,
@@ -66,7 +70,7 @@ def mock_catalogue(
         b=1.5,
         velocity_factor=5,
         compress_catalogue=False,
-    )  # use the built-in dataclass method otherwise you need to modify production code in a weird way
+    )
 
     output_path = analyse_snapshot(config=config)
     assert output_path.exists()

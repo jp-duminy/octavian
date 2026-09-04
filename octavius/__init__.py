@@ -6,7 +6,7 @@ from .utils import (
     build_analyser as build_analyser,
     generate_test_catalogue as generate_test_catalogue,
     generate_swift_snapshot as generate_swift_snapshot,
-    generate_gizmo_snapshot as generate_gizmo_snapshot,
+    generate_simba_snapshot as generate_simba_snapshot,
     repack_catalogue as repack_catalogue,
 )
 
@@ -19,7 +19,7 @@ __all__ = [
     "generate_config",
     "generate_test_catalogue",
     "generate_swift_snapshot",
-    "generate_gizmo_snapshot",
+    "generate_simba_snapshot",
     "generate_photometry_table",
     "generate_photometry_table_from_sp",
     "repack_catalogue",
