@@ -31,6 +31,26 @@ logger = get_logger()
 # for config parsing
 CONFIG_FIELDS = frozenset({"thresholds", "physics", "fof6d", "properties", "photometry", "parallelism", "logging"})
 FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "photometry_table_path"})
+VALID_SIM_TYPES = frozenset({"SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
+VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND"})
+VALID_EXT_LAWS = frozenset({"composite", "power_law", "cardelli", "conroy", "calzetti", "mix_calz_mw", "smc", "lmc"})
+VALID_VIEW_AXES = frozenset({"x", "y", "z"})
+ALWAYS_POSITIVE = frozenset(
+    {"b", "velocity_factor", "n_io_chunks", "interpolation_bins", "aperture_size", "virial_factors", "density_radii"}
+)
+
+VALID_ENTRIES: dict[str, frozenset[str]] = {
+    "simulation_type": VALID_SIM_TYPES,
+    "halo_id_source": VALID_HALO_CATS,
+    "extinction_law": VALID_EXT_LAWS,
+    "viewing_axis": VALID_VIEW_AXES,
+}
+
+VALID_COMBOS: dict[str, frozenset[str]] = {
+    "SWIFT": frozenset({"AHF", "SNAPSHOT", "HBT-HERONS"}),
+    "SIMBA": frozenset({"AHF", "SNAPSHOT"}),
+    "TNG": frozenset({"SUBFIND"}),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +141,40 @@ class OctaviusConfig:
     compress_catalogue: bool = True
     halo_catalogue_path: Path | None = None
     photometry_table_path: Path | None = None
+
+    def __post_init__(self) -> None:
+        """
+        Post-initialisation validation of sensible config parameters.
+        """
+        object.__setattr__(self, "simulation_type", self.simulation_type.upper())
+        object.__setattr__(self, "halo_id_source", self.halo_id_source.upper())
+        object.__setattr__(self, "terminal_output_level", self.terminal_output_level.upper())
+
+        for field_name, valid_entries in VALID_ENTRIES.items():
+            user_entered = getattr(self, field_name)
+            if user_entered not in valid_entries:
+                raise ValueError(
+                    f"'{user_entered}' is not a valid choice; please select from {', '.join(valid_entries)}."
+                )
+
+        for field_name in ALWAYS_POSITIVE:
+            user_entered = getattr(self, field_name)
+
+            if isinstance(user_entered, list):
+                if any(v <= 0 for v in user_entered):
+                    raise ValueError(f"'{field_name}': all entries must be positive.")
+
+            else:
+                if user_entered <= 0:
+                    raise ValueError(f"'{field_name}' must be positive.")
+
+        sim_prefix = self.simulation_type.split("-")[0]
+        valid_sources = VALID_COMBOS.get(sim_prefix)
+        if valid_sources is not None and self.halo_id_source not in valid_sources:
+            raise ValueError(
+                f"'{self.halo_id_source}' is not currently supported for '{self.simulation_type}'; "
+                f"please select from {', '.join(sorted(valid_sources))}."
+            )
 
     @classmethod
     def from_yaml(cls, config_path: Path) -> OctaviusConfig:
