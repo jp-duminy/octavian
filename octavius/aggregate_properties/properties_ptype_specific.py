@@ -51,19 +51,6 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             gas = particles["gas"]
             gas_offsets, gas_idx = group_store.get_particle_csr(ptype="gas")
 
-            nH, fHI, fH2 = _prepare_hydrogen_fractions(
-                rho=gas["rho"],
-                fHI=gas["fHI"],
-                fH2=gas["fH2"],
-                gas_Y=gas["helium_fraction"],
-                gas_Z=gas["metallicity"],
-                proton_mass=constants.PROTON_MASS_G,
-            )
-            mass_HI = gas["mass"] * fHI
-            mass_H2 = gas["mass"] * fH2
-            gas["mass_HI"] = mass_HI  # these need to go on ParticleStore for local environment properties
-            gas["mass_H2"] = mass_H2
-
             # this lets us decouple core properties as a dependency for ptype properties
             if "mass_gas" in group_store:
                 gas_mass = group_store["mass_gas"]
@@ -74,8 +61,8 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
 
             gas_results = compute_gas_properties(
                 masses=gas["mass"],
-                masses_HI=mass_HI,
-                masses_H2=mass_H2,
+                masses_HI=gas["mass_HI"],
+                masses_H2=gas["mass_H2"],
                 metallicities=gas["metallicity"],
                 temperatures=gas["temperature"],
                 sfrs=gas["sfr"],
@@ -92,11 +79,13 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
                     masses=gas["mass"],
                     metallicities=gas["metallicity"],
                     temperatures=gas["temperature"],
-                    nH=nH,
+                    helium_frac=gas["helium_fraction"],
+                    rho=gas["rho"],
                     offsets=gas_offsets,
                     idx_sorted=gas_idx,
                     n_groups=n_groups,
-                    nHlim=config.nH_lim,
+                    nH_lim=config.nH_lim,
+                    proton_mass_cgs=constants.PROTON_MASS_G,
                 )
                 group_store.write_batch(results=cgm_results)
 
@@ -139,31 +128,6 @@ def run_ptype_specific_properties(simulation_data: SimulationData, config: Octav
             group_store.write_batch(results=bh_results)
 
         logger.info(f"Computed ptype-specific properties for {group_type}.")
-
-
-def _prepare_hydrogen_fractions(
-    rho: np.ndarray, fHI: np.ndarray, fH2: np.ndarray, gas_Z: np.ndarray, gas_Y: np.ndarray, proton_mass: float
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Enforces hydrogen fraction conservation and computes and hydrogen abundance, returning a tuple of:
-
-    - nH: hydrogen abundance
-    - fHI: fraction of neutral hydrogen
-    - fH2: fraction of molecular hydrogen
-
-    Necessary for (cgm) gas properties.
-    """
-    XH = 1.0 - gas_Z - gas_Y
-    not_conserving = (fHI + fH2) > XH  # HI and H2 fraction cannot exceed total hydrogen fraction
-    logger.debug(f"{not_conserving.sum()} particles not conserving hydrogen mass.")
-    fHI = fHI.copy()
-    fHI[not_conserving] = (
-        XH[not_conserving] - fH2[not_conserving]
-    )  # fix relative to fH2 (this is an inherited convention)
-
-    nH = rho * XH / proton_mass
-
-    return nH, fHI, fH2
 
 
 def compute_gas_properties(
@@ -223,11 +187,13 @@ def compute_cgm_properties(
     masses: np.ndarray,
     temperatures: np.ndarray,
     metallicities: np.ndarray,
-    nH: np.ndarray,
+    helium_frac: np.ndarray,
+    rho: np.ndarray,
     offsets: np.ndarray,
     idx_sorted: np.ndarray,
     n_groups: int,
-    nHlim: float,
+    nH_lim: float,
+    proton_mass_cgs: float,
 ) -> dict[str, np.ndarray]:
     """
     Computes gas CGM-specific quantities (which are only well-defined for haloes), returning a dict of:
@@ -237,8 +203,9 @@ def compute_cgm_properties(
     - metallicity_{mass/temp}_weighted_cgm
     """
     results: dict[str, np.ndarray] = {}
+    nH = rho * (1 - metallicities - helium_frac) / proton_mass_cgs
 
-    cgm_criterion = nH < nHlim
+    cgm_criterion = nH < nH_lim
     cgm_masses = np.where(cgm_criterion, masses, 0.0)  # cannot mask directly on inclusive csr: must use np.where
     cgm_temperatures = np.where(cgm_criterion, temperatures, 0.0)
     cgm_metallicities = np.where(cgm_criterion, metallicities, 0.0)

@@ -611,36 +611,6 @@ class KiaraReader(SwiftReader):
         "dust_mass": "DustMasses",
     }
 
-    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
-
-        super().__init__(snapshot_path, constants, n_io_chunks)
-        self.derived_columns: dict[str, Callable] = {
-            "fHI": self._derive_fHI,
-            "fH2": self._derive_fH2,
-        }
-
-    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Derives neutral hydrogen fraction from hydrogen mass and gas mass.
-        """
-        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
-        HI_mass = self._read_raw(ptype=ptype, dataset="mass_HI")
-
-        fHI = HI_mass / gas_mass
-
-        return fHI
-
-    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Derives molecular hydrogen fraction from hydrogen mass and gas mass.
-        """
-        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
-        H2_mass = self._read_raw(ptype=ptype, dataset="mass_H2")
-
-        fH2 = H2_mass / gas_mass
-
-        return fH2
-
 
 class EagleReader(SwiftReader):  # NOTE: currently identical to Kiara, but maintained separately to be safe
     """
@@ -652,36 +622,6 @@ class EagleReader(SwiftReader):  # NOTE: currently identical to Kiara, but maint
         "mass_HI": "AtomicHydrogenMasses",
         "mass_H2": "MolecularHydrogenMasses",
     }
-
-    def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
-
-        super().__init__(snapshot_path, constants, n_io_chunks)
-        self.derived_columns: dict[str, Callable] = {
-            "fHI": self._derive_fHI,
-            "fH2": self._derive_fH2,
-        }
-
-    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Derives neutral hydrogen fraction from hydrogen mass and gas mass.
-        """
-        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
-        HI_mass = self._read_raw(ptype=ptype, dataset="mass_HI")
-
-        fHI = HI_mass / gas_mass
-
-        return fHI
-
-    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
-        """
-        Derives molecular hydrogen fraction from hydrogen mass and gas mass.
-        """
-        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
-        H2_mass = self._read_raw(ptype=ptype, dataset="mass_H2")
-
-        fH2 = H2_mass / gas_mass
-
-        return fH2
 
 
 class ColibreReader(SwiftReader):
@@ -702,8 +642,8 @@ class ColibreReader(SwiftReader):
 
         super().__init__(snapshot_path, constants, n_io_chunks)
         self.derived_columns: dict[str, Callable] = {
-            "fHI": self._derive_fHI,
-            "fH2": self._derive_fH2,
+            "mass_HI": self._derive_mass_HI,
+            "mass_H2": self._derive_mass_H2,
             "dust_mass": self._derive_dust_mass,
         }
 
@@ -718,29 +658,39 @@ class ColibreReader(SwiftReader):
 
         return dust_mass
 
-    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
+    def _derive_mass_HI(self, ptype: str = "gas") -> np.ndarray:
         """
         Derive HI fraction from species fractions and XH.
         """
         species_HI = self._read_raw(ptype=ptype, dataset="species_HI")
+        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
 
         # derive XH
         helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
         metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
+        fHI = (1.0 - helium_fraction - metallicity) * species_HI
+        np.clip(fHI, a_min=0.0, a_max=1.0, out=fHI)
 
-        return (1.0 - helium_fraction - metallicity) * species_HI
+        mass_H1 = fHI * gas_mass
 
-    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
+        return mass_H1
+
+    def _derive_mass_H2(self, ptype: str = "gas") -> np.ndarray:
         """
         Derive H2 fraction from species fractions and XH.
         """
         species_H2 = self._read_raw(ptype=ptype, dataset="species_H2")
+        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
 
         # derive XH
         helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
         metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
 
-        return (1.0 - helium_fraction - metallicity) * 2.0 * species_H2  # diatomic
+        fH2 = (1.0 - helium_fraction - metallicity) * 2.0 * species_H2  # diatomic
+        np.clip(fH2, a_min=0.0, a_max=1.0, out=fH2)
+        mass_H2 = fH2 * gas_mass
+
+        return mass_H2
 
 
 class SimbaReader(GadgetReader):
@@ -773,8 +723,8 @@ class SimbaReader(GadgetReader):
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
-        self.derived_columns["fHI"] = self._derive_fHI
-        self.derived_columns["fH2"] = self._derive_fH2
+        self.derived_columns["mass_HI"] = self._derive_mass_HI
+        self.derived_columns["mass_H2"] = self._derive_mass_H2
 
     def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
         """
@@ -805,25 +755,35 @@ class SimbaReader(GadgetReader):
 
         return raw_halo_ids
 
-    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
+    def _derive_mass_HI(self, ptype: str = "gas") -> np.ndarray:
         """
         Converts the NeutralHydrogenAbundance (nHI/nH) to fHI (fraction of mass which is hydrogen)
         """
         neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")
         helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
         metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
+        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
 
-        return (1.0 - helium_fraction - metallicity) * neutral_fraction
+        fHI = (1.0 - helium_fraction - metallicity) * neutral_fraction
+        np.clip(fHI, a_min=0.0, a_max=1.0, out=fHI)
+        mass_HI = fHI * gas_mass
 
-    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
+        return mass_HI
+
+    def _derive_mass_H2(self, ptype: str = "gas") -> np.ndarray:
         """
         Converts the FractionH2 (mH2/mH) to H2 mass fraction of total particle mass.
         """
         molecular_fraction = self._read_raw(ptype=ptype, dataset="H2_fraction")
         helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
         metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
+        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
 
-        return (1.0 - helium_fraction - metallicity) * molecular_fraction
+        fH2 = (1.0 - helium_fraction - metallicity) * molecular_fraction
+        np.clip(fH2, a_min=0.0, a_max=1.0, out=fH2)
+        mass_H2 = fH2 * gas_mass
+
+        return mass_H2
 
 
 class TNGReader(GadgetReader):
@@ -853,8 +813,9 @@ class TNGReader(GadgetReader):
 
         super().__init__(snapshot_path, constants, n_io_chunks)
         self.tng_constants = TNGConstants()
-        self.derived_columns["fH2"] = self._derive_fH2
-        self.derived_columns["fHI"] = self._derive_fHI
+        self._hydrogen_cache: tuple[np.ndarray, np.ndarray] | None = None
+        self.derived_columns["mass_H2"] = self._derive_mass_H2
+        self.derived_columns["mass_HI"] = self._derive_mass_HI
 
     def read_dataset(self, ptype: str, dataset: str) -> np.ndarray:
         """
@@ -880,17 +841,37 @@ class TNGReader(GadgetReader):
         ptype, slab = ptype, slab
         raise ValueError("Snapshot halo IDs do not exist in TNG snapshots.")
 
-    def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
+    def read_requested_columns(
+        self,
+        ptype: str,
+        datasets: list[str],
+        sorted_snapshot_indices: np.ndarray,
+    ) -> dict[str, np.ndarray]:
         """
-        Derives fHI using Blitz & Rosolowsky (2006) & Stevens et al. (2019)
+        Reimplemented to clear the hydrogen cache.
         """
+        self.subset_indices = sorted_snapshot_indices
+        result = {dataset: self.read_dataset(ptype, dataset) for dataset in datasets}
+        self._hydrogen_cache = None  # clear the hydrogen cache
+
+        return result
+
+    def _compute_hydrogen_masses(self, ptype: str = "gas") -> tuple[np.ndarray, np.ndarray]:
+        """
+        Derives mass_HI and mass_H2 using Blitz & Rosolowsky (2006) & Stevens et al. (2019). Since
+        this is rather expensive in requesting a whopping 8 datasets, we use a cache.
+        """
+        if self._hydrogen_cache is not None:
+            return self._hydrogen_cache
+
         neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")  # TODO: change name convention
         electron_abundance = self._read_raw(ptype=ptype, dataset="electron_abundance")
         rho = self._read_raw(ptype=ptype, dataset="rho")
         internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
         sfr = self._read_raw(ptype=ptype, dataset="sfr")
-        helium_fraction = self._read_raw("gas", "helium_fraction")
-        metallicity = self._read_raw("gas", "metallicity")
+        helium_fraction = self._read_raw(ptype=ptype, dataset="helium_fraction")
+        metallicity = self._read_raw(ptype=ptype, dataset="metallicity")
+        gas_mass = self._read_raw(ptype=ptype, dataset="mass")
         hydrogen_fraction = 1.0 - helium_fraction - metallicity
 
         x_neutral = calculate_tng_x_neutral(
@@ -918,54 +899,30 @@ class TNGReader(GadgetReader):
         ) ** self.tng_constants.BLITZ_ALPHA  # blitz P0 bakes in kB
 
         fHI = hydrogen_fraction * x_neutral / (1 + R_mol)
+        mass_HI = fHI * gas_mass
+        fH2 = hydrogen_fraction * x_neutral * (R_mol / (1 + R_mol))
+        mass_H2 = fH2 * gas_mass
 
-        return fHI
+        self._hydrogen_cache = (mass_HI, mass_H2)
+        return self._hydrogen_cache
 
-    def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
+    def _derive_mass_HI(self, ptype: str = "gas") -> np.ndarray:
+        """
+        Derives fHI using Blitz & Rosolowsky (2006) & Stevens et al. (2019)
+        """
+        return self._compute_hydrogen_masses(ptype=ptype)[0]
+
+    def _derive_mass_H2(self, ptype: str = "gas") -> np.ndarray:
         """
         Derives fH2 using Blitz & Rosolowsky (2006) & Stevens (2019).
         """
-        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")  # TODO: change name convention
-        electron_abundance = self._read_raw(ptype=ptype, dataset="electron_abundance")
-        rho = self._read_raw(ptype=ptype, dataset="rho")
-        sfr = self._read_raw(ptype=ptype, dataset="sfr")
-        internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
-        helium_fraction = self._read_raw("gas", "helium_fraction")
-        metallicity = self._read_raw("gas", "metallicity")
-        hydrogen_fraction = 1.0 - helium_fraction - metallicity
-
-        x_neutral = calculate_tng_x_neutral(
-            internal_energy=internal_energy,
-            neutral_fraction=neutral_fraction,
-            rho=rho,
-            sfr=sfr,
-            hydrogen_fraction=hydrogen_fraction,
-            constants=self.constants,
-            tng_constants=self.tng_constants,
-        )
-
-        temperature = calculate_temperature(
-            internal_energy=internal_energy,
-            electron_abundance=electron_abundance,
-            helium_fraction=helium_fraction,
-            constants=self.constants,
-        )
-
-        nH = rho * hydrogen_fraction / self.constants.PROTON_MASS_G
-        n_total = nH * (1.0 + electron_abundance + helium_fraction / (4.0 * hydrogen_fraction))
-        thermal_pressure = n_total * temperature
-        R_mol = (
-            thermal_pressure / self.tng_constants.BLITZ_P0
-        ) ** self.tng_constants.BLITZ_ALPHA  # blitz P0 bakes in kB
-
-        fH2 = hydrogen_fraction * x_neutral * (R_mol / (1 + R_mol))
-
-        return fH2
+        return self._compute_hydrogen_masses(ptype=ptype)[1]
 
     def _derive_dm_mass(self) -> np.ndarray:
         """
         Derives the DM mass from header mass table.
         """
+        logger.debug("Reading 'dm' masses from header mass table.")
         with h5py.File(self.snapshot_path, "r") as f:
             dm_mass_raw = f["Header"].attrs["MassTable"][1]
 

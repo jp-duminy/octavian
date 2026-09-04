@@ -69,7 +69,7 @@ stages:
     requires: []
     needs_particle_columns:
       all: [mass]
-      gas: [metallicity, sfr, rho, fHI, fH2, helium_fraction, temperature]
+      gas: [metallicity, sfr, rho, mass_HI, mass_H2, helium_fraction, temperature]
       star: [metallicity, age]
       bh: [bhmass, bhmdot]
     outputs:
@@ -82,11 +82,12 @@ stages:
   properties_local_environment:
     label: environment
     applies_to: [galaxies]
-    requires: [properties_core, properties_ptype_specific]  # needs HI/H2 masses + centre of mass
+    requires: [properties_core]  # needs centre of mass
     cross_group_requirements:
       galaxies: [haloes]
     needs_particle_columns: 
       all: [pos, mass]
+      gas: [mass_HI, mass_H2]
     outputs:
       - columns: ["local_mass_density_{radius}kpc", "local_number_density_{radius}kpc"]
         over: {radius: from_config:density_radii}
