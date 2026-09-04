@@ -64,8 +64,6 @@ from .aggregate_properties import (
     assign_membership,
 )
 from .photometry import (
-    resolve_band_names,
-    read_filter_names,
     run_photometry,
 )
 from .log import configure_logger, get_logger, clean_logs, instantiation_message, output_summary, BANNER
@@ -289,9 +287,6 @@ def analyse_snapshot(
     logger.info("Instantiating analysis data structures.")
 
     # initialise snapshot/halo readers, constants, internal metadata
-    if config.stages.get("photometry", False):
-        names, lambda_effs = read_filter_names(config.photometry_table_path)
-        config = replace(config, bands=resolve_band_names(config.bands, names, lambda_effs))
     internals = load_internals(internals_filepath=INTERNALS_PATH, config=config)
     oc = OctaviusConstants(mu=config.MU, frad=config.FRAD)
     reader = build_reader(snapshot_path=config.snapshot_path, constants=oc, config=config)

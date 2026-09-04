@@ -196,13 +196,12 @@ class OctaviusAnalyser:
         result: StageResult
             A StageResult dataclass from which output columns, aligned to group_indices, can be accessed.
         """
-        from ..photometry import run_photometry, read_filter_names, resolve_band_names  # avoid circular import
+        from ..photometry import run_photometry  # avoid circular import
 
         group_indices = np.sort(np.asarray(group_indices, dtype=np.int64))  # sort to avoid h5py problems
 
-        names, lambda_effs = read_filter_names(self._config.photometry_table_path)
-        config = replace(  # HACK: insert _keep_spectra from user parameters
-            self._config, bands=resolve_band_names(self._config.bands, names, lambda_effs), _keep_spectra=keep_spectra
+        config = replace(  # HACK: insert _keep_spectra (see photometry)
+            self._config, _keep_spectra=keep_spectra
         )
 
         group_type = "galaxies"  # only runs on galaxies
