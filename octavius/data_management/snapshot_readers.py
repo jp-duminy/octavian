@@ -28,9 +28,11 @@ import astropy.units as u
 # internal imports
 from .parallel_reading import redistribute_data, split_slab, generate_read_plan
 from .physics import (
+    TNGConstants,
     derive_stellar_age,
     calculate_temperature,
     derive_simulation_attributes,
+    calculate_tng_x_neutral,
 )
 from .conventions import (
     DTYPES,
@@ -850,6 +852,7 @@ class TNGReader(GadgetReader):
     def __init__(self, snapshot_path: Path, constants: OctaviusConstants, n_io_chunks: int) -> None:
 
         super().__init__(snapshot_path, constants, n_io_chunks)
+        self.tng_constants = TNGConstants()
         self.derived_columns["fH2"] = self._derive_fH2
         self.derived_columns["fHI"] = self._derive_fHI
 
@@ -879,14 +882,26 @@ class TNGReader(GadgetReader):
 
     def _derive_fHI(self, ptype: str = "gas") -> np.ndarray:
         """
-        Derives fHI using Blitz & Rosolowsky (2006).
+        Derives fHI using Blitz & Rosolowsky (2006) & Stevens et al. (2019)
         """
         neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")  # TODO: change name convention
         electron_abundance = self._read_raw(ptype=ptype, dataset="electron_abundance")
+        rho = self._read_raw(ptype=ptype, dataset="rho")
         internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
+        sfr = self._read_raw(ptype=ptype, dataset="sfr")
         helium_fraction = self._read_raw("gas", "helium_fraction")
         metallicity = self._read_raw("gas", "metallicity")
         hydrogen_fraction = 1.0 - helium_fraction - metallicity
+
+        x_neutral = calculate_tng_x_neutral(
+            internal_energy=internal_energy,
+            neutral_fraction=neutral_fraction,
+            rho=rho,
+            sfr=sfr,
+            hydrogen_fraction=hydrogen_fraction,
+            constants=self.constants,
+            tng_constants=self.tng_constants,
+        )
 
         temperature = calculate_temperature(
             internal_energy=internal_energy,
@@ -894,29 +909,40 @@ class TNGReader(GadgetReader):
             helium_fraction=helium_fraction,
             constants=self.constants,
         )
-        rho = self._read_raw(ptype=ptype, dataset="rho")
 
         nH = rho * hydrogen_fraction / self.constants.PROTON_MASS_G
+        n_total = nH * (1.0 + electron_abundance + helium_fraction / (4.0 * hydrogen_fraction))
+        thermal_pressure = n_total * temperature
+        R_mol = (
+            thermal_pressure / self.tng_constants.BLITZ_P0
+        ) ** self.tng_constants.BLITZ_ALPHA  # blitz P0 bakes in kB
 
-        n_total = nH * (1 + electron_abundance + (helium_fraction / (4 * (hydrogen_fraction))))
-
-        thermal_pressure = n_total * temperature  # in units of kB
-        R_mol = (thermal_pressure / self.constants.BLITZ_P0) ** self.constants.BLITZ_ALPHA  # blitz P0 bakes in kB
-
-        fHI = hydrogen_fraction * neutral_fraction / (1 + R_mol)
+        fHI = hydrogen_fraction * x_neutral / (1 + R_mol)
 
         return fHI
 
     def _derive_fH2(self, ptype: str = "gas") -> np.ndarray:
         """
-        Derives fH2 using Blitz & Rosolowsky (2006).
+        Derives fH2 using Blitz & Rosolowsky (2006) & Stevens (2019).
         """
-        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")
+        neutral_fraction = self._read_raw(ptype=ptype, dataset="HI_abundance")  # TODO: change name convention
         electron_abundance = self._read_raw(ptype=ptype, dataset="electron_abundance")
+        rho = self._read_raw(ptype=ptype, dataset="rho")
+        sfr = self._read_raw(ptype=ptype, dataset="sfr")
         internal_energy = self._read_raw(ptype=ptype, dataset="internal_energy")
         helium_fraction = self._read_raw("gas", "helium_fraction")
         metallicity = self._read_raw("gas", "metallicity")
         hydrogen_fraction = 1.0 - helium_fraction - metallicity
+
+        x_neutral = calculate_tng_x_neutral(
+            internal_energy=internal_energy,
+            neutral_fraction=neutral_fraction,
+            rho=rho,
+            sfr=sfr,
+            hydrogen_fraction=hydrogen_fraction,
+            constants=self.constants,
+            tng_constants=self.tng_constants,
+        )
 
         temperature = calculate_temperature(
             internal_energy=internal_energy,
@@ -924,16 +950,15 @@ class TNGReader(GadgetReader):
             helium_fraction=helium_fraction,
             constants=self.constants,
         )
-        rho = self._read_raw(ptype=ptype, dataset="rho")
 
         nH = rho * hydrogen_fraction / self.constants.PROTON_MASS_G
+        n_total = nH * (1.0 + electron_abundance + helium_fraction / (4.0 * hydrogen_fraction))
+        thermal_pressure = n_total * temperature
+        R_mol = (
+            thermal_pressure / self.tng_constants.BLITZ_P0
+        ) ** self.tng_constants.BLITZ_ALPHA  # blitz P0 bakes in kB
 
-        n_total = nH * (1 + electron_abundance + (helium_fraction / (4 * (hydrogen_fraction))))
-
-        thermal_pressure = n_total * temperature  # in units of kB
-        R_mol = (thermal_pressure / self.constants.BLITZ_P0) ** self.constants.BLITZ_ALPHA  # blitz P0 bakes in kB
-
-        fH2 = hydrogen_fraction * neutral_fraction * R_mol / (1.0 + R_mol)
+        fH2 = hydrogen_fraction * x_neutral * (R_mol / (1 + R_mol))
 
         return fH2
 
