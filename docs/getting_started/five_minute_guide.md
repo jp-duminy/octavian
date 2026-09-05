@@ -18,9 +18,21 @@ By design, the package has minimal dependencies; it is written entirely in Pytho
 The package is currently pinned to relatively recent versions of its dependencies, and as such, a package manager such as `uv` might be useful.
 :::
 
-## What snapshots are supported?
+## Which snapshots and halo catalogues are supported?
 
-Currently, [SWIFT](https://swift.strw.leidenuniv.nl/) and [GIZMO](http://www.tapir.caltech.edu/~phopkins/Site/GIZMO.html) snapshots are supported. AHF halo catalogues are also supported, and [HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/) support is planned soon. The catalogue is agnostic to the inputs it receives.
+Octavius currently supports a variety of snapshot formats and corresponding halo catalogues. The code is designed to be trivially extensible: new simulation types and halo catalogues can be supported in as few as fifty lines of code. Currently, the [SWIFT ecosystem](https://swift.strw.leidenuniv.nl/) is well-supported, as are [SIMBA](https://arxiv.org/abs/1901.10203) snapshots. Provisional support currently exists for [IllustrisTNG](https://www.tng-project.org/).
+
+[HBT-HERONS](https://hbt-herons.strw.leidenuniv.nl/), [AHF](https://arxiv.org/abs/0904.3662), and [SUBFIND](https://www.tng-project.org/data/docs/specifications/#sec2b) catalogues are supported with full hierarchy mapping and inclusive properties.
+
+The full list of supported formats is as follows:
+
+| Snapshot  | Halo Catalogue |
+| ------------- | ------------- |
+| SWIFT-KIARA  | HBT-HERONS, AHF, SNAPSHOT  |
+| SWIFT-EAGLE  | HBT-HERONS, AHF, SNAPSHOT |
+| SWIFT-COLIBRE  | HBT-HERONS, AHF, SNAPSHOT  |
+| SIMBA  | AHF, SNAPSHOT  |
+| TNG  | SUBFIND  |
 
 ## How does it work?
 

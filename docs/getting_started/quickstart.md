@@ -47,23 +47,23 @@ from octavius import load_catalogue
 
 catalogue_filepath = Path("/path/to/catalogue.hdf5")
 
-cat = load_catalogue(catalogue_filepath)  # returns catalogue object
+catalogue = load_catalogue(catalogue_filepath)  # returns catalogue object
 
-print(cat)  # shows basic catalogue information
-cat.galaxies.describe()  # lists datasets available in galaxies
+print(catalogue)  # shows basic cataloguealogue information
+catalogue.galaxies.describe()  # lists datasets available in galaxies
 
 # array of galaxy stellar masses in grams
-star_mass_grams = cat.galaxies.get_dataset("mass_star", to_units="g")
+star_mass_grams = catalogue.galaxies.get_dataset("mass_star", to_units="g")
 
 # get the stellar masses of their field haloes
-field_halo_idx = cat.galaxies.get_membership(name="field_halo_index")  # indices into halo data
-halo_star_mass_grams = cat.haloes.get_dataset("mass_star", to_units="g", mask=field_halo_idx)
+field_halo_idx = catalogue.galaxies.get_membership(name="field_halo_index")  # indices into halo data
+halo_star_mass_grams = catalogue.haloes.get_dataset("mass_star", to_units="g", mask=field_halo_idx)
 
 # get the indices into the original snapshot of stars in galaxy 0
-star_indices = cat.galaxies.get_particle_indices(ptype="star", group_index=0)
+star_indices = catalogue.galaxies.get_particle_indices(ptype="star", group_index=0)
 
 # get simulation info
-boxsize = cat.sim_info("boxsize", to_units="Mpc", physical=True)    
+boxsize = catalogue.sim_info("boxsize", to_units="Mpc", physical=True)    
 ```
 
 Catalogue objects provide unit/physical conversions, masks, and metadata information for group properties, as well as simulation metadata and cosmological information.

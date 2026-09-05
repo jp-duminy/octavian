@@ -101,12 +101,12 @@ A convenience method on the analyser, `update_config()`, is provided to update t
 analyser = oc.build_analyser(snapshot_path=snapshot_path, catalogue=catalogue, config=config)
 galaxies_of_interest = [0, 1, 3, 22, 47]  # or array
 
-analyser.update_config(extinction_law="composite")
+analyser.update_config(extinction_law="COMPOSITE")
 composite_properties = analyser.compute_photometry(
     group_indices=gal_indices,
 )
 
-analyser.update_config(extinction_law="cardelli")
+analyser.update_config(extinction_law="CARDELLI")
 cardelli_properties = analyser.compute_photometry(
     group_indices=gal_indices,
 )

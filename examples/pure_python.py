@@ -28,7 +28,7 @@ config = oc.OctaviusConfig(
 catalogue_path = oc.analyse_snapshot(config=config)
 
 # load output catalogue
-cat = oc.load_catalogue(catalogue_path=catalogue_path)
+catalogue = oc.load_catalogue(catalogue_path=catalogue_path)
 
 # access datasets
-absolute_v_mag = cat.galaxies.get_dataset("mag_abs_v")
+absolute_v_mag = catalogue.galaxies.get_dataset("mag_abs_v")

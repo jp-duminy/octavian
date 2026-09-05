@@ -296,30 +296,35 @@ class GilgameshReader(SnapshotReader):  # inherit SnapshotReader
 ```
 
 :::{tip}
-If your snapshot obeys the SWIFT format, a further `SwiftReader` base class is provided. You can inherit the `SwiftReader` to skip having to implement the further steps below, and will only need to define the maps and any overrides.
+If your snapshot obeys the SWIFT or GADGET format, further `SwiftReader` and `GadgetReader` base classes are provided. You can inherit these readers to skip having to implement some the further steps below.
 :::
 
-The SnapshotReader is an abstract base class equipped with some methods which work across all readers once the maps are defined; this includes the MPI methods. If any simulation-specific additions need to be made, you can simply user the `super()` method and expand the functions accordingly. There are three methods which must always be implemented:
+The `SnapshotReader` is an abstract base class equipped with some methods which work across all readers once the maps are defined; this includes the MPI methods. If any simulation-specific additions need to be made, you can simply user the `super()` method and expand the functions accordingly. There are two methods which must always be implemented:
 
 ```python
 
+@abstractmethod
 def read_header(self) -> SimulationAttributes:
     """
-    Reads header/metadata and constructs SimulationAttributes
+    Read header attributes and, where necessary, convert units; must create 
+    a SimulationAttributes dataclass.
     """
-    pass
+    ...
 
-def _read_raw(self, ptype: str, dataset: str) -> np.ndarray:
+@abstractmethod
+def _unit_conversion_factor(self, dataset: str, hdf5_dataset: h5py.Dataset) -> float:
     """
-    The main dataset loading method: handles unit/dtype conversions and any exceptions.
+    Snapshot-specific unit conversion factors.
     """
-    pass
+    ...
 
-def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:  # necessary for sentinel value remapping
+@abstractmethod
+def read_halo_ids(self, ptype: str, slab: slice = slice(None)) -> np.ndarray:
     """
-    Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed array with a sentinel value of -1.
+    Reads snapshot-assigned HaloIDs and maps them to a continuous 0-indexed 
+    array with a sentinel value of -1.
     """
-    pass
+    ...
 
 ```
 
