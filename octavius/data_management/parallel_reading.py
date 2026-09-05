@@ -318,6 +318,9 @@ def assign_local_subhaloes(
     if subhalo_info is None:
         return None
 
+    if len(subhalo_info.host_field_ids) == 0:  # edge case: subhalo finder only finds field haloes
+        return None
+
     all_hids = [particles[ptype]["HaloID"] for ptype in particles]
     non_empty = [hids for hids in all_hids if len(hids) > 0]
 

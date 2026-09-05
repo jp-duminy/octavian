@@ -170,6 +170,7 @@ class HeronsHaloSource(HaloSource):
                 depth=depth,
                 host_halo_ids=host_halo_ids,
                 track_to_field=self._lookups.track_to_field,
+                field_lookup=self._lookups.field_lookup,
             )
 
             field_ids[ptype] = ptype_field_ids  # sentinels handled by matcher
@@ -297,12 +298,11 @@ def read_halo_particles(catalogue_path: Path) -> tuple[np.ndarray, ...]:
     with h5py.File(catalogue_path, "r") as catalogue:
         if "Particles" not in catalogue:
             raise FileNotFoundError(
-                f"{catalogue_path} does not contain particle info, please run HERONS' SortedCatalogues.py with --with-particles."
+                f"{catalogue_path} does not contain particle info, please run SortCatalogues.py (included with HBT-HERONS) and enabled the --with-particles flag."
             )
-        particles = catalogue["Particles"]
 
-        particle_ids = particles["ParticleIDs"][:]
-        particle_offsets = particles["ParticleOffset"][:]
+        particle_ids = catalogue["Particles"]["ParticleIDs"][:]
+        particle_offsets = catalogue["Subhalos"]["ParticleOffset"][:]
 
     return particle_ids, particle_offsets
 
@@ -318,7 +318,7 @@ def read_halo_properties(catalogue_path: Path) -> HeronsCatalogue:
 
         track_ids = subhaloes["TrackId"][:]
         host_halo_ids = subhaloes["HostHaloId"][:]  # this is the FOFGroupID, per their docs
-        nested_parent_track_id = subhaloes["NestedParentTrackID"][:]
+        nested_parent_track_id = subhaloes["NestedParentTrackId"][:]
         depth = subhaloes["Depth"][:]
         n_bound = subhaloes["Nbound"][:]
 
