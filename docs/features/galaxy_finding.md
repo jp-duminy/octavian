@@ -23,9 +23,17 @@ The 'best' method of identifying structure is a topic of debate, as is the ideal
 ### Configurable Parameters
 
 - `b`: the FOF dimensionless scaling parameter
+
 - `velocity_factor`: the number of standard deviations from the local velocity dispersion within which a particle considers a neighbour to be linked in phase space.
+
 - `min_stars_per_galaxy`: the minimum number of stars which define a galaxy.
+
+- `gas_criterion`: which criterion to apply to gas entering the algorithm.
+
+- `subhalo_override`: enforces the substructure boundaries defined by the external finder, if subhaloes are present.
+
 - `T_lim`: the temperature below which gas is considered _cold._
+
 - `nH_lim`: the density in $n_{H} \ cm^{-3}$ below which gas is considered _dense._
 
 ### Algorithm Description

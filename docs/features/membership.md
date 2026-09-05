@@ -12,9 +12,11 @@ Group-level index arrays are indices into catalogue-level data, unless specified
 
 ## Halo Membership
 
-- `parent`: the immediate parent (sub)halo index (-1 for field haloes).
+- `field_halo_index`: the index into `halo_data` of the parent field halo (-1 for field haloess).
 
-- `depth`: the depth in the hierarchy, starting at 0 for field haloes and ascending in depth.
+- `parent_halo_index`: the index into `halo_data` of the immediate parent (sub)halo, equal to `field_halo_index` if the parent is the field halo (-1 for field haloes).
+
+- `depth`: the depth in the hierarchy in ascending order (0 for field haloes).
 
 - `central_galaxy_index`: the index into `galaxy_data` of the most massive galaxy belonging to this halo (-1 if the halo has no galaxies).
 

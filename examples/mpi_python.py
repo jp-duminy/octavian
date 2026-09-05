@@ -19,19 +19,19 @@ catalogue_path = oc.analyse_snapshot(config=config)  # analyse_snapshot() is nat
 
 # we will now plot the galactic stellar mass function
 if comm.rank == 0:
-    cat = oc.load_catalogue(catalogue_path=catalogue_path)
+    catalogue = oc.load_catalogue(catalogue_path=catalogue_path)
 
-    all_star_counts = cat.galaxies.get_dataset("n_star")
+    all_star_counts = catalogue.galaxies.get_dataset("n_star")
     resolved_mask = all_star_counts >= 32  # filter resolution floor
 
-    stellar_mass = cat.galaxies.get_dataset(
+    stellar_mass = catalogue.galaxies.get_dataset(
         "mass_star",
         to_units="Msun",
         mask=resolved_mask,
     )
-    boxsize = cat.sim_info("boxsize", to_units="Mpc")  # no h factors in catalogue datasets
+    boxsize = catalogue.sim_info("boxsize", to_units="Mpc")  # no h factors in catalogue datasets
 
-    cat.close()  # we have everything we need, so close the catalogue
+    catalogue.close()  # we have everything we need, so close the catalogue
 
     # quantities needed for GSMF
     volume = boxsize**3

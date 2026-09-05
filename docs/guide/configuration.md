@@ -25,21 +25,25 @@ config = OctaviusConfig.from_yaml(config_path)  # from YAML
 config = OctaviusConfig(...)  # type parameters manually
 ```
 
+:::{tip}
+Fields are not case-sensitive.
+:::
+
 :::{note}
-The catalogue will inherit the name of the snapshot prefixed with `octavius_`, as will the log file (if enabled).
+The output catalogue will inherit the name of the snapshot prefixed with `octavius_`, as will the log file (if enabled).
 :::
 
 ## General Options
 
-`simulation_type`: the format of the snapshot (`GIZMO` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE`). Note, `GIZMO` currently only supports SIMBA snapshots.
+`simulation_type`: the format of the snapshot (`SIMBA` / `SWIFT-KIARA` / `SWIFT-EAGLE` / `SWIFT-COLIBRE` / `TNG`).
 
-`halo_id_source`: where the halo catalogue should be parsed from (SNAPSHOT/AHF).
+`halo_id_source`: where the halo catalogue should be parsed from (`SNAPSHOT` / `AHF` / `HBT-HERONS` / `SUBFIND`).
 
 `snapshot_path`: the filepath of the snapshot (can be overridden at runtime via command-line arguments).
 
 `output_dir`: the directory to which you would like outputs routed.
 
-`halo_catalogue_path`: the filepath of the halo catalogue (can be left blank if using snapshot IDs). AHF users should specify the stem of the filename before the `.AHF_` extension.
+`halo_catalogue_path`: the filepath of the halo catalogue (can be left blank if using snapshot IDs).
 
 `compress_catalogue`: whether to apply lossless GZIP compression to the catalogue (default: `True`).
 
@@ -91,6 +95,10 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `velocity_factor`: the velocity factor used to determine linking in velocity space. The velocity-space analogy of linking length is defined as the velocity factor multiplied by the local velocity dispersion (default: `1.0`).
 
+`gas_criterion`: the criterion under which gas is included in the FOF6D algorithm. The algorithm will always apply a density threshold (`DENSE_ONLY`): this parameter lets you apply additional thresholds. `STARFORMING` only includes gas which has $\mathrm{SFR} > 0$; `COLD` only includes gas below the specified `T_lim`; `COLD_OR_STARFORMING` is either/or. (default: `COLD_OR_STARFORMING`).
+
+`subhalo_override`: when using halo catalogues which include subhaloes, this will make the FOF6D algorithm abide by the substructure boundaries defined by the external finder. Please see the {ref}`halo catalogue section <subhalo-info>` for more information. (default: `False`). 
+
 ## Aggregate Property Parameters
 
 `radial_quantiles`: a dictionary of quantiles (keyed by name) for enclosed mass radial profiles (default: `{"r20": 0.2, "half_mass": 0.5, "r80": 0.8}`).
@@ -99,7 +107,7 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `virial_factors`: a list of the overdensity threshold(s) for which halo virial quantities are computed (default: `[200, 500, 2500]`).
 
-`density_radii`: a list of the radii, in kiloparsecs, at which local environment properties are computed. (default: `[300, 1000, 3000]`)
+`density_radii`: a list of the radii, in kiloparsecs, at which local environment properties are computed. (default: `[300, 1000, 3000]`).
 
 (photometry-parameters)=
 ## Photometry Parameters
@@ -108,9 +116,9 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `photometry_table_path`: the filepath to the Octavius photometry HDF5 datafile (can be left blank if not running photometry).
 
-`extinction_law`: Specify the extinction law to use. Octavius currently supports `power_law`, `calzetti`, `conroy`, `cardelli`, `smc`, `lmc`. In addition, two composite extinction laws are provided: `mix_calz_mw` uses Cardelli for galaxies with $\log_{10}(\mathrm{sSFR}) < 0.1 \, \mathrm{Gyr}^{-1}$, Calzetti for $\log_{10}(\mathrm{sSFR}) > 1.0 \, \mathrm{Gyr}^{-1}$, and a linear mix in between; `composite` adds a further metallicity dependence, using `mix_calz_mw` for $Z > Z_{\odot}$, `smc` for $Z < 0.1 Z_{\odot}$, and a linear combination in between. (default: `composite`).
+`extinction_law`: Specify the extinction law to use. Octavius currently supports `POWER_LAW`, `CALZETTI`, `CONROY`, `CARDELLI`, `SMC`, `LMC`. In addition, two composite extinction laws are provided: `MIX_CALZ_MW` uses Cardelli for galaxies with $\log_{10}(\mathrm{sSFR}) < 0.1 \, \mathrm{Gyr}^{-1}$, Calzetti for $\log_{10}(\mathrm{sSFR}) > 1.0 \, \mathrm{Gyr}^{-1}$, and a linear mix in between; `COMPOSITE` adds a further metallicity dependence, using `MIX_CALZ_MW` for $Z > Z_{\odot}$, `SMC` for $Z < 0.1 Z_{\odot}$, and a linear combination in between. (default: `COMPOSITE`).
 
-`viewing_axis`: Specifies the Cartesian axis along which galaxies are viewed (options: `x`, `y`, `z`).
+`viewing_axis`: Specifies the Cartesian axis along which galaxies are viewed (options: `X`, `Y`, `Z`).
 
 `use_dust`: Specifies whether to use dust masses from the snapshot. (default: `True`)
 
@@ -118,9 +126,9 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `interpolation_bins`: Specifies the granularity of the numerical approximation of the line-of-sight kernel weight integral used for gas metal column densities (default: `5000`).
 
-`kernel_type`: Specifies the type of kernel used for gas metal column densities (options: `cubic`, `quintic`) (default: `cubic`).
+`kernel_type`: Specifies the type of kernel used for gas metal column densities (options: `CUBIC`, `QUINTIC`) (default: `CUBIC`).
 
-`power_law_alpha`: the exponent $\alpha$ to use on `power_law` attenuation (if using), which goes as $(\frac{\lambda}{\lambda_0})^{-\alpha}$ (default: `1.0`)
+`power_law_alpha`: the exponent $\alpha$ to use on `POWER_LAW` attenuation (if using), which goes as $(\frac{\lambda}{\lambda_0})^{-\alpha}$ (default: `1.0`)
 
 `split_age`: the threshold age in $Gyr$ below which the ages of star particles are divided into sub-bins to improve the accuracy of their spectra (default: `0.01`)
 
@@ -136,3 +144,4 @@ Please note disabling a particle entirely may have unintended consequences: for 
 
 `keep_logs`: whether to keep the runtime logs. If `true`, the logs from multiple ranks are concatenated into a single file where they appear in rank-ascending order (default: `False`).
 
+`quiet`: disables all terminal output, bar error messages.

@@ -21,7 +21,7 @@ halo_masses = catalogue.haloes.get_dataset("mass_total")
 massive_haloes = np.where(halo_masses > 1e13)[0]
 
 analyser = oc.build_analyser(catalogue=catalogue, config=config)
-analyser.update_config(T_lim=1e6)  # raise threshold from default
+analyser.update_config(T_lim=1.0e6)  # raise threshold from default
 
 result = analyser.compute_ptype_specific_properties(group_indices=massive_haloes, group_type="haloes")
 hot_gas_mass_new_tlim = result["mass_gas_hot"]

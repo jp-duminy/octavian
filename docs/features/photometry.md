@@ -12,7 +12,7 @@ Octavius includes a full photometry pipeline which can compute absolute and appa
 Octavius accounts for dust but does not do full radiative transfer, which should be delegated to a tool like `powderday`.
 :::
 
-The [standalone analyser](../guide/standalone_analysis.md) enhances the functionality of photometry, allowing you to rotate galaxies and directly access their SEDs. Please refer to {ref}`photometry-specific section <usage-photometry>` for more information.
+The [standalone analyser](../guide/standalone_analysis.md) enhances the functionality of photometry, allowing you to rotate galaxies and directly access their SEDs. Please refer to the {ref}`photometry section <usage-photometry>` for more information.
 
 ## FSPS Data File
 

@@ -25,9 +25,9 @@
 
 # Octavius: The Next-Generation Simulation Analysis Toolkit
 
-Octavius is a high-performance, fully-parallel code designed to produce analysis catalogues of SPH simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it slots cleanly into analysis workflows. 
+Octavius is a high-performance, fully-parallel code designed to produce analysis catalogues of hydrodynamical simulation snapshots. Written entirely in Python with minimal dependencies and all features ready out-of-the-box, it is designed to cleanly slot into analysis workflows.
 
-Catalogues are stored as HDF5 files containing physical properties and membership mapping for both haloes and galaxies, along with cosmological information from the snapshot.
+Catalogues are stored as HDF5 files containing physical properties and membership mapping for both haloes and galaxies, along with cosmological information from the snapshot; the package includes a user-friendly API for working with its catalogues.
 
 Please refer to the [documentation](https://octavius.readthedocs.io/) for more information.
 
@@ -39,12 +39,10 @@ Octavius is packaged on pip, with a planned conda-forge deployment in the near-f
     pip install octavius
 ```
 
-The package is (currently) pinned to relatively recent dependencies and it is therefore recommended to use a tool like `uv` for version resolution. 
-
 ## Features
 
-- Supports SWIFT and GIZMO snapshots
-- Supports AHF and HBT-HERONS halo catalogues
+- Supports SWIFT (EAGLE, KIARA, COLIBRE), TNG, and SIMBA snapshots
+- Supports AHF, HBT-HERONS and SUBFIND halo catalogues
 - Produces snapshot-agnostic catalogues
 - Built-in galaxy finding with a 6D friends-of-friends algorithm
 - Computes over fifty properties for haloes and galaxies (including subhaloes)
@@ -56,7 +54,7 @@ The package is (currently) pinned to relatively recent dependencies and it is th
 
 ## Quickstart Guide
 
-To analyse a snapshot, you must specify parameters with a [configuration file](octavius/config.yaml). Once installed, a config YAML file for you to fill in can be generated in your current directory by running:
+To analyse a snapshot, the only prerequisite is to configure Octavius: this can be done through a [YAML file](octavius/config.yaml). Once installed, a YAML file for you to fill in can be generated in your current directory by running:
 
 ```terminal
     octavius init
@@ -72,8 +70,18 @@ The analysis can then be called either from the command line, or a Python script
     from pathlib import Path
     import octavius as oc
 
+    # generate table for photometry (optional)
+    photometry_table_path = Path("/path/to/photometry_table.hdf5")
+    oc.generate_photometry_table(photometry_table_path)
+
+    # from YAML
     config_filepath = Path("/path/to/config.yaml")
     config = oc.OctaviusConfig.from_yaml(config_filepath)
+
+    # can also type parameters manually
+    config = oc.OctaviusConfig(...)
+
+    # analyse a snapshot
     catalogue_path = oc.analyse_snapshot(config)
 ```
 
@@ -96,7 +104,7 @@ An object-oriented API is provided for loading and conveniently interfacing with
     star_mass_grams = catalogue.galaxies.get_dataset("mass_star", to_units="g")
 ```
 
-Furthermore, a standalone analyser is provided to run analysis routines on subsets of haloes and galaxies from the catalogue. This reduces complex workflows to a a few lines in a Python script:
+Furthermore, a standalone analyser is provided to run analysis routines on subsets of haloes and galaxies from the catalogue. This reduces complex workflows to a few lines in a Python script:
 
 ```python
     from pathlib import Path
@@ -109,8 +117,8 @@ Furthermore, a standalone analyser is provided to run analysis routines on subse
 
     catalogue_path = oc.analyse_snapshot(config)
     catalogue = oc.load_catalogue(catalogue_path)
-
     analyser = oc.build_analyser(catalogue=catalogue, config=config)
+
     # compute face-on photometry for galaxies 4, 22, 37
     photometry_data = analyser.compute_photometry(group_indices=[4, 22, 37], orientation="face-on")  
 ```
@@ -154,4 +162,4 @@ Contributions and bug reports are warmly encouraged. The package is currently pi
 - JP Duminy, University of Edinburgh
 - Jakub Szpila, Nicolaus Copernicus Astronomical Center
 
-<small>Last updated by JP Duminy, 02/09/2026.</small>
+<small>Last updated by JP Duminy, 05/09/2026.</small>

@@ -8,6 +8,8 @@ This section contains more detailed information on configuring the pipeline, wor
 
 [Standalone Analysis](standalone_analysis.md): how to analyse groups from the catalogue using the pipeline routines.
 
+[Format-Specific Information](format_specific.md): for simulation and halo catalogue-specific details.
+
 [Caesar Users Guide](caesar_users_guide.md): a page for users of `caesar` looking to try its hopeful successor.
 
 ```{toctree}
@@ -16,5 +18,6 @@ This section contains more detailed information on configuring the pipeline, wor
 configuration
 catalogues
 standalone_analysis
+format_specific
 caesar_users_guide
 ```

@@ -28,14 +28,14 @@ wavelengths = face_on_result["wavelengths"]  # in angstrom
 face_on_spectra = face_on_result["spectra"]  # in Lsun / Hz
 
 # change to use cardelli
-analyser.update_config(extinction_law="cardelli")  # change extinction law
+analyser.update_config(extinction_law="CARDELLI")  # change extinction law
 face_on_result_cardelli = analyser.compute_photometry(
     group_indices=gal_indices, orientation="face-on", keep_spectra=True
 )
 face_on_spectra_cardelli = face_on_result_cardelli["spectra"]
 
 # rotate the galaxies 90 degrees about the x-axis
-analyser.update_config(extinction_law="composite")  # default law
+analyser.update_config(extinction_law="COMPOSITE")  # default law
 rotation_matrix = Rotation.from_rotvec(np.pi / 2 * np.array([1, 0, 0])).as_matrix()
 
 rotated_result = analyser.compute_photometry(group_indices=gal_indices, orientation=rotation_matrix, keep_spectra=True)

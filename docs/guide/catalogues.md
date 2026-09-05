@@ -20,19 +20,21 @@ The `OctaviusCatalogue` object is designed to be easy and convenient to interfac
 from pathlib import Path
 from octavius import load_catalogue
 
-catalogue_path = Path("/path/to/cat.hdf5")
-cat = load_catalogue(catalogue_path)
+catalogue_path = Path("/path/to/catalogue.hdf5")
+catalogue = load_catalogue(catalogue_path)
+
+catalogue.close()
 ```
 
 Basic metadata and snapshot information can be shown by printing the catalogue object, or accessing its attributes:
 
 ```python
 print(cat)  # outputs a basic summary
-print(cat.redshift)
+print(catalogue.redshift)
 ```
 
 :::{tip}
-The catalogue can be closed with `cat.close()` once you have read all desired datasets.
+The catalogue can be closed with `catalogue.close()` once you have read all desired datasets.
 :::
 
 ## Accessing Properties
@@ -44,15 +46,15 @@ The `describe()` method on haloes and galaxies can be used to see the available 
 :::
 
 ```python
-cat.galaxies.describe()  # see which datasets are available
-stellar_mass = cat.galaxies.get_dataset("mass_star")  # raw read
-stellar_mass = cat.galaxies.get_dataset("mass_star", verbose=True)  # print dataset descriptions when reading (and unit conversion factor if converting)
-stellar_mass_grams = cat.galaxies.get_dataset("mass_star", to_units="g")  # unit conversions
-galaxy_centres_physical = cat.galaxies.get_dataset("com_pos_baryon", to_physical=True)  # comoving -> physical
+catalogue.galaxies.describe()  # see which datasets are available
+stellar_mass = catalogue.galaxies.get_dataset("mass_star")  # raw read
+stellar_mass = catalogue.galaxies.get_dataset("mass_star", verbose=True)  # print dataset descriptions when reading (and unit conversion factor if converting)
+stellar_mass_grams = catalogue.galaxies.get_dataset("mass_star", to_units="g")  # unit conversions
+galaxy_centres_physical = catalogue.galaxies.get_dataset("com_pos_baryon", to_physical=True)  # comoving -> physical
 
 # get centres of galaxies with more than 1e8 solar masses of stars in physical Mpc
 mass_threshold = stellar_mass > 1e8
-galaxy_centres_of_interest_mpc = cat.galaxies.get_dataset("com_pos_baryon", mask=mass_threshold, to_units="Mpc", to_physical=True)
+galaxy_centres_of_interest_mpc = catalogue.galaxies.get_dataset("com_pos_baryon", mask=mass_threshold, to_units="Mpc", to_physical=True)
 ```
 
 The `get_datasets()` method extends this syntax to conveniently load multiple datasets by passing a list. If unit conversions are desired, a list thereof aligned with the dataset list should be provided.
@@ -62,7 +64,7 @@ The `get_datasets()` method extends this syntax to conveniently load multiple da
 galaxy_datasets = ["com_pos_baryon", "smbh_mass", "inertia_tensor_gas"]
 galaxy_dataset_units = ["Mpc", "Msun", "Msun*Mpc**2"]
 
-galaxy_centres, galaxy_smbh_masses, galaxy_gas_inertia_tensors = cat.galaxies.get_datasets(
+galaxy_centres, galaxy_smbh_masses, galaxy_gas_inertia_tensors = catalogue.galaxies.get_datasets(
     names=galaxy_datasets,
     mask=mass_threshold,
     to_units=galaxy_dataset_units,
@@ -75,7 +77,7 @@ galaxy_centres, galaxy_smbh_masses, galaxy_gas_inertia_tensors = cat.galaxies.ge
 The `get_membership()` method provides access to membership indexing, both at group and particle level. Continuing the same example, suppose we now want to map the galaxies of interest in our analysis to the properties of their field haloes:
 
 ```python
-raw_field_halo_idx = cat.galaxies.get_membership(name="field_halo_index")
+raw_field_halo_idx = catalogue.galaxies.get_membership(name="field_halo_index")
 field_halo_idx = raw_field_halo_idx[mass_threshold]
 ```
 
@@ -85,7 +87,7 @@ field_halo_idx = raw_field_halo_idx[mass_threshold]
 halo_datasets = ["temperature_virial", "velocity_dispersion_total"]
 halo_dataset_units = ["K", "pc/yr"]
 
-halo_temps, halo_vel_disps = cat.haloes.get_datasets(
+halo_temps, halo_vel_disps = catalogue.haloes.get_datasets(
     names=halo_datasets,
     mask=field_halo_idx,
     to_units=halo_dataset_units,
@@ -95,21 +97,21 @@ halo_temps, halo_vel_disps = cat.haloes.get_datasets(
 This also works for extracting the child galaxies of a halo: a convenience method, `get_galaxies()`, is provided for this purpose. 
 
 ```python
-galaxy_idx = cat.haloes.get_galaxies(group_index=22)  # get indices into galaxy_data of the galaxies which are children of halo 22
-child_gal_mass_grams = cat.galaxies.get_dataset("mass_star", mask=galaxy_idx, to_units="g")
+galaxy_idx = catalogue.haloes.get_galaxies(group_index=22)  # get indices into galaxy_data of the galaxies which are children of halo 22
+child_gal_mass_grams = catalogue.galaxies.get_dataset("mass_star", mask=galaxy_idx, to_units="g")
 ```
 
 It is worth noting not all haloes have galaxies. This brings us to the important concept of a _sentinel value_, which indicates a membership mapping does not exist. The sentinel value is -1 everywhere; you should therefore take care to mask out any -1 values in membership arrays, as index -1 is valid in idiomatic numpy and will **incorrectly return the last element of an array** instead of nothing.
 
 ```python
-parent_halo_idx = cat.haloes.get_membership("parent_halo_index")  # parent halo index (-1 for field haloes)
+parent_halo_idx = catalogue.haloes.get_membership("parent_halo_index")  # parent halo index (-1 for field haloes)
 parent_halo_idx = parent_halo_idx[parent_halo_idx > 0]  # mask out -1 sentinel value
 ```
 
 Crucially, membership mapping is extended to the constituent particles of the groups, allowing you to retrieve their data from the raw snapshot file. This is made possible by the `get_particle_indices()` method, which returns an array of indices into the original snapshot for a specified particle type of a group.
 
 ```python
-halo_22_gas_idx = cat.haloes.get_particle_indices(group_index=22, ptype="gas")
+halo_22_gas_idx = catalogue.haloes.get_particle_indices(group_index=22, ptype="gas")
 ```
 
 This means any properties not in the catalogue can be recomputed by indexing the raw particle-level datasets directly from the snapshot.
@@ -123,8 +125,8 @@ This means any properties not in the catalogue can be recomputed by indexing the
 The catalogue also provides a `SimInfo` object, which contains an assortment of cosmological and snapshot-specific information such as the boxsize, redshift, critical density, mean interparticle separation, etc. This can be accessed by calling `sim_info`:
 
 ```python
-boxsize = cat.sim_info("boxsize", to_units="Mpc", physical=True)
-scale_factor = cat.sim_info("scale_factor")
+boxsize = catalogue.sim_info("boxsize", to_units="Mpc", physical=True)
+scale_factor = catalogue.sim_info("scale_factor")
 ```
 
 ## Useful Information

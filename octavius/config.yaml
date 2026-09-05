@@ -23,9 +23,9 @@ process_ptypes:  # WARNING: removes ptype entirely, e.g. star: false prevents ga
 
 thresholds:
   min_stars_per_galaxy:   16
-  min_dm_per_halo:        24       # haloes below this threshold will not appear in the catalogue
-  nH_lim:                 0.13    # density above which gas is considered dense
-  T_lim:                  1.0e+5  # temperature below which gas is considered cold
+  min_dm_per_halo:        24        # haloes below this threshold will not appear in the catalogue
+  nH_lim:                 0.13      # density above which gas is considered dense
+  T_lim:                  1.0e+5    # temperature below which gas is considered cold
 
 
 physics:
@@ -36,12 +36,12 @@ physics:
 fof6d:
   b:                0.02                    # position-space linking length = b * mean_interparticle_separation
   velocity_factor:  1                       # velocity-space linking length = velocity_factor * local_velocity_dispersion
-  subhalo_override: true                    # overrides FOF6D subhalo boundaries to the external catalogue
   gas_criterion:    COLD_OR_STARFORMING     # criterion for locating galaxy gas
-
+  subhalo_override: true                    # overrides FOF6D subhalo boundaries to the external catalogue
+  
 
 properties:
-  radial_quantiles: # name: fraction of enclosed mass
+  radial_quantiles:   # name: fraction of enclosed mass
     r20:        0.2
     half_mass:  0.5
     r80:        0.8

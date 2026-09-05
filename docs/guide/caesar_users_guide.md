@@ -1,7 +1,8 @@
 # Caesar Users Guide
 
 [I want a quick example](#quick-example)
-[My output is different](#my-output-is-different)
+
+[My Octavius and Caesar catalogues disagree](#my-output-is-different)
 
 ## Context
 
