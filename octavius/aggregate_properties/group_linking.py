@@ -170,7 +170,7 @@ def assign_galaxy_halo_indices(
     for ptype in available_baryonic_ptypes:
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
         all_subhids.append(particles[ptype]["SubhaloID"][idx_sorted])
-        group_idx = np.repeat(np.arange(galaxies.n_groups), np.diff(offsets))
+        group_idx = np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
         all_galaxy_idx.append(group_idx)
 
     subhids, galaxy_idx = np.concatenate(all_subhids), np.concatenate(all_galaxy_idx)
@@ -182,7 +182,6 @@ def assign_galaxy_halo_indices(
     gal_offsets = np.empty(len(lengths) + 1, dtype=DTYPES["csr_offsets"])
     gal_offsets[0] = 0
     np.cumsum(lengths, out=gal_offsets[1:])
-    gal_offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(DTYPES["csr_offsets"])
 
     raw_winners, parent_membership_frac = _find_galaxy_parent(
         gal_offsets=gal_offsets, subhids=subhids, n_galaxies=galaxies.n_groups, n_subhaloes=n_subhaloes

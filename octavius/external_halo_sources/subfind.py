@@ -120,10 +120,6 @@ class SubfindHaloSource(HaloSource):
             remapped_sub_ids = np.full_like(raw_sub_ids, -1)
             remapped_sub_ids[valid] = sub_lookup[raw_sub_ids[valid]]
 
-            valid = raw_sub_ids >= 0
-            remapped_sub_ids = np.full_like(raw_sub_ids, -1)
-            remapped_sub_ids[valid] = sub_lookup[raw_sub_ids[valid]]
-
             field_ids[ptype] = ptype_field_ids
             sub_ids[ptype] = remapped_sub_ids
 

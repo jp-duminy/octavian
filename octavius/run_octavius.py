@@ -125,11 +125,12 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         help="The filepath to your config; if not provided, the default config.yaml from the repository is parsed, which can be edited directly.",
     )
     run_parser.add_argument(
-        "--halo-ids",
+        "-hc",
+        "--halo-catalogue",
         type=Path,
         required=False,
         default=None,
-        help="Path to an external catalogue of halo IDs (if not using the snapshot haloes).",
+        help="Path to an external halo catalogue (if not using the snapshot haloes).",
     )
     run_parser.add_argument(
         "--quiet", action="store_true", required=False, help="Suppress all terminal output bar warnings."
@@ -484,8 +485,8 @@ def main() -> None:
             config = replace(config, snapshot_path=args.snapshot)
         if args.output is not None:
             config = replace(config, output_dir=args.output)
-        if args.halo_ids is not None:
-            config = replace(config, halo_id_filepath=args.halo_ids)
+        if args.halo_catalogue is not None:
+            config = replace(config, halo_catalogue_path=args.halo_catalogue)
         if args.quiet:
             config = replace(config, quiet=True, terminal_output_level="ERROR", keep_logs=False)
 
@@ -495,7 +496,7 @@ def main() -> None:
             raise ValueError("Please provide an output directory path.")
         if config.halo_id_source != "SNAPSHOT" and config.halo_catalogue_path is None:
             raise ValueError(
-                "The requested halo ID source also requires a file containing ID assignments to be specified in halo_id_filepath."
+                f"{config.halo_id_source} also requires a catalogue containing ID assignments to be specified in 'halo_catalogue_path'."
             )
 
         analyse_snapshot(config=config)
