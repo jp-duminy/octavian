@@ -53,13 +53,14 @@ def mock_catalogue(
     elif sim_type == "TNG":
         generate_tng_snapshot(path=tmp_snap, subfind_path=tmp_halo_cat)
 
-    config = OctaviusConfig.from_yaml(
+    config = OctaviusConfig.from_yaml(  # changed fields here so more code gets tested
         config_path=CONFIG_PATH,
         simulation_type=sim_type,
         snapshot_path=tmp_snap,
         output_dir=tmp_dir,
         cores_per_rank=1,
         halo_id_source="SUBFIND" if sim_type == "TNG" else "SNAPSHOT",
+        subhalo_override=True,
         halo_catalogue_path=tmp_halo_cat if sim_type == "TNG" else None,
         photometry_table_path=PHOTOMETRY_TABLE_PATH,
         bands=["v"],  # the test table only has the V filter to reduce filesize

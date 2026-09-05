@@ -34,8 +34,10 @@ physics:
 
 
 fof6d:
-  b:                0.02  # position-space linking length = b * mean_interparticle_separation
-  velocity_factor:  1     # velocity-space linking length = velocity_factor * local_velocity_dispersion
+  b:                0.02    # position-space linking length = b * mean_interparticle_separation
+  velocity_factor:  1       # velocity-space linking length = velocity_factor * local_velocity_dispersion
+  subhalo_override: true    # overrides FOF6D subhalo boundaries to the external catalogue
+  gas_criterion: COLD       # criterion for locating galaxy gas
 
 
 properties:
