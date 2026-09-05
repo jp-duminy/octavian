@@ -202,6 +202,7 @@ class SubfindHaloSource(HaloSource):
         )
 
 
+@njit(cache=True)
 def reconstruct_membership(
     group_counts: np.ndarray,
     sub_counts: np.ndarray,
@@ -215,36 +216,25 @@ def reconstruct_membership(
     - field_ids: global field IDs
     - sub_ids: local sub IDs
     """
-    # get the number of groups for this ptype
-    n_groups = len(group_counts)
-
-    # the group indices are 0-indexed and contiguous so we can just do repeat(arange) on counts
+    # allocations
     field_ids = np.full(shape=n_particles, fill_value=-1, dtype=np.int64)
-    group_indices = np.repeat(np.arange(n_groups), group_counts)
-    field_ids[: len(group_indices)] = group_indices  # unassigned particles come after other groups
+    sub_ids = np.full(shape=n_particles, fill_value=-1, dtype=np.int64)
 
-    # subhaloes
-    group_offsets = np.empty(shape=n_groups, dtype=np.int64)
-    group_offsets[0] = 0
-    group_offsets[1:] = np.cumsum(group_counts[:-1])
+    position = 0  # global position
+    # NOTE: the subfind catalogue uses the same format as us for membership so this is just offset slicing
+    for group_idx in range(len(group_counts)):
+        group_length = group_counts[group_idx]
+        field_ids[position : position + group_length] = group_idx
 
-    # traverse the hierarchy to get deepest sub ID
-    sub_ids = np.full(n_particles, -1, dtype=np.int64)
+        first_sub = group_first_sub[group_idx]  # and then slicing within each subhalo table
+        if first_sub >= 0:  # group_n_subs and first_sub (the central) replicate offsets too
+            sub_position = position
+            for sub_idx in range(first_sub, first_sub + group_n_subs[group_idx]):
+                sub_length = sub_counts[sub_idx]
+                sub_ids[sub_position : sub_position + sub_length] = sub_idx
+                sub_position += sub_length
 
-    for g in range(n_groups):
-        first_sub = group_first_sub[g]  # the central subhalo
-
-        if first_sub < 0:  # sentinel value
-            continue
-
-        # this basically replicates our own CSR membership now
-        position = group_offsets[g]
-        for s in range(first_sub, first_sub + group_n_subs[g]):
-            length = sub_counts[s]
-            sub_ids[position : position + length] = (
-                s  # this works because sub IDs are also contiguous 0-indexed in this catalogue
-            )
-            position += length
+        position += group_length  # increment global position
 
     return field_ids, sub_ids
 
