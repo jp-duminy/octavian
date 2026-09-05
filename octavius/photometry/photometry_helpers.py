@@ -121,7 +121,7 @@ def _cubic_kernel(
     if q >= 1.0:
         return 0.0
 
-    normalisation = 8.0 / np.pi
+    normalisation = 2.0 / np.pi
     u = 2.0 * q  # so the formulae follow the form in the paper (but rescaled)
 
     if q >= 0.5:
@@ -300,18 +300,23 @@ PhotometryConstants = namedtuple(
 
 
 DUST_CURVE_IDX = {
-    "power_law": 0,
-    "calzetti": 1,
-    "conroy": 2,
-    "cardelli": 3,
-    "smc": 4,
-    "lmc": 5,
-    "mix_calz_mw": 6,
-    "composite": 7,
+    "POWER_LAW": 0,
+    "CALZETTI": 1,
+    "CONROY": 2,
+    "CARDELLI": 3,
+    "SMC": 4,
+    "LMC": 5,
+    "MIX_CALZ_MW": 6,
+    "COMPOSITE": 7,
 }
 
 LOS_AXIS_MAP = {
-    "x": 0,
-    "y": 1,
-    "z": 2,
+    "X": 0,
+    "Y": 1,
+    "Z": 2,
+}
+
+KERNEL_INT_MAP = {
+    "CUBIC": 0,
+    "QUINTIC": 1,
 }

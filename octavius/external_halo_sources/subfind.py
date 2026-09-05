@@ -181,6 +181,7 @@ class SubfindHaloSource(HaloSource):
         return distribute_ids(
             slabs=slabs,
             particle_counts=self.reader.particle_counts,
+            ptypes=sorted(self.reader.available_ptypes),
             comm=comm,
             global_ids=global_ids,
         )
@@ -197,6 +198,7 @@ class SubfindHaloSource(HaloSource):
         return distribute_ids(
             slabs=slabs,
             particle_counts=self.reader.particle_counts,
+            ptypes=sorted(self.reader.available_ptypes),
             comm=comm,
             global_ids=global_subhalo_ids,
         )

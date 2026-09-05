@@ -6,7 +6,7 @@ snapshot unit conversions and physical constants. Also defines the snapshot read
 """
 
 # default packages
-from dataclasses import dataclass, field  #
+from dataclasses import dataclass, field, fields
 from typing import Any
 from yaml import safe_load
 from pathlib import Path
@@ -29,8 +29,10 @@ FILEPATHS = frozenset({"snapshot_path", "output_dir", "halo_catalogue_path", "ph
 VALID_SIM_TYPES = frozenset({"SIMBA", "SWIFT-KIARA", "SWIFT-EAGLE", "SWIFT-COLIBRE", "TNG"})
 VALID_HALO_CATS = frozenset({"SNAPSHOT", "AHF", "HBT-HERONS", "SUBFIND"})
 VALID_HALO_CENTRES = frozenset({"MIN_POT", "COM"})
-VALID_EXT_LAWS = frozenset({"composite", "power_law", "cardelli", "conroy", "calzetti", "mix_calz_mw", "smc", "lmc"})
-VALID_VIEW_AXES = frozenset({"x", "y", "z"})
+VALID_EXT_LAWS = frozenset({"COMPOSITE", "POWER_LAW", "CARDELLI", "CONROY", "CALZETTI", "MIX_CALZ_MW", "SMC", "LMC"})
+VALID_KERNELS = frozenset(["CUBIC", "QUINTIC"])
+VALID_VIEW_AXES = frozenset({"X", "Y", "Z"})
+VALID_GAS_CRITERIA = frozenset({"COLD", "STARFORMING", "COLD_OR_STARFORMING", "DENSE_ONLY"})
 ALWAYS_POSITIVE = frozenset(
     {"b", "velocity_factor", "n_io_chunks", "interpolation_bins", "aperture_size", "virial_factors", "density_radii"}
 )
@@ -41,6 +43,7 @@ VALID_ENTRIES: dict[str, frozenset[str]] = {
     "extinction_law": VALID_EXT_LAWS,
     "viewing_axis": VALID_VIEW_AXES,
     "halo_centre": VALID_HALO_CENTRES,
+    "kernel_type": VALID_KERNELS,
 }
 
 VALID_COMBOS: dict[str, frozenset[str]] = {
@@ -76,7 +79,7 @@ class OctaviusConfig:
     snapshot_path: Path
     output_dir: Path
     simulation_type: str
-    halo_id_source: str  # filepath is at the bottom
+    halo_id_source: str
     cores_per_rank: int
 
     n_io_chunks: int = 10
@@ -122,15 +125,15 @@ class OctaviusConfig:
     b: float = 0.02
     velocity_factor: float = 1.0
     subhalo_override: bool = False
-    gas_criterion: str = "cold_or_starforming"
+    gas_criterion: str = "COLD_OR_STARFORMING"
 
     bands: list[str] = field(default_factory=lambda: ["all"])
-    extinction_law: str = "composite"
-    viewing_axis: str = "z"
+    extinction_law: str = "COMPOSITE"
+    viewing_axis: str = "Z"
     use_dust: bool = True
     use_cosmic_extinction: bool = True
     interpolation_bins: int = 5000
-    kernel_type: str = "cubic"
+    kernel_type: str = "CUBIC"
     power_law_alpha: float = 1.0
     split_age: float = 0.01
     _keep_spectra: bool = False  # used for standalone photometry, not in YAML file
@@ -147,12 +150,11 @@ class OctaviusConfig:
         """
         Post-initialisation validation of both sensible and valid config parameters to prevent errors at runtime.
         """
-        # uppercase the fields which are expected to be uppercase
-        object.__setattr__(self, "simulation_type", self.simulation_type.upper())
-        object.__setattr__(self, "halo_id_source", self.halo_id_source.upper())
-        object.__setattr__(self, "terminal_output_level", self.terminal_output_level.upper())
-        object.__setattr__(self, "halo_centre", self.halo_centre.upper())
-        object.__setattr__(self, "gas_criterion", self.gas_criterion.upper())
+        # uppercase all strings which are expected to be uppercase
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if isinstance(value, str) and f.name not in FILEPATHS:
+                object.__setattr__(self, f.name, value.upper())
 
         # str fields which only have certain allowed inputs
         for field_name, valid_entries in VALID_ENTRIES.items():

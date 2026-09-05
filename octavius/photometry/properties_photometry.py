@@ -34,6 +34,7 @@ from .photometry_helpers import (
     PhotometryConstants,
     DUST_CURVE_IDX,
     LOS_AXIS_MAP,
+    KERNEL_INT_MAP,
 )
 from .photometry_tables import read_photometry_table
 from .photometry_computations import compute_photometric_properties
@@ -48,14 +49,17 @@ def run_photometry(simulation_data: SimulationData, config: OctaviusConfig) -> N
     """
     Top-level executor for photometry.
     """
-    logger.info("Preparing photometry data.")
     if "galaxies" not in simulation_data.groups:
         logger.info("Skipping photometry: no galaxies found.")
         return
+    logger.info("Preparing photometry data.")
+
     photometry_table = read_photometry_table(table_path=config.photometry_table_path)
     constants = simulation_data.constants
     sim = simulation_data.simulation
-    kernel_table = build_interpolation_table(n_bins=config.interpolation_bins, kernel_type=config.kernel_type)
+    kernel_table = build_interpolation_table(
+        n_bins=config.interpolation_bins, kernel_type=KERNEL_INT_MAP[config.kernel_type]
+    )
     los_axis = LOS_AXIS_MAP[config.viewing_axis]
 
     # construct dust curves
@@ -299,12 +303,12 @@ def _build_dust_curves(wavelengths: np.ndarray, n_wavelengths: int, alpha: float
     # pack dust curves into the expected 2D array form
     dust_curves = np.empty(shape=(len(DUST_CURVE_IDX), n_wavelengths), dtype=np.float64)
 
-    dust_curves[DUST_CURVE_IDX["calzetti"]] = calzetti
-    dust_curves[DUST_CURVE_IDX["conroy"]] = conroy
-    dust_curves[DUST_CURVE_IDX["cardelli"]] = cardelli
-    dust_curves[DUST_CURVE_IDX["smc"]] = smc
-    dust_curves[DUST_CURVE_IDX["lmc"]] = lmc
-    dust_curves[DUST_CURVE_IDX["power_law"]] = power_law
+    dust_curves[DUST_CURVE_IDX["CALZETTI"]] = calzetti
+    dust_curves[DUST_CURVE_IDX["CONROY"]] = conroy
+    dust_curves[DUST_CURVE_IDX["CARDELLI"]] = cardelli
+    dust_curves[DUST_CURVE_IDX["SMC"]] = smc
+    dust_curves[DUST_CURVE_IDX["LMC"]] = lmc
+    dust_curves[DUST_CURVE_IDX["POWER_LAW"]] = power_law
 
     return dust_curves
 

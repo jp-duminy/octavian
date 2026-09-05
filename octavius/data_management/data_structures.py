@@ -88,7 +88,7 @@ def build_particle_stores(
     """
     Constructs basic particle stores containing mass, position and velocity.
     """
-    available = reader.available_ptypes()
+    available = reader.available_ptypes
     requested = [pt for pt in available if process_ptypes.get(pt, True)]
 
     particles: dict[str, ParticleStore] = {}

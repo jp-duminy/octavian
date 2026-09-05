@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 # default libraries
 from pathlib import Path
 from abc import ABC, abstractmethod
+from functools import cached_property
 
 # other packages
 import h5py
@@ -227,6 +228,7 @@ class SnapshotReader(ABC):
         with h5py.File(self.snapshot_path, "r") as f:
             return hdf5_name in f.get(hdf5_group, {})
 
+    @cached_property
     def available_ptypes(self) -> list[str]:
         """
         Finds which ptypes are available in the raw snapshot (using internal names)
