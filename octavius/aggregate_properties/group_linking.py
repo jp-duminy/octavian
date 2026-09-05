@@ -34,14 +34,15 @@ def assign_membership(
     """
     Assigns the galaxy groupstore the parent information depending on whether subhalo info exists.
     """
-    results: dict[str, np.ndarray] = {}
-    haloes = simulation_data.groups["haloes"]
     if "galaxies" not in simulation_data.groups:  # early return in case FOF6D did not find galaxies
         return
+
+    results: dict[str, np.ndarray] = {}
+    haloes = simulation_data.groups["haloes"]
     galaxies = simulation_data.groups["galaxies"]
     particles = simulation_data.particles
     available_baryonic = simulation_data.available_baryonic_ptypes
-    n_field_haloes = int((haloes["depth"] == 0).sum()) if "depth" in haloes else haloes.n_groups
+    n_field_haloes = np.sum(haloes["depth"] == 0) if "depth" in haloes else haloes.n_groups
 
     field_halo_index = assign_galaxy_field_indices(
         particles=particles,
@@ -137,9 +138,9 @@ def assign_galaxy_field_indices(
     first_particle_idx = first_idx_per_group(offsets=offsets, idx_sorted=idx_sorted, n_groups=galaxies.n_groups)
     valid = first_particle_idx >= 0
 
-    if not valid.all():
-        n_orphan = (~valid).sum()
-        logger.warning(f"{n_orphan} galaxies have no baryonic particles!")
+    invalid_galaxies = np.sum(~valid)
+    if invalid_galaxies > 0:
+        logger.warning(f"{invalid_galaxies} galaxies have no baryonic particles!")
 
     galaxy_halo_id = np.full(shape=galaxies.n_groups, fill_value=-1, dtype=DTYPES["HaloID"])
     galaxy_halo_id[valid] = all_hids[first_particle_idx[valid]]
@@ -150,8 +151,8 @@ def assign_galaxy_field_indices(
     found = field_ids[positions] == galaxy_halo_id
     field_halo_index = np.where(found, positions, -1)
 
-    if np.any(field_halo_index == -1):
-        n_orphan = (field_halo_index == -1).sum()
+    n_orphan = np.sum(field_halo_index == -1)
+    if n_orphan > 0:
         logger.warning(f"{n_orphan} galaxies exist with no valid parent halo.")
 
     return field_halo_index
@@ -178,6 +179,9 @@ def assign_galaxy_halo_indices(
     subhids = subhids[order]  # sorted here (so the numba function can assume so)
 
     lengths = np.bincount(galaxy_idx, minlength=galaxies.n_groups)
+    gal_offsets = np.empty(len(lengths) + 1, dtype=DTYPES["csr_offsets"])
+    gal_offsets[0] = 0
+    np.cumsum(lengths, out=gal_offsets[1:])
     gal_offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(DTYPES["csr_offsets"])
 
     raw_winners, parent_membership_frac = _find_galaxy_parent(
