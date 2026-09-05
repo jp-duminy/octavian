@@ -353,7 +353,7 @@ CODE_UNITS = {
     "mass_HI": DatasetUnits(unit=u.M_sun),  # solar masses
     "mass_H2": DatasetUnits(unit=u.M_sun),  # solar masses
     "dust_mass": DatasetUnits(unit=(u.M_sun)),  # solar masses
-    "dust_mass_fractions": DatasetUnits(unit=(u.M_sun)),
+    "dust_mass_fractions": DatasetUnits(unit=(u.dimensionless_unscaled)),
     "species_HI": DatasetUnits(unit=u.dimensionless_unscaled),
     "species_H2": DatasetUnits(unit=u.dimensionless_unscaled),
     "HI_abundance": DatasetUnits(unit=u.dimensionless_unscaled),
@@ -384,7 +384,7 @@ DTYPES = {
     "internal_energy": np.float64,
     "sfr": np.float64,
     "metallicity": np.float64,
-    "mass_H1": np.float64,
+    "mass_HI": np.float64,
     "mass_H2": np.float64,
     "potential": np.float64,
     "age": np.float64,

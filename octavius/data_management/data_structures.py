@@ -248,7 +248,6 @@ def build_halo_store(
 
             mask = sub_ids != -1
             group_idx[mask] = sub_ids[mask] + n_haloes
-
             offsets, sorted_indices = build_group_csr(group_idx=group_idx, n_groups=store.n_groups)
             store.csr_membership[ptype] = (offsets, sorted_indices)
 
