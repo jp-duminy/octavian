@@ -195,7 +195,7 @@ def execute_pipeline(
 
     with timer("Prepare pipeline", timings=timings):
         simulation_data = SimulationData(simulation=sim, constants=constants, particles=particles, groups=groups)
-        assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info)
+        assign_membership(simulation_data=simulation_data, subhalo_info=subhalo_info, config=config)
 
         requested = [name for name, enabled in config.stages.items() if enabled and name != "find_galaxies"]
         ordered_stages = resolve_dependencies(stages=internals.stages, requested=requested)

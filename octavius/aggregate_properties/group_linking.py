@@ -5,17 +5,15 @@ it naïvely assigns galaxies a parent_halo_index corresponding to the HaloID of 
 the parent_membership_fraction is then trivially also 1.0. If subhalo information is present, it uses a
 plurality vote to determine parent_halo_index and registers parent_membership_fraction accordingly.
 
-# TODO: add method to trim galaxy particles if desired.
-
 """
 
 # type checking (semantic)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..data_management import ParticleStore, GroupStore, SimulationData
+    from ..data_management import ParticleStore, GroupStore, SimulationData, OctaviusConfig
     from ..external_halo_sources import SubhaloInformation
-from ..data_management import DTYPES, build_group_csr
+from ..data_management import DTYPES, build_group_csr, build_galaxy_store
 from .aggregate_helpers import first_idx_per_group
 
 # other packages
@@ -30,6 +28,7 @@ logger = get_logger()
 
 def assign_membership(
     simulation_data: SimulationData,
+    config: OctaviusConfig,
     subhalo_info: SubhaloInformation | None = None,
 ) -> None:
     """
@@ -60,7 +59,45 @@ def assign_membership(
             n_subhaloes=len(subhalo_info.depth),
         )
         parent_halo_index = np.where(raw_winners >= 0, raw_winners + n_field_haloes, field_halo_index)
-        parent_membership_frac[raw_winners < 0] = 1.0  # interlopers: unambiguous field membership
+        parent_membership_frac[raw_winners < 0] = 1.0  # interlopers
+
+        # optional FOF6D subhalo finder override: trim and rerun the steps
+        if config.subhalo_override:
+            logger.debug("Overriding FOF6D-assigned subhalo boundaries.")
+
+            _trim_galaxy_interlopers(  # mutates in place
+                particles=particles,
+                galaxies=galaxies,
+                winning_subhalo_idx=raw_winners,
+                available_baryonic_ptypes=available_baryonic,
+                minstars=config.min_stars_per_galaxy,
+            )
+            galaxies = build_galaxy_store(
+                particles=particles,
+                baryonic_ptypes=available_baryonic,  # reassign galaxy store in-place
+                galaxy_key="GalID",
+                group_kind="galaxy",
+            )
+
+            # now need to rerun linking steps as the galaxy store's length and particles are different
+            field_halo_index = assign_galaxy_field_indices(
+                particles=particles,
+                galaxies=galaxies,
+                haloes=haloes,
+                n_field_haloes=n_field_haloes,
+                available_baryonic_ptypes=available_baryonic,
+            )
+
+            new_winners, parent_membership_frac = assign_galaxy_halo_indices(  # parent frac is now 1.0 by construction
+                particles=particles,
+                galaxies=galaxies,
+                available_baryonic_ptypes=available_baryonic,
+                n_subhaloes=len(subhalo_info.depth),
+            )
+            parent_halo_index = np.where(new_winners >= 0, new_winners + n_field_haloes, field_halo_index)
+            parent_membership_frac[new_winners < 0] = 1.0
+            simulation_data.groups["galaxies"] = galaxies
+
     else:
         parent_halo_index = field_halo_index.copy()
         parent_membership_frac = np.ones(galaxies.n_groups, dtype=np.float32)
@@ -148,6 +185,53 @@ def assign_galaxy_halo_indices(
     )
 
     return raw_winners, parent_membership_frac
+
+
+def _trim_galaxy_interlopers(
+    particles: dict[str, ParticleStore],
+    galaxies: GroupStore,
+    winning_subhalo_idx: np.ndarray,
+    available_baryonic_ptypes: list[str],
+    minstars: int,
+) -> None:
+    """
+    Enforces the subhalo finder as the authority on substructure boundaries by culling particles of
+    galaxies where the parent_membership_fraction is not one.
+    """
+    for ptype in available_baryonic_ptypes:
+        offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
+        galaxy_idx = (
+            np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
+        )  # (RHS-1) gives the position in offsets which is the galaxy ID
+        sub_ids = particles[ptype]["SubhaloID"][idx_sorted]
+
+        # find subhalos where the finder and octavius disagree
+        winning_parents = winning_subhalo_idx[galaxy_idx]  # works because ID is really an index
+        interloping = (sub_ids != winning_parents) & (winning_parents >= 0)
+
+        particles[ptype]["GalID"][idx_sorted[interloping]] = -1
+
+    # now we need to trim galaxies which fell below minstars
+    star_offsets, star_idx = galaxies.get_particle_csr(ptype="star")
+    original_star_counts = np.diff(star_offsets)  # for diagnostic
+    star_gal_ids = particles["star"]["GalID"][star_idx]
+
+    # get the star count in each galaxy
+    surviving = star_gal_ids >= 0
+    star_galaxy_idx = np.searchsorted(star_offsets, np.arange(len(star_idx)), side="right") - 1  # same logic as above
+    surviving_star_counts = np.bincount(star_galaxy_idx[surviving], minlength=galaxies.n_groups)
+    trim_mask = surviving_star_counts < minstars
+    galaxies_to_trim = trim_mask.nonzero()[0]
+
+    for ptype in available_baryonic_ptypes:
+        offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
+        for gal_idx in galaxies_to_trim:
+            start, end = offsets[gal_idx], offsets[gal_idx + 1]
+            particles[ptype]["GalID"][idx_sorted[start:end]] = -1
+
+    n_stars_lost = original_star_counts.sum() - surviving_star_counts.sum()
+    logger.debug(f"{n_stars_lost} star particles trimmed when deferring to subhalo finder assignments.")
+    logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
 
 
 @njit(cache=True)

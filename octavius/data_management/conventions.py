@@ -121,6 +121,7 @@ class OctaviusConfig:
 
     b: float = 0.02
     velocity_factor: float = 1.0
+    subhalo_override: bool = False
 
     bands: list[str] = field(default_factory=lambda: ["all"])
     extinction_law: str = "composite"
