@@ -194,8 +194,8 @@ class GroupStore:
 def build_galaxy_store(
     particles: dict[str, ParticleStore],
     baryonic_ptypes: list[str],
-    galaxy_key: str,  # NOTE: this doesn't need to be an argument but I prefer it for explicit purposes
     group_kind: str,
+    galaxy_key: str = "GalID",  # NOTE: this doesn't need to be an argument but I prefer it for explicit purposes
 ) -> GroupStore:
     """
     Constructs the galaxy GroupStore.
