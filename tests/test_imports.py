@@ -31,3 +31,13 @@ def test_package_imports() -> None:
     import octavius
 
     assert hasattr(octavius, "load_catalogue")  # this will fail if the load function gets renamed
+
+
+def test_quiet_flag_parsed():
+    """
+    Tests the command line arguments.
+    """
+    from octavius.run_octavius import parse_args
+
+    args = parse_args(["analyse", "--config", "dummy.yaml", "--quiet"])
+    assert args.quiet is True

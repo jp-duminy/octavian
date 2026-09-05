@@ -88,7 +88,7 @@ def get_mpi_communicator() -> MPI.Comm | None:
     return None
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     """
     Parses the command-line arguments; returns the corresponding Namespace object.
     """
@@ -131,6 +131,9 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to an external catalogue of halo IDs (if not using the snapshot haloes).",
     )
+    run_parser.add_argument(
+        "--quiet", action="store_true", required=False, help="Suppress all terminal output bar warnings."
+    )
 
     init_parser = subparsers.add_parser(
         "init", help="Generate a default config .yaml file to the current working directory."
@@ -139,7 +142,7 @@ def parse_args() -> argparse.Namespace:
         "-o", "--output", type=Path, default=Path("."), help="Directory where you would like the config file placed."
     )
 
-    return parser.parse_args()
+    return parser.parse_args(args=args)
 
 
 def execute_pipeline(
@@ -261,7 +264,7 @@ def analyse_snapshot(
     size = comm.Get_size() if comm else 1
     numba.set_num_threads(n=config.cores_per_rank)  # intra-rank parallelism
 
-    if rank == 0:
+    if rank == 0 and not config.quiet:
         print(BANNER, flush=True)
 
     if comm:
@@ -483,6 +486,8 @@ def main() -> None:
             config = replace(config, output_dir=args.output)
         if args.halo_ids is not None:
             config = replace(config, halo_id_filepath=args.halo_ids)
+        if args.quiet:
+            config = replace(config, quiet=True, terminal_output_level="ERROR", keep_logs=False)
 
         if config.snapshot_path is None:
             raise ValueError("Please provide a snapshot path.")

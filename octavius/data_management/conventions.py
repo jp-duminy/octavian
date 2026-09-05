@@ -137,6 +137,7 @@ class OctaviusConfig:
 
     terminal_output_level: str = "INFO"
     keep_logs: bool = False
+    quiet: bool = False
 
     compress_catalogue: bool = True
     halo_catalogue_path: Path | None = None
