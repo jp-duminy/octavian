@@ -169,23 +169,7 @@ def prepare_fof6d_data(
     eligible_set = np.zeros(star_counts.shape[0], dtype=bool)
     eligible_set[eligible_haloes] = True
 
-    gas = particles["gas"]
-    rho, sfr = gas["rho"], gas["sfr"]
-    temperature = gas["temperature"]
-    nH = (
-        rho * (1 - gas["metallicity"] - gas["helium_fraction"]) / constants.PROTON_MASS_G
-    )  # metallicity is Z, helium_frac is Y -> gives XH
-
-    dense_mask = (nH > config.nH_lim) & (
-        (temperature < config.T_lim) | (sfr > 0)
-    )  # NOTE: sfr > 0 overrides of the density criterion
-
-    n_dense = dense_mask.sum()
-    n_cold = ((temperature < config.T_lim) & (nH > config.nH_lim)).sum()
-    n_sfr = (sfr > 0).sum()
-    logger.debug(
-        f"Gas criteria, cold/dense: {n_cold}, star-forming: {n_sfr}, total masked: {n_dense}/{len(dense_mask)}"
-    )
+    gas_mask = apply_gas_mask(gas=particles["gas"], constants=constants, config=config)
 
     pos_list, vel_list, ptype_list, index_list, hid_list = [], [], [], [], []
     for ptype in ["star", "gas", "bh"]:
@@ -197,7 +181,7 @@ def prepare_fof6d_data(
         masked_hids = np.where(in_range, halo_ids, 0)  # have to mask before & operator
 
         if ptype == "gas":
-            mask = dense_mask & in_range & eligible_set[masked_hids]  # dense criterion for gas specifically
+            mask = gas_mask & in_range & eligible_set[masked_hids]  # dense criterion for gas specifically
         else:
             mask = in_range & eligible_set[masked_hids]
 
@@ -266,6 +250,39 @@ def prepare_fof6d_data(
     )
 
     return data, params
+
+
+def apply_gas_mask(
+    gas: ParticleStore,
+    constants: OctaviusConstants,
+    config: OctaviusConfig,
+) -> np.ndarray:
+    """
+    Applies the user-configured FOF6D gas mask: dense, star forming, both.
+    """
+    rho = gas["rho"]
+    sfr = gas["sfr"]
+    temperature = gas["temperature"]
+
+    # always use dense gas
+    nH = (
+        rho * (1 - gas["metallicity"] - gas["helium_fraction"]) / constants.PROTON_MASS_G
+    )  # metallicity is Z, helium_frac is Y -> gives XH
+
+    dense_mask = nH > config.nH_lim
+
+    if config.gas_criterion == "COLD_OR_STARFORMING":  # sfr usually overrides the other two
+        gas_mask = dense_mask & ((temperature < config.T_lim) | (sfr > 0))
+    elif config.gas_criterion == "COLD":
+        gas_mask = dense_mask & (temperature < config.T_lim)
+    elif config.gas_criterion == "STARFORMING":
+        gas_mask = dense_mask & (sfr > 0)
+    elif config.gas_criterion == "DENSE_ONLY":
+        gas_mask = dense_mask
+
+    logger.debug(f"Galaxy gas criterion: {np.sum(gas_mask)}/{len(gas_mask)} particles passed ({config.gas_criterion})")
+
+    return gas_mask
 
 
 def extract_galaxies_from_parents(

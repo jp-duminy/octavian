@@ -122,6 +122,7 @@ class OctaviusConfig:
     b: float = 0.02
     velocity_factor: float = 1.0
     subhalo_override: bool = False
+    gas_criterion: str = "cold_or_starforming"
 
     bands: list[str] = field(default_factory=lambda: ["all"])
     extinction_law: str = "composite"
@@ -150,6 +151,7 @@ class OctaviusConfig:
         object.__setattr__(self, "halo_id_source", self.halo_id_source.upper())
         object.__setattr__(self, "terminal_output_level", self.terminal_output_level.upper())
         object.__setattr__(self, "halo_centre", self.halo_centre.upper())
+        object.__setattr__(self, "gas_criterion", self.gas_criterion.upper())
 
         # str fields which only have certain allowed inputs
         for field_name, valid_entries in VALID_ENTRIES.items():
