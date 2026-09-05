@@ -35,12 +35,12 @@ def test_dust_curves() -> None:
     Tests the extinction laws from dust_curves.py
     """
     curves = {
-        "calzetti": atten_calzetti(wavelengths=WAVELENGTHS),
-        "conroy": atten_conroy(wavelengths=WAVELENGTHS),
-        "power_law": atten_power_law(wavelengths=WAVELENGTHS),
-        "cardelli": extinct_cardelli(wavelengths=WAVELENGTHS),
-        "smc": extinct_smc(wavelengths=WAVELENGTHS),
-        "lmc": extinct_lmc(wavelengths=WAVELENGTHS),
+        "CALZETTI": atten_calzetti(wavelengths=WAVELENGTHS),
+        "CONROY": atten_conroy(wavelengths=WAVELENGTHS),
+        "POWER_LAW": atten_power_law(wavelengths=WAVELENGTHS),
+        "CARDELLI": extinct_cardelli(wavelengths=WAVELENGTHS),
+        "SMC": extinct_smc(wavelengths=WAVELENGTHS),
+        "LMC": extinct_lmc(wavelengths=WAVELENGTHS),
     }
 
     for name, tau in curves.items():
@@ -49,9 +49,9 @@ def test_dust_curves() -> None:
 
     # quick check on the normalisation, NOTE: I hand checked these before reducing the tolerance
     for name, func in [
-        ("calzetti", atten_calzetti),
-        ("conroy", atten_conroy),
-        ("power_law", atten_power_law),
+        ("CALZETTI", atten_calzetti),
+        ("CONROY", atten_conroy),
+        ("POWER_LAW", atten_power_law),
     ]:  # alpha is defaulted to 1.0 so we get away with the generic
         tau_norm = func(wavelengths=np.array([NORMALISATION]))
         np.testing.assert_allclose(
@@ -67,7 +67,7 @@ def test_kernel_table() -> None:
         n_bins = 1000
         table = build_interpolation_table(n_bins=n_bins, kernel_type=kernel_type)
 
-        label = "cubic" if kernel_type == 0 else "quintic"
+        label = "CUBIC" if kernel_type == 0 else "QUINTIC"
 
         assert np.all(table >= 0.0), f"test_kernel_table failed: {label} has negative kernel weight."
         assert table[-1] == 0.0, f"test_kernel_table failed: {label} is not zero at its edge."
@@ -111,9 +111,9 @@ def test_extinction_law_selection() -> None:
         log_ssfr=0.1,
         log_Z_solar=-1.0,
         dust_curves=dust_curves,
-        dust_law=DUST_CURVE_IDX["composite"],
+        dust_law=DUST_CURVE_IDX["COMPOSITE"],
     )
-    expected_calzetti = float(DUST_CURVE_IDX["calzetti"] + 1)
+    expected_calzetti = float(DUST_CURVE_IDX["CALZETTI"] + 1)
     assert np.allclose(out_curve, expected_calzetti), "test_extinction_law_selection failed: expected calzetti branch."
 
     # log ssfr < -1 is MW regime (expect cardelli)
@@ -122,14 +122,14 @@ def test_extinction_law_selection() -> None:
         log_ssfr=-11.5,
         log_Z_solar=0.0,
         dust_curves=dust_curves,
-        dust_law=DUST_CURVE_IDX["composite"],
+        dust_law=DUST_CURVE_IDX["COMPOSITE"],
     )
-    expected_cardelli = float(DUST_CURVE_IDX["cardelli"] + 1)
+    expected_cardelli = float(DUST_CURVE_IDX["CARDELLI"] + 1)
     assert np.allclose(out_curve, expected_cardelli), "test_extinction_law_selection failed: expected cardelli branch."
 
     # for a single law we should have no mixing
     for law_name, law_idx in DUST_CURVE_IDX.items():
-        if law_name in ("mix_calz_mw", "composite"):
+        if law_name in ("MIX_CALZ_MW", "COMPOSITE"):
             continue
         apply_extinction_law(
             out_curve=out_curve,
@@ -149,9 +149,9 @@ def test_extinction_law_selection() -> None:
         log_ssfr=-11.5,
         log_Z_solar=-3.0,  # well below -2, so Z_weight = 0 -> pure SMC
         dust_curves=dust_curves,
-        dust_law=DUST_CURVE_IDX["composite"],
+        dust_law=DUST_CURVE_IDX["COMPOSITE"],
     )
-    expected_smc = float(DUST_CURVE_IDX["smc"] + 1)
+    expected_smc = float(DUST_CURVE_IDX["SMC"] + 1)
     assert np.allclose(out_curve, expected_smc), (
         "test_extinction_law_selection failed: expected SMC mixing for metal-poor galaxies."
     )
@@ -162,7 +162,7 @@ def test_extinction_law_selection() -> None:
         log_ssfr=0.1,
         log_Z_solar=-3.0,
         dust_curves=dust_curves,
-        dust_law=DUST_CURVE_IDX["mix_calz_mw"],
+        dust_law=DUST_CURVE_IDX["MIX_CALZ_MW"],
     )
     assert np.allclose(out_curve, expected_calzetti), (
         "test_extinction_law_selection failed: mix_calz_mw should not do any SMC mixing."

@@ -113,7 +113,7 @@ def clean_logs(
 
 
 def instantiation_message(
-    snapshot_name: str,
+    snapshot_path: Path,
     simulation_type: str,
     halo_source: str,
     version: str,
@@ -126,11 +126,12 @@ def instantiation_message(
     halo ID source) in a block.
     """
     logger = get_logger()
+    snapshot_size = snapshot_path.stat().st_size / (1024**3)  # in GB
 
     lines = [
-        f"  Snapshot: {snapshot_name}",
+        f"  Snapshot: {snapshot_path.stem} ({snapshot_size:.1f} GB)",
         f"  Type: {simulation_type} | Halo Source: {halo_source}",
-        f"  Ranks: {n_ranks} | Threads: {cores_per_rank}",
+        f"  Ranks: {n_ranks} | Per-Rank Threads: {cores_per_rank}",
         f"  Stages: {', '.join(stages)}",  # unpack list
         f"  Version: {version}",
     ]

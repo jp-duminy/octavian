@@ -34,10 +34,10 @@ physics:
 
 
 fof6d:
-  b:                0.02    # position-space linking length = b * mean_interparticle_separation
-  velocity_factor:  1       # velocity-space linking length = velocity_factor * local_velocity_dispersion
-  subhalo_override: true    # overrides FOF6D subhalo boundaries to the external catalogue
-  gas_criterion: COLD       # criterion for locating galaxy gas
+  b:                0.02                    # position-space linking length = b * mean_interparticle_separation
+  velocity_factor:  1                       # velocity-space linking length = velocity_factor * local_velocity_dispersion
+  subhalo_override: true                    # overrides FOF6D subhalo boundaries to the external catalogue
+  gas_criterion:    COLD_OR_STARFORMING     # criterion for locating galaxy gas
 
 
 properties:
@@ -55,12 +55,12 @@ properties:
 photometry:
   bands:                      ["sdss", "all", "v"]  # auto expands filters (e.g. "sdss" will give sdss_u, sdss_g etc)
   photometry_table_path:      /path/to/photometry_table.hdf5
-  extinction_law:             composite
-  viewing_axis:               z
+  extinction_law:             COMPOSITE
+  viewing_axis:               Z
   use_dust:                   true
   use_cosmic_extinction:      true
   interpolation_bins:         5000  # for the approximated kernel integral
-  kernel_type:                cubic
+  kernel_type:                CUBIC
   power_law_alpha:            1.0
   split_age:                  0.01  # Gyr
 
@@ -71,5 +71,6 @@ parallelism:
 
 
 logging:
-  terminal_output_level:  "INFO"  # set to DEBUG to see everything, WARNING for only critical notifications
+  terminal_output_level:  INFO    # set to DEBUG to see everything, WARNING for only critical notifications
   keep_logs:              False   
+  quiet:                  False   # suppresses all terminal output except errors

@@ -405,18 +405,10 @@ class TNGReader(GadgetReader):
         return dm_masses
 
 
-class AstridReader(GadgetReader):
-    """
-    ASTRID reader, currently supporting SUBFIND catalogues. No potentials, mixes conventions between
-    SIMBA and TNG specs.
-    """
-
-
 READER_MAP: dict[str, type[SnapshotReader]] = {
     "SIMBA": SimbaReader,
     "TNG": TNGReader,
     "SWIFT-KIARA": KiaraReader,
     "SWIFT-EAGLE": EagleReader,
     "SWIFT-COLIBRE": ColibreReader,
-    "ASTRID": AstridReader,
 }

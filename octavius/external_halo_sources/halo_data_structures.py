@@ -204,7 +204,7 @@ class SnapshotHaloSource(HaloSource):
         """
         raw_ids: dict[str, np.ndarray] = {}
 
-        for ptype in self.reader.available_ptypes():
+        for ptype in sorted(self.reader.available_ptypes):
             raw_ids[ptype] = self.reader.read_halo_ids(ptype=ptype, slab=slabs[ptype])  # these are already contiguous
 
         return raw_ids
@@ -230,6 +230,7 @@ class SnapshotHaloSource(HaloSource):
 def distribute_ids(
     slabs: dict[str, slice],
     particle_counts: dict[str, int],
+    ptypes: list[str],
     comm: Comm | None,
     global_ids: dict[str, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray]:
@@ -240,7 +241,7 @@ def distribute_ids(
     - local_halo_ids: dict keyed per-ptype containing the rank's HaloID arrays
     """
     if comm is None or comm.size == 1:  # serial / mpiexec -n 1 guard
-        return {ptype: ids[slabs[ptype]].copy() for ptype, ids in global_ids.items()}
+        return {ptype: global_ids[ptype][slabs[ptype]].copy() for ptype in ptypes}
 
     rank = comm.Get_rank()
     size = comm.Get_size()
@@ -252,7 +253,7 @@ def distribute_ids(
         }
 
     # NOTE: done with send/receive as MPI-3 comm.scatter is capped to < int32 elements (https://github.com/PyLops/pylops-mpi/issues/115)
-    for ptype_index, ptype in enumerate(global_ids if rank == 0 else slabs):
+    for ptype_index, ptype in enumerate(ptypes):  # ptypes needs to be sorted to avoid MPI desync
         slab = slabs[ptype]
         slab_length = slab.stop - slab.start
 

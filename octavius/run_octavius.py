@@ -280,7 +280,7 @@ def analyse_snapshot(
     )
     logger = get_logger()
     instantiation_message(
-        snapshot_name=config.snapshot_path,
+        snapshot_path=config.snapshot_path,
         simulation_type=config.simulation_type,
         halo_source=config.halo_id_source,
         version=__version__,
@@ -298,7 +298,7 @@ def analyse_snapshot(
 
     # parallelism: rank 0 determines which haloes need to go to which rank
     if rank == 0:  # no need for comm.Barrier() here as scatter does it inherently
-        all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes())
+        all_halo_assignments = halo_source.read_halo_ids(ptypes=reader.available_ptypes)
         subhalo_info = halo_source.read_subhalo_info()
         halo_to_rank = generate_rank_halo_assignments(
             halo_assignments=all_halo_assignments, config=config, n_ranks=size
@@ -350,7 +350,7 @@ def analyse_snapshot(
     local_halo_ids: dict[str, np.ndarray] = {}
     local_subhalo_ids: dict[str, np.ndarray] | None = {} if sub_ids is not None else None
 
-    for ptype in field_ids:
+    for ptype in sorted(field_ids):  # ranks must iterate in same order
         maps[ptype], masks[ptype] = build_redistribution_map(halo_to_rank, field_ids[ptype], comm)
         local_halo_ids[ptype] = redistribute_data(field_ids[ptype][masks[ptype]], maps[ptype], comm)
         if sub_ids is not None:

@@ -64,7 +64,7 @@ def assign_membership(
 
         # optional FOF6D subhalo finder override: trim and rerun the steps
         if config.subhalo_override:
-            logger.debug("Overriding FOF6D-assigned subhalo boundaries.")
+            logger.info("Overriding FOF6D-assigned subhalo boundaries.")
 
             _trim_galaxy_interlopers(  # mutates in place
                 particles=particles,
@@ -201,12 +201,14 @@ def _trim_galaxy_interlopers(
     Enforces the subhalo finder as the authority on substructure boundaries by culling particles of
     galaxies where the parent_membership_fraction is not one.
     """
+    csr_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # so the reassignment can be vectorised
     for ptype in available_baryonic_ptypes:
         offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
         galaxy_idx = (
             np.searchsorted(offsets, np.arange(len(idx_sorted)), side="right") - 1
         )  # (RHS-1) gives the position in offsets which is the galaxy ID
         sub_ids = particles[ptype]["SubhaloID"][idx_sorted]
+        csr_cache[ptype] = (idx_sorted, galaxy_idx)
 
         # find subhalos where the finder and octavius disagree
         winning_parents = winning_subhalo_idx[galaxy_idx]  # works because ID is really an index
@@ -226,13 +228,10 @@ def _trim_galaxy_interlopers(
     trim_mask = surviving_star_counts < minstars
     galaxies_to_trim = trim_mask.nonzero()[0]
 
-    for ptype in available_baryonic_ptypes:
-        offsets, idx_sorted = galaxies.get_particle_csr(ptype=ptype)
-        for gal_idx in galaxies_to_trim:
-            start, end = offsets[gal_idx], offsets[gal_idx + 1]
-            particles[ptype]["GalID"][idx_sorted[start:end]] = -1
+    for ptype, (idx_sorted, galaxy_idx) in csr_cache.items():
+        particles[ptype]["GalID"][idx_sorted[trim_mask[galaxy_idx]]] = -1
 
-    n_stars_lost = original_star_counts.sum() - surviving_star_counts.sum()
+    n_stars_lost = original_star_counts.sum() - surviving_star_counts[~trim_mask].sum()
     logger.debug(f"{n_stars_lost} star particles trimmed when deferring to subhalo finder assignments.")
     logger.debug(f"{len(galaxies_to_trim)} galaxies trimmed.")
 

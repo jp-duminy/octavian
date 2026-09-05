@@ -251,7 +251,7 @@ class OctaviusAnalyser:
         if orientation is not None:
             align_orientations(galaxies=galaxies, orientation=orientation)  # modifies in place
             if isinstance(orientation, str):
-                los_axis = "z" if orientation == "face-on" else "x"
+                los_axis = "Z" if orientation == "face-on" else "X"
                 config = replace(config, viewing_axis=los_axis)
                 logger.debug(
                     f"Overriding viewing_axis parameter to '{los_axis}' for requested orientation {orientation}."
@@ -480,7 +480,7 @@ class OctaviusAnalyser:
         # discern which ptypes to access from what exists, what the stage needs, and what the user wants
         all_group_ptypes = group_config["ptypes"]  # from internals
         requested = {pt for pt, on in self._config.process_ptypes.items() if on}  # from config
-        available = set(self._reader.available_ptypes())  # from raw snap
+        available = set(self._reader.available_ptypes)  # from raw snap
         valid_ptypes = [pt for pt in all_group_ptypes if pt in requested and pt in available]
 
         result: dict[str, list[str]] = {}
